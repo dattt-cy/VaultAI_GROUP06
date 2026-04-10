@@ -15,6 +15,7 @@ export interface Message {
   timestamp: Date;
   isStreaming?: boolean;
   feedback?: 'like' | 'dislike' | null;
+  suggestions?: string[];
 }
 
 export interface ChatSession {
@@ -57,14 +58,15 @@ export function useChatState() {
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Xin chào! Tôi là Trợ lý AI nội bộ. Tôi có thể giúp bạn tra cứu, tóm tắt và phân tích các tài liệu nội bộ. Hãy đặt câu hỏi hoặc chọn một câu hỏi mẫu bên trái để bắt đầu.',
+      content: 'Xin chào! Tôi là Trợ lý AI nội bộ. Tôi có thể giúp bạn tra cứu, tóm tắt và phân tích các tài liệu nội bộ. Hãy chọn tài liệu và đặt câu hỏi để bắt đầu.',
       citations: [],
+      suggestions: [],
       timestamp: new Date(),
     },
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, selectedDocIds: number[] = []) => {
     const userMsg: Message = {
       id: `u-${Date.now()}`,
       role: 'user',
@@ -74,33 +76,62 @@ export function useChatState() {
     setMessages(prev => [...prev, userMsg]);
     setIsGenerating(true);
 
-    // Simulate streaming AI response
     const assistantId = `a-${Date.now()}`;
-    const fullResponse = `Dựa trên các tài liệu nội bộ được cung cấp, tôi tìm thấy thông tin liên quan đến câu hỏi của bạn. Theo **Điều 12, Khoản 3** của Quy chế nội bộ năm 2024, quy định này được áp dụng cho toàn bộ nhân viên thuộc biên chế chính thức. Ngoài ra, hệ thống cũng đã xác thực thông tin từ hợp đồng lao động mẫu hiện hành.`;
-
+    
+    // Thêm tin nhắn chờ phản hồi (Loading frame)
     setMessages(prev => [...prev, {
       id: assistantId,
       role: 'assistant',
-      content: '',
-      citations: SAMPLE_CITATIONS,
+      content: '', // Empty content -> ChatMessage should render an animation
+      citations: [],
       timestamp: new Date(),
       isStreaming: true,
     }]);
 
-    // Stream text character by character
-    let i = 0;
-    const interval = setInterval(() => {
-      i += 3;
+    try {
+      // Gọi API thực tế xuống FastApi
+      const response = await fetch('http://localhost:8000/api/chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content, session_id: null, selected_doc_ids: selectedDocIds })
+      });
+      
+      const data = await response.json();
+      
+      const formattedCitations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
+        id: `c-${c.document_id}-${c.chunk_index}-${index}`,
+        sourceFile: c.sourceFile || `Tài liệu ${c.document_id}`,
+        page: c.chunk_index + 1,
+        excerpt: c.content_preview
+      }));
+
+      const suggestions: string[] = data.suggestions || [];
+      const fullResponse = data.reply || "Dữ liệu trả về bị rỗng.";
+
+      // Stream giả lập lại kết quả trả về để mượt mà trên UI
+      let i = 0;
+      const interval = setInterval(() => {
+        i += 4;
+        setMessages(prev => prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: fullResponse.slice(0, i), citations: formattedCitations, suggestions: i >= fullResponse.length ? suggestions : [], isStreaming: i < fullResponse.length }
+            : m
+        ));
+        if (i >= fullResponse.length) {
+          clearInterval(interval);
+          setIsGenerating(false);
+        }
+      }, 30);
+
+    } catch (error) {
+      console.error(error);
       setMessages(prev => prev.map(m =>
         m.id === assistantId
-          ? { ...m, content: fullResponse.slice(0, i), isStreaming: i < fullResponse.length }
+          ? { ...m, content: "Lỗi kết nối đến Backend Local AI ở cổng 8000. Bạn đã chạy API chưa?", isStreaming: false }
           : m
       ));
-      if (i >= fullResponse.length) {
-        clearInterval(interval);
-        setIsGenerating(false);
-      }
-    }, 30);
+      setIsGenerating(false);
+    }
   }, []);
 
   const setFeedback = useCallback((msgId: string, feedback: 'like' | 'dislike') => {

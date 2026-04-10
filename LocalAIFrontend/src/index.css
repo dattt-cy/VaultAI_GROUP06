@@ -46,11 +46,11 @@
   }
 
   .badge {
-    @apply text-[10px] font-semibold px-1.5 py-0.5 rounded-full;
+    @apply text-[14px] font-semibold px-1.5 py-0.5 rounded-full;
   }
 
   .citation-tag {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium
            bg-citation/10 text-citation border border-citation/25 cursor-pointer
            hover:bg-citation/20 hover:border-citation/50 transition-all duration-150;
   }
@@ -68,7 +68,7 @@
 
   .input-base {
     @apply w-full px-3 py-2.5 rounded-lg bg-elevated border border-border text-text-primary
-           text-[13px] outline-none placeholder:text-text-muted
+           text-[14px] outline-none placeholder:text-text-muted
            focus:border-accent/60 transition-colors duration-200;
   }
 

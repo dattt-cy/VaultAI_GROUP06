@@ -14,7 +14,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
     <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50">
       <button
         onClick={() => onFeedback(messageId, 'like')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-all duration-150 cursor-pointer border
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border
           ${feedback === 'like'
             ? 'bg-success/15 border-success/40 text-success'
             : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}
@@ -25,7 +25,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
 
       <button
         onClick={() => onFeedback(messageId, 'dislike')}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-all duration-150 cursor-pointer border
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border
           ${feedback === 'dislike'
             ? 'bg-danger/15 border-danger/40 text-danger'
             : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}
@@ -38,7 +38,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
 
       <button
         onClick={() => setReported(true)}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] transition-all duration-150 cursor-pointer border
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border
           ${reported
             ? 'bg-warning/15 border-warning/40 text-warning'
             : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}

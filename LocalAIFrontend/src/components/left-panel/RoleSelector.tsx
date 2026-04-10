@@ -15,7 +15,7 @@ export const RoleSelector: React.FC<{ value: string; onChange: (r: string) => vo
       <button
         key={r.label}
         onClick={() => onChange(r.label)}
-        className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-all duration-150 text-left
+        className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[15px] transition-all duration-150 text-left
           ${value === r.label ? 'font-semibold' : 'text-text-secondary hover:bg-hover'}`}
         style={value === r.label ? { background: `${r.accent}1a`, border: `1px solid ${r.accent}55`, color: r.accent } : { border: '1px solid transparent' }}
       >

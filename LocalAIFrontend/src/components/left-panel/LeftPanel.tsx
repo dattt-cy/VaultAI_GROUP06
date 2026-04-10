@@ -1,82 +1,68 @@
 import React, { useState } from 'react';
-import { FolderOpen, Upload, History, Lightbulb, Bot, Plus, ChevronDown } from 'lucide-react';
+import { Search, ArrowLeft } from 'lucide-react';
 import { FileExplorer } from './FileExplorer';
 import { DropZone } from './DropZone';
-import { ChatHistory } from './ChatHistory';
-import { SampleQuestions } from './SampleQuestions';
-import { RoleSelector } from './RoleSelector';
-import type { ChatSession } from '../../hooks/useChatState';
-
-type Section = 'files' | 'upload' | 'history' | 'questions' | 'role';
+import { useDocumentTree } from '../../hooks/useDocumentTree';
 
 interface LeftPanelProps {
-  sessions: ChatSession[];
-  activeSessionId: string;
-  onSelectSession: (id: string) => void;
-  onNewSession: () => void;
   onSelectFile: (name: string) => void;
-  onSelectQuestion: (q: string) => void;
-  role: string;
-  onRoleChange: (role: string) => void;
+  onSelectionChange: (ids: Set<number>) => void;
+  onBackToDashboard: () => void;
 }
 
-const SECTIONS: { key: Section; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { key: 'files',     label: 'Kho tài liệu',         Icon: FolderOpen },
-  { key: 'upload',    label: 'Tải lên tài liệu',     Icon: Upload },
-  { key: 'history',   label: 'Lịch sử trò chuyện',   Icon: History },
-  { key: 'questions', label: 'Câu hỏi mẫu',           Icon: Lightbulb },
-  { key: 'role',      label: 'Vai trò AI',             Icon: Bot },
-];
-
 export const LeftPanel: React.FC<LeftPanelProps> = ({
-  sessions, activeSessionId, onSelectSession, onNewSession,
-  onSelectFile, onSelectQuestion, role, onRoleChange,
+  onSelectFile, onSelectionChange, onBackToDashboard,
 }) => {
-  const [open, setOpen] = useState<Section | null>('files');
-  const toggle = (k: Section) => setOpen(p => p === k ? null : k);
+  const { sharedDocs, privateDocs, categories, loading, error, refetch } = useDocumentTree(1);
+  const [search, setSearch] = useState('');
 
   return (
     <div className="flex flex-col h-full bg-surface border-r border-border overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-border flex-shrink-0">
-        <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider">Nguồn</span>
+
+      {/* ── Top header ── */}
+      <div className="flex items-center gap-3 px-3.5 py-3 border-b border-border bg-elevated flex-shrink-0">
         <button
-          onClick={onNewSession}
-          className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent text-white text-[11px] font-semibold
-                     hover:bg-accent-hover transition-colors cursor-pointer"
+          onClick={onBackToDashboard}
+          className="w-7 h-7 flex items-center justify-center rounded bg-base border border-border text-text-muted hover:text-text-primary hover:border-accent/50 transition-colors"
+          title="Trở về trang chính"
         >
-          <Plus className="w-3 h-3" /> Thêm nguồn
+          <ArrowLeft className="w-4 h-4" />
         </button>
+        <span className="text-[12px] font-bold text-text-primary tracking-wide">Nguồn tài liệu</span>
       </div>
 
-      {/* Accordion sections */}
-      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
-        {SECTIONS.map(({ key, label, Icon }) => (
-          <div key={key} className="flex flex-col">
-            <button
-              onClick={() => toggle(key)}
-              className={`section-toggle ${open === key ? 'bg-elevated text-text-primary' : ''}`}
-            >
-              <Icon className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="flex-1 normal-case text-[11px] font-semibold tracking-normal">{label}</span>
-              {key === 'history' && sessions.length > 0 && (
-                <span className="badge bg-accent/15 text-accent mr-1">{sessions.length}</span>
-              )}
-              <ChevronDown className={`w-3.5 h-3.5 text-text-muted transition-transform duration-200 ${open === key ? 'rotate-180' : ''}`} />
-            </button>
-
-            {open === key && (
-              <div className={`overflow-auto ${key === 'files' ? 'max-h-64' : 'max-h-56'} border-b border-border`}>
-                {key === 'files'     && <FileExplorer onSelectFile={onSelectFile} />}
-                {key === 'upload'    && <DropZone />}
-                {key === 'history'   && <ChatHistory sessions={sessions} activeId={activeSessionId} onSelect={onSelectSession} onNew={onNewSession} />}
-                {key === 'questions' && <SampleQuestions onSelect={onSelectQuestion} />}
-                {key === 'role'      && <RoleSelector value={role} onChange={onRoleChange} />}
-              </div>
-            )}
-          </div>
-        ))}
+      {/* ── Search bar ── */}
+      <div className="px-2.5 py-2 border-b border-border flex-shrink-0">
+        <div className="relative mb-2">
+          <Search className="w-3.5 h-3.5 text-text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Tìm tài liệu..."
+            className="w-full pl-8 pr-3 py-1.5 text-[12px] bg-elevated border border-border rounded-md
+                       text-text-primary placeholder:text-text-muted outline-none
+                       focus:border-accent/60 focus:ring-1 focus:ring-accent/10 transition-all"
+          />
+        </div>
+        <DropZone onSuccess={refetch} />
       </div>
+
+      {/* ── File Tree ── */}
+      <div className="flex-1 overflow-y-auto min-h-0 bg-base/30 pt-1">
+        <FileExplorer
+          onSelectFile={onSelectFile}
+          onSelectionChange={onSelectionChange}
+          search={search}
+          sharedDocs={sharedDocs}
+          privateDocs={privateDocs}
+          categories={categories}
+          loading={loading}
+          error={error}
+          refetch={refetch}
+        />
+      </div>
+
     </div>
   );
 };

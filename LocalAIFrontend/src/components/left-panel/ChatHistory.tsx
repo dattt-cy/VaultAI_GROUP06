@@ -38,10 +38,10 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, activeId, on
       >
         <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${s.id === activeId ? 'text-accent' : 'text-text-muted'}`} />
         <div className="flex-1 min-w-0">
-          <div className={`text-[12px] truncate ${s.id === activeId ? 'text-accent font-medium' : 'text-text-primary'}`}>
+          <div className={`text-[15px] truncate ${s.id === activeId ? 'text-accent font-medium' : 'text-text-primary'}`}>
             {s.title}
           </div>
-          <div className="text-[10px] text-text-muted">{timeAgo(s.createdAt)}</div>
+          <div className="text-[14px] text-text-muted">{timeAgo(s.createdAt)}</div>
         </div>
       </button>
     ))}

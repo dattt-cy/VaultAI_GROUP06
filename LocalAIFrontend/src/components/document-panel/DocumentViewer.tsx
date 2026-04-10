@@ -1,42 +1,114 @@
 import React, { useEffect, useRef } from 'react';
-import { Shield } from 'lucide-react';
+import { Shield, FileText, AlertCircle, Loader2, Clock, CheckCircle2 } from 'lucide-react';
 import type { HighlightState } from '../../hooks/useDocumentHighlight';
+import { useDocumentContent } from '../../hooks/useDocumentContent';
 
-const DOC_PAGES = [
-  { page: 1, title: 'Chương I. Giới thiệu', lines: ['CÔNG TY TNHH ABC VIỆT NAM', 'QUY CHẾ NỘI BỘ NĂM 2024', 'Ban hành kèm theo Quyết định số 01/2024/QĐ-GĐ', 'ngày 01 tháng 01 năm 2024 của Giám đốc Công ty'] },
-  { page: 2, title: 'Chương II. Phạm vi áp dụng', lines: ['Điều 1. Phạm vi điều chỉnh', 'Quy chế này điều chỉnh các hoạt động của toàn thể cán bộ,', 'nhân viên đang làm việc tại Công ty TNHH ABC Việt Nam.', 'Điều 2. Đối tượng áp dụng', 'Quy chế áp dụng với tất cả nhân viên chính thức,', 'nhân viên thử việc và cộng tác viên dài hạn.'] },
-  { page: 5, title: 'Điều 12. Quyền và nghĩa vụ', lines: ['Điều 12. Quyền và nghĩa vụ của nhân viên', '1. Nhân viên có quyền được hưởng đầy đủ các chế độ phúc lợi.', '2. Nhân viên có nghĩa vụ hoàn thành công việc đúng hạn.', '3. Nhân viên phải tuân thủ quy định bảo mật thông tin nội bộ.', '4. Số CCCD: ████████████ – đã được ẩn danh hóa', '5. Số điện thoại: ██████████ – đã được ẩn danh hóa'] },
-  { page: 6, title: 'Điều 13. Lương và phụ cấp', lines: ['Điều 13. Lương và các khoản phụ cấp', 'Mức lương cơ bản được tính dựa trên bảng lương theo Nghị định.', 'Phụ cấp chức vụ áp dụng từ cấp Trưởng nhóm trở lên.', 'Xem bảng phụ lục 3 để biết hệ số phụ cấp chi tiết.'] },
-];
-
-export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: string }> = ({ highlight, filename }) => {
+export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: string | null }> = ({ highlight, filename }) => {
   const highlightRef = useRef<HTMLDivElement>(null);
+  const { data, loading, error } = useDocumentContent(filename);
 
   useEffect(() => {
     if (highlight.isVisible && highlight.citation)
       highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [highlight]);
 
+  // Trạng thái đang xử lý (PROCESSING / PENDING)
+  const isProcessing = !loading && !error && data &&
+    (data.ingestion_status === 'PROCESSING' || data.ingestion_status === 'PENDING');
+
   return (
-    <div className="h-full overflow-y-auto px-5 py-4 select-none-all text-[13px]">
+    <div className="h-full overflow-y-auto px-5 py-4 select-none-all text-[14px]">
       {/* Doc header */}
-      <div className="text-center mb-6 pb-4 border-b border-border">
-        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Đang xem</p>
-        <p className="font-semibold text-text-primary">{filename ?? 'Quy chế nội bộ 2024.pdf'}</p>
+      <div className="text-center mb-5 pb-4 border-b border-border">
+        <p className="text-[14px] text-text-muted uppercase tracking-wider mb-1">Đang xem</p>
+        <p className="font-semibold text-text-primary truncate">{filename ?? 'Chưa chọn tài liệu'}</p>
+        {/* Summary bar */}
+        {data && data.ingestion_status === 'SUCCESS' && (
+          <div className="flex items-center justify-center gap-4 mt-2">
+            <span className="flex items-center gap-1 text-[11px] text-success">
+              <CheckCircle2 className="w-3 h-3" /> Đã xử lý
+            </span>
+            {data.total_chunks != null && (
+              <span className="text-[11px] text-text-muted">{data.total_chunks} đoạn</span>
+            )}
+            {data.total_tokens != null && (
+              <span className="text-[11px] text-text-muted">~{data.total_tokens.toLocaleString()} tokens</span>
+            )}
+          </div>
+        )}
       </div>
 
-      {DOC_PAGES.map(pg => {
+      {/* Loading state */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-muted">
+          <Loader2 className="w-8 h-8 animate-spin text-accent" />
+          <p className="text-[13px]">Đang tải nội dung tài liệu...</p>
+        </div>
+      )}
+
+      {/* Error state */}
+      {!loading && error && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-12 h-12 rounded-full bg-danger/10 flex items-center justify-center">
+            <AlertCircle className="w-6 h-6 text-danger" />
+          </div>
+          <p className="text-[13px] text-danger text-center max-w-[240px]">{error}</p>
+        </div>
+      )}
+
+      {/* PROCESSING / PENDING state */}
+      {isProcessing && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <div className="w-14 h-14 rounded-full bg-warning/10 border border-warning/30 flex items-center justify-center">
+            <Clock className="w-7 h-7 text-warning animate-pulse" />
+          </div>
+          <p className="text-[13px] text-warning font-medium">Đang xử lý tài liệu...</p>
+          <p className="text-[12px] text-text-muted text-center max-w-[220px]">
+            Hệ thống đang đọc và phân tích nội dung.<br />Vui lòng chờ rồi thử lại.
+          </p>
+        </div>
+      )}
+
+      {/* Empty state — no filename selected */}
+      {!loading && !error && !filename && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-muted">
+          <div className="w-14 h-14 rounded-full bg-elevated border border-border flex items-center justify-center">
+            <FileText className="w-7 h-7" />
+          </div>
+          <p className="text-[13px] text-center">Chọn một tài liệu từ danh sách bên trái để xem nội dung.</p>
+        </div>
+      )}
+
+      {/* Empty state — SUCCESS but no pages */}
+      {!loading && !error && !isProcessing && filename && data && data.pages.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-muted">
+          <div className="w-14 h-14 rounded-full bg-elevated border border-border flex items-center justify-center">
+            <FileText className="w-7 h-7" />
+          </div>
+          <p className="text-[13px] text-center">Tài liệu không có nội dung văn bản để hiển thị.</p>
+        </div>
+      )}
+
+      {/* Real content from API */}
+      {!loading && !error && !isProcessing && data && data.pages.map(pg => {
         const isHl = highlight.isVisible && highlight.citation?.page === pg.page;
+        const nonEmptyLines = pg.lines.filter(l => l.trim() !== '');
         return (
           <div key={pg.page} className="mb-7">
-            {/* Page marker */}
+            {/* Page / Chunk marker */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-bold text-text-muted bg-elevated border border-border px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0">
-                Trang {pg.page}
+              <span className="text-[14px] font-bold text-text-muted bg-elevated border border-border px-2 py-0.5 rounded uppercase tracking-wider flex-shrink-0">
+                Đoạn {pg.page}
               </span>
+              {pg.token_count != null && (
+                <span className="text-[10px] text-text-muted/60 flex-shrink-0">{pg.token_count} tokens</span>
+              )}
               <div className="flex-1 h-px bg-border" />
             </div>
-            <p className="text-[12px] font-semibold text-text-secondary mb-2">{pg.title}</p>
+
+            {pg.title && (
+              <p className="text-[15px] font-semibold text-text-secondary mb-2">{pg.title}</p>
+            )}
 
             <div
               ref={isHl ? highlightRef : undefined}
@@ -47,15 +119,17 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
               }`}
               style={isHl ? { backgroundColor: 'rgba(187,128,9,0.2)', border: '1.5px solid rgba(187,128,9,0.6)' } : {}}
             >
-              {pg.lines.map((line, i) => (
-                <p key={i} className={`leading-7 text-[12.5px] ${line.includes('████') ? 'text-danger font-mono' : 'text-text-primary'}`}>
+              {nonEmptyLines.length > 0 ? nonEmptyLines.map((line, i) => (
+                <p key={i} className={`leading-7 text-[13px] ${line.includes('████') ? 'text-danger font-mono' : 'text-text-primary'}`}>
                   {line}
                 </p>
-              ))}
+              )) : (
+                <p className="text-[13px] text-text-muted italic">(Đoạn không có nội dung)</p>
+              )}
               {isHl && (
                 <div className="mt-2 pt-2 border-t border-yellow-600/30 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-warning" />
-                  <span className="text-[10px] text-warning font-semibold">Đoạn văn bản được trích dẫn</span>
+                  <span className="text-[14px] text-warning font-semibold">Đoạn văn bản được trích dẫn</span>
                 </div>
               )}
             </div>
@@ -65,3 +139,4 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
     </div>
   );
 };
+

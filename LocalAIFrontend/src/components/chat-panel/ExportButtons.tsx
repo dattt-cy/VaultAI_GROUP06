@@ -9,13 +9,13 @@ const EXPORTS = [
 
 export const ExportButtons: React.FC<{ disabled?: boolean }> = ({ disabled }) => (
   <div className="flex items-center gap-1.5 mt-2">
-    <span className="text-[10px] text-text-muted mr-1">Xuất ra:</span>
+    <span className="text-[14px] text-text-muted mr-1">Xuất ra:</span>
     {EXPORTS.map(({ label, Icon, color, bgColor, borderColor, hoverBg }) => (
       <button
         key={label}
         disabled={disabled}
         title={`Xuất kết quả ra tệp ${label}`}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border transition-all duration-150
+        className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] font-medium border transition-all duration-150
           ${disabled
             ? 'bg-elevated border-border text-text-muted cursor-not-allowed opacity-50'
             : `${bgColor} ${borderColor} ${color} ${hoverBg} hover:-translate-y-px cursor-pointer`

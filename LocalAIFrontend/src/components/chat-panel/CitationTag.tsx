@@ -12,7 +12,7 @@ export const CitationTag: React.FC<CitationTagProps> = ({ citation, index, onCli
   >
     <FileText className="w-2.5 h-2.5" />
     <span className="font-bold">{index + 1}</span>
-    <span className="text-citation/60 text-[10px] max-w-[100px] truncate">
+    <span className="text-citation/60 text-[14px] max-w-[100px] truncate">
       {citation.sourceFile.replace(/\.(pdf|docx|xlsx)$/i, '')} tr.{citation.page}
     </span>
   </button>

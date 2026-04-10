@@ -31,8 +31,8 @@ export const LoginPage: React.FC = () => {
           {/* Logo */}
           <div className="flex flex-col items-center mb-7">
             <img src="/logo.png" alt="Local AI Logo" className="w-16 h-16 rounded-2xl object-cover shadow-xl mb-1" />
-            <h1 className="text-[20px] font-bold text-text-primary mb-1">Local AI</h1>
-            <p className="text-[12px] text-text-muted text-center leading-relaxed">
+            <h1 className="text-[18px] font-bold text-text-primary mb-1">Local AI</h1>
+            <p className="text-[15px] text-text-muted text-center leading-relaxed">
               Hệ thống xử lý văn bản nội bộ<br />
               <span className="text-danger/80">● Bảo mật Cấp III · Ngoại tuyến</span>
             </p>
@@ -41,7 +41,7 @@ export const LoginPage: React.FC = () => {
           {/* Form */}
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
             <div>
-              <label className="text-[12px] font-semibold text-text-secondary block mb-1.5">Tên đăng nhập</label>
+              <label className="text-[15px] font-semibold text-text-secondary block mb-1.5">Tên đăng nhập</label>
               <div className="relative">
                 <User className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -55,7 +55,7 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="text-[12px] font-semibold text-text-secondary block mb-1.5">
+              <label className="text-[15px] font-semibold text-text-secondary block mb-1.5">
                 Mật khẩu <span className="text-text-muted font-normal">(tối thiểu 8 ký tự)</span>
               </label>
               <div className="relative">
@@ -75,7 +75,7 @@ export const LoginPage: React.FC = () => {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-danger/10 border border-danger/30 text-[12px] text-danger">
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-danger/10 border border-danger/30 text-[15px] text-danger">
                 <Lock className="w-3.5 h-3.5 flex-shrink-0" /> {error}
               </div>
             )}
@@ -83,7 +83,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-semibold transition-all duration-200 mt-1
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-[14px] font-semibold transition-all duration-200 mt-1
                 ${loading ? 'bg-hover text-text-muted cursor-not-allowed' : 'bg-accent hover:bg-accent-hover text-white cursor-pointer shadow-md hover:shadow-accent/20'}`}
             >
               {loading ? (
@@ -97,11 +97,11 @@ export const LoginPage: React.FC = () => {
           {/* Footer */}
           <div className="mt-5 pt-4 border-t border-border flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-success" />
-            <span className="text-[11px] text-text-muted">Dữ liệu không rời khỏi mạng nội bộ</span>
+            <span className="text-[12px] text-text-muted">Dữ liệu không rời khỏi mạng nội bộ</span>
           </div>
 
           <div className="mt-3 p-2.5 rounded-lg bg-elevated border border-border text-center">
-            <span className="text-[11px] text-text-muted">Demo: bất kỳ username + mật khẩu ≥ 8 ký tự</span>
+            <span className="text-[12px] text-text-muted">Demo: bất kỳ username + mật khẩu ≥ 8 ký tự</span>
           </div>
         </div>
       </div>

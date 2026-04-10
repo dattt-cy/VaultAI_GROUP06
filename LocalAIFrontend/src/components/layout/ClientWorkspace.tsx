@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { TopHeader } from './TopHeader';
 import { LeftPanel } from '../left-panel/LeftPanel';
 import { ChatPanel } from '../chat-panel/ChatPanel';
@@ -8,13 +9,14 @@ import { useDocumentHighlight } from '../../hooks/useDocumentHighlight';
 import type { Citation } from '../../hooks/useChatState';
 
 export const ClientWorkspace: React.FC = () => {
-  const [role, setRole] = useState('Pháp chế');
-  const [activeFile, setActiveFile] = useState<string>('Quy chế nội bộ 2024.pdf');
+  const navigate = useNavigate();
+  const [activeFile, setActiveFile] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<string | undefined>();
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
 
   const {
-    messages, sessions, activeSessionId, isGenerating,
-    sendMessage, setFeedback, newSession, setActiveSessionId,
+    messages, isGenerating,
+    sendMessage, setFeedback
   } = useChatState();
 
   const { highlight, highlightCitation } = useDocumentHighlight();
@@ -24,38 +26,39 @@ export const ClientWorkspace: React.FC = () => {
     highlightCitation(c);
   };
 
+  const handleSelectionChange = useCallback((ids: Set<number>) => {
+    setCheckedIds(new Set(ids));
+  }, []);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <TopHeader role={role} />
+      <TopHeader role="Sổ tay AI" />
 
       <div style={{
         flex: 1,
         display: 'grid',
-        gridTemplateColumns: '280px 1fr 360px',
+        gridTemplateColumns: '320px 1fr 360px',
         overflow: 'hidden',
         minHeight: 0,
       }}>
         {/* LEFT: Source management */}
         <LeftPanel
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSelectSession={setActiveSessionId}
-          onNewSession={newSession}
           onSelectFile={setActiveFile}
-          onSelectQuestion={(q) => setPrefill(q)}
-          role={role}
-          onRoleChange={setRole}
+          onSelectionChange={handleSelectionChange}
+          onBackToDashboard={() => navigate('/dashboard')}
         />
 
         {/* CENTER: Chatbot */}
         <ChatPanel
           messages={messages}
           isGenerating={isGenerating}
-          onSend={sendMessage}
+          onSend={(text) => sendMessage(text, Array.from(checkedIds))}
           onCitationClick={handleCitationClick}
           onFeedback={setFeedback}
           prefill={prefill}
           onPrefillConsumed={() => setPrefill(undefined)}
+          checkedCount={checkedIds.size}
+          totalCount={-1}
         />
 
         {/* RIGHT: Document viewer */}
