@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+sqlalchemy
+python-multipart
+chromadb
+sentence-transformers
+pdfplumber
+requests
+langchain
+langchain-chroma
+langchain-ollama
+langchain-community
+python-jose[cryptography]
+passlib[bcrypt]
