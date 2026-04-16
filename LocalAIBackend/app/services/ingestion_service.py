@@ -17,15 +17,22 @@ from sqlalchemy.orm import Session
 
 from app.crud.crud_document import create_document, update_document_status, create_document_page
 from app.schemas.doc_schema import DocumentCreate, DocumentPageCreate
-from app.services.document_parser import generate_file_hash, extract_text_from_pdf, chunk_text
+from app.services.document_parser import (
+    generate_file_hash,
+    extract_pages_from_pdf,
+    chunk_text,
+    chunk_text_with_pages,
+)
 from app.services.vector_store import add_documents_to_store
 
 
 def _extract_text(file_path: str, file_type: str) -> str:
-    """Trích text từ file theo định dạng."""
+    """Trích text từ file theo định dạng (legacy – dùng cho non-PDF)."""
     ft = file_type.lower()
 
     if ft == "pdf":
+        # Không dùng hàm này cho PDF nữa – dùng _extract_pages_with_metadata()
+        from app.services.document_parser import extract_text_from_pdf
         return extract_text_from_pdf(file_path)
 
     if ft == "txt":
@@ -93,30 +100,47 @@ def ingest_file(
     update_document_status(db, db_doc, "PROCESSING")
 
     try:
-        # 3. Trích text
-        text = _extract_text(file_path, file_type)
-        if not text.strip():
+        # ── Phân nhánh xử lý theo định dạng ──
+        ft = file_type.lower()
+
+        if ft == "pdf":
+            # ★ PDF: dùng luồng mới – giữ page_number thật ★
+            chunks_with_pages = _ingest_pdf(file_path, filename)
+        else:
+            # Non-PDF: trích text → chunk → gắn page_number = 1 (mặc định)
+            text = _extract_text(file_path, file_type)
+            if not text.strip():
+                raise ValueError("File không có nội dung văn bản để xử lý")
+            raw_chunks = chunk_text(text)
+            chunks_with_pages = [
+                {"text": c, "page_number": 1}
+                for c in raw_chunks
+            ]
+
+        if not chunks_with_pages:
             raise ValueError("File không có nội dung văn bản để xử lý")
 
-        # 4. Chunk text
-        chunks = chunk_text(text)
-
+        # ── Chuẩn bị dữ liệu cho ChromaDB + SQLite ──
         documents_for_vector = []
         metadatas_for_vector = []
         chroma_ids_input = []
         total_tokens = 0
 
-        for i, chunk in enumerate(chunks):
-            tokens = len(chunk) // 4
+        for i, chunk_info in enumerate(chunks_with_pages):
+            chunk_text_content = chunk_info["text"]
+            page_number = chunk_info["page_number"]
+            tokens = len(chunk_text_content) // 4
             total_tokens += tokens
             v_id = str(uuid.uuid4())
+
             metadata = {
                 "source": filename,
                 "document_id": db_doc.id,
                 "chunk_index": i,
+                "page_number": page_number,   # ★ SỐ TRANG THẬT ★
                 "vector_id": v_id,
             }
-            documents_for_vector.append(chunk)
+            documents_for_vector.append(chunk_text_content)
             metadatas_for_vector.append(metadata)
             chroma_ids_input.append(v_id)
 
@@ -129,12 +153,12 @@ def ingest_file(
             )
 
             # 6. Lưu cross-reference vào SQLite document_pages
-            for i, (chunk, v_id) in enumerate(zip(chunks, chroma_ids)):
-                tokens = len(chunk) // 4
+            for i, (chunk_info, v_id) in enumerate(zip(chunks_with_pages, chroma_ids)):
+                tokens = len(chunk_info["text"]) // 4
                 page_in = DocumentPageCreate(
                     document_id=db_doc.id,
                     chunk_index=i,
-                    raw_content=chunk,
+                    raw_content=chunk_info["text"],
                     token_count=tokens,
                     page_metadata=json.dumps(metadatas_for_vector[i]),
                     vector_id=v_id,
@@ -143,7 +167,7 @@ def ingest_file(
 
         # 7. Đánh dấu SUCCESS
         update_document_status(db, db_doc, "SUCCESS", total_tokens=total_tokens)
-        print(f"[Ingestion OK] {filename} → {len(chunks)} chunks, {total_tokens} tokens")
+        print(f"[Ingestion OK] {filename} → {len(chunks_with_pages)} chunks, {total_tokens} tokens")
 
     except Exception as e:
         update_document_status(db, db_doc, "FAILED", error=str(e))
@@ -151,3 +175,16 @@ def ingest_file(
         raise
 
     return db_doc
+
+
+def _ingest_pdf(file_path: str, filename: str) -> list[dict]:
+    """
+    Luồng PDF chuyên biệt: trích text từng trang → chunk theo trang → giữ page_number.
+    """
+    pages = extract_pages_from_pdf(file_path)
+    if not pages:
+        raise ValueError("PDF không có nội dung văn bản để xử lý")
+
+    chunks_with_pages = chunk_text_with_pages(pages)
+    print(f"[PDF Parse] {filename}: {len(pages)} trang → {len(chunks_with_pages)} chunks")
+    return chunks_with_pages

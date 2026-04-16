@@ -47,7 +47,7 @@ def run_hybrid_test():
                 print(f"\n  {label} Kết quả #{i+1}")
                 print(f"    Document ID   : {chunk.document_id}")
                 print(f"    Chunk Index   : {chunk.chunk_index}")
-                print(f"    RRF Score     : {chunk.rrf_score:.4f}")
+                print(f"    Rerank Score  : {chunk.rerank_score:.4f}")
                 print(f"    Token Count   : {chunk.token_count}")
                 print(f"    Nội dung trích: {chunk.content[:80].strip()}...")
 

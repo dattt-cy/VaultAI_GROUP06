@@ -16,11 +16,19 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8 # 8 days
     
     # LLM Settings
-    LLM_MODEL_NAME: str = "llama3:8b"
+    LLM_MODEL_NAME: str = "qwen2.5:7b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
+    LLM_TEMPERATURE: float = 0.3       # Thấp hơn → ít hallucinate, bám sát context hơn
+    LLM_NUM_PREDICT: int = 1024        # Số token tối đa trong output (default Ollama quá thấp)
+    LLM_NUM_CTX: int = 4096            # Context window: đủ chứa 5 chunks + prompt
     
     # Embedding Model Settings
     EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    
+    # Reranker Model Settings (Cross-Encoder)
+    # Defaulting to ms-marco-MiniLM-L-6-v2 for speed. 
+    # For better Vietnamese support, consider: "BAAI/bge-reranker-v2-m3" (Note: ~2.2GB download)
+    RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
     class Config:
         case_sensitive = True

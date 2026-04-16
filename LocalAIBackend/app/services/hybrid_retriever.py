@@ -21,6 +21,23 @@ from sqlalchemy.orm import Session
 
 from app.models.doc_model import DocumentPage
 from app.services.vector_store import search_documents
+from app.core.config import settings
+
+# Lazy loaded CrossEncoder
+_reranker = None
+
+# Flag tránh rebuild FTS index mỗi request — chỉ chạy 1 lần khi server start
+_fts_initialized = False
+
+def get_reranker():
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+        import torch
+        print(f"[RERANKER] Loading CrossEncoder model: {settings.RERANKER_MODEL_NAME}")
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        _reranker = CrossEncoder(settings.RERANKER_MODEL_NAME, max_length=512, device=device)
+    return _reranker
 
 
 # ---------------------------------------------------------------------------
@@ -35,7 +52,7 @@ class RetrievedChunk:
     chunk_index: int
     content: str
     token_count: int
-    rrf_score: float
+    rerank_score: float
     source_type: str          # "semantic" | "keyword" | "hybrid"
     page_metadata: dict = field(default_factory=dict)
 
@@ -99,7 +116,13 @@ def _keyword_search(db: Session, query: str, k: int, allowed_doc_ids: list[int] 
     """)
     try:
         rows = db.execute(sql, {"query": query, "k": k}).fetchall()
-    except Exception:
+    except Exception as e:
+        err_str = str(e).lower()
+        # Nếu FTS table bị corrupt hoặc schema lỗi → reset flag để rebuild lần tới
+        if "no such table" in err_str or "fts" in err_str or "malformed" in err_str:
+            global _fts_initialized
+            _fts_initialized = False
+            print(f"[FTS WARNING] FTS query thất bại, sẽ rebuild lần sau: {e}")
         return []
 
     # bm25() trả về số âm – giá trị nhỏ hơn = tốt hơn → đổi thành dương
@@ -108,14 +131,30 @@ def _keyword_search(db: Session, query: str, k: int, allowed_doc_ids: list[int] 
 
 
 def _ensure_fts_table(db: Session) -> None:
-    """Tạo bảng FTS5 ảo nếu chưa tồn tại và đồng bộ dữ liệu."""
-    db.execute(text("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS document_pages_fts
-        USING fts5(raw_content, content='document_pages', content_rowid='id', tokenize='unicode61')
-    """))
-    # Đồng bộ bất kỳ dữ liệu mới (chèn sau khi bảng FTS đã tồn tại)
-    db.execute(text("INSERT INTO document_pages_fts(document_pages_fts) VALUES('rebuild')"))
-    db.commit()
+    """
+    Tạo bảng FTS5 ảo nếu chưa tồn tại và rebuild chỉ đúng 1 lần khi server start.
+    Các request tiếp theo skip hoàn toàn — tránh rebuild O(N) mỗi request.
+    """
+    global _fts_initialized
+    if _fts_initialized:
+        return
+    try:
+        db.execute(text("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS document_pages_fts
+            USING fts5(raw_content, content='document_pages', content_rowid='id', tokenize='unicode61')
+        """))
+        # Rebuild toàn bộ index — chỉ chạy 1 lần duy nhất lúc server khởi động
+        db.execute(text("INSERT INTO document_pages_fts(document_pages_fts) VALUES('rebuild')"))
+        db.commit()
+        _fts_initialized = True
+        print("[FTS] Index initialized thành công.")
+    except Exception as e:
+        print(f"[FTS WARNING] Lỗi khởi tạo FTS index: {e}")
+        # Không set flag → lần sau sẽ thử lại
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -207,35 +246,54 @@ def hybrid_retrieve(
     Returns:
         Danh sách RetrievedChunk sắp xếp theo document_id, chunk_index.
     """
-    # 1. Semantic search
-    semantic_hits = _semantic_search(query, k=top_k * 2, allowed_doc_ids=allowed_doc_ids)
+    # 1. Candidate Retrieval (Lấy số lượng lớn)
+    fetch_k = top_k * 4
+    semantic_hits = _semantic_search(query, k=fetch_k, allowed_doc_ids=allowed_doc_ids)
+    keyword_hits = _keyword_search(db, query, k=fetch_k, allowed_doc_ids=allowed_doc_ids)
 
-    # 2. Keyword search (FTS5)
-    keyword_hits = _keyword_search(db, query, k=top_k * 2, allowed_doc_ids=allowed_doc_ids)
+    # 2. Bỏ trùng lặp
+    candidate_ids = set([vid for vid, _ in semantic_hits])
+    candidate_ids.update([vid for vid, _ in keyword_hits])
 
-    # 3. RRF fusion
-    fused = _reciprocal_rank_fusion(semantic_hits, keyword_hits)[:top_k]
-
-    if not fused:
+    if not candidate_ids:
         return []
 
-    # 4. Lấy DocumentPage từ SQLite theo vector_id
-    fused_ids = [vid for vid, _ in fused]
-    rrf_score_map = {vid: score for vid, score in fused}
-
+    # 3. Lấy nội dung từ SQLite để chuẩn bị chấm điểm
     core_pages = (
         db.query(DocumentPage)
-        .filter(DocumentPage.vector_id.in_(fused_ids))
+        .filter(DocumentPage.vector_id.in_(list(candidate_ids)))
         .all()
     )
 
+    if not core_pages:
+        return []
+
+    # 4. Re-ranking bằng Cross-Encoder
+    # Chỉ đánh giá Cốt lõi (top_k chunks)
+    pairs = [(query, page.raw_content) for page in core_pages]
+    
+    # Lazy load model
+    reranker = get_reranker()
+    scores = reranker.predict(pairs)
+    
+    # Gắn điểm vào page
+    for idx, page in enumerate(core_pages):
+        page._temp_rerank_score = float(scores[idx])
+        
+    # Sắp xếp giảm dần theo điểm và lấy Top K
+    core_pages.sort(key=lambda p: p._temp_rerank_score, reverse=True)
+    top_core_pages = core_pages[:top_k]
+    
+    # Lưu điểm lại cho output
+    score_map = {p.vector_id: p._temp_rerank_score for p in top_core_pages}
+
     # 5. Page Index Expansion
-    expanded_pages = _expand_with_neighbors(db, core_pages, window=neighbor_window)
+    expanded_pages = _expand_with_neighbors(db, top_core_pages, window=neighbor_window)
 
     # 6. Build kết quả trả về
     result: list[RetrievedChunk] = []
     for page in expanded_pages:
-        is_core = page.vector_id in rrf_score_map
+        is_core = page.vector_id in score_map
         meta = {}
         try:
             meta = json.loads(page.page_metadata or "{}")
@@ -248,7 +306,7 @@ def hybrid_retrieve(
             chunk_index=page.chunk_index,
             content=page.raw_content,
             token_count=page.token_count,
-            rrf_score=rrf_score_map.get(page.vector_id, 0.0),
+            rerank_score=score_map.get(page.vector_id, 0.0),
             source_type="hybrid" if is_core else "neighbor_expand",
             page_metadata=meta,
         ))
