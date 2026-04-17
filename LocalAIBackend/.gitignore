@@ -15,3 +15,14 @@ __pycache__/
 # IDEs
 .vscode/
 .idea/
+
+# Database & vector store (runtime data)
+*.db
+*.sqlite3
+chroma_db/
+
+# Claude Code
+.claude/
+
+# Docs (generated)
+docs/
