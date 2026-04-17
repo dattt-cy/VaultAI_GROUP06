@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Send, Loader2, BookOpen } from 'lucide-react';
+import { Mic, MicOff, Send, Square, BookOpen } from 'lucide-react';
 
 interface ChatInputProps {
   onSend: (text: string) => void;
@@ -7,9 +7,11 @@ interface ChatInputProps {
   noSources?: boolean;
   prefill?: string;
   onPrefillConsumed?: () => void;
+  isGenerating?: boolean;
+  onCancel?: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, noSources, prefill, onPrefillConsumed }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, noSources, prefill, onPrefillConsumed, isGenerating, onCancel }) => {
   const [value, setValue] = useState('');
   const [recording, setRecording] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -72,18 +74,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, noSource
             {recording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
           </button>
 
-          <button
-            onClick={send}
-            disabled={!value.trim() || disabled}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 border-none 
-              ${value.trim() && !disabled
-                ? 'bg-accent text-white hover:bg-accent-hover cursor-pointer shadow-sm'
-                : 'bg-hover text-text-muted cursor-not-allowed opacity-60'}`}
-          >
-            {disabled && !noSources
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin-fast" />
-              : <Send className="w-3.5 h-3.5" />}
-          </button>
+          {isGenerating ? (
+            <button
+              onClick={onCancel}
+              title="Dừng sinh câu trả lời"
+              className="w-8 h-8 rounded-lg flex items-center justify-center border border-red-300 text-red-500 hover:bg-red-50 transition-all duration-150 cursor-pointer"
+            >
+              <Square className="w-3 h-3 fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={send}
+              disabled={!value.trim() || disabled}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 border-none
+                ${value.trim() && !disabled
+                  ? 'bg-accent text-white hover:bg-accent-hover cursor-pointer shadow-sm'
+                  : 'bg-hover text-text-muted cursor-not-allowed opacity-60'}`}
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

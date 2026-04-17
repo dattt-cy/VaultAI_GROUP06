@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 export interface Citation {
   id: string;
@@ -17,6 +17,7 @@ export interface Message {
   isStreaming?: boolean;
   feedback?: 'like' | 'dislike' | null;
   suggestions?: string[];
+  isCancelled?: boolean;
 }
 
 export interface ChatSession {
@@ -66,8 +67,43 @@ export function useChatState() {
     },
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [cancelledQuestion, setCancelledQuestion] = useState('');
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const cancelMessage = useCallback(() => {
+    setMessages(prev => {
+      const lastUser = [...prev].reverse().find(m => m.role === 'user');
+      if (lastUser) setCancelledQuestion(lastUser.content);
+      const filtered = prev.filter(m => !(m.role === 'assistant' && m.isStreaming));
+      return [
+        ...filtered,
+        {
+          id: `cancelled-${Date.now()}`,
+          role: 'assistant' as const,
+          content: '',
+          citations: [],
+          suggestions: [],
+          timestamp: new Date(),
+          isStreaming: false,
+          isCancelled: true,
+        },
+      ];
+    });
+
+    abortControllerRef.current?.abort();
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    setIsGenerating(false);
+  }, []);
 
   const sendMessage = useCallback(async (content: string, selectedDocIds: number[] = []) => {
+    setCancelledQuestion('');
+
     const userMsg: Message = {
       id: `u-${Date.now()}`,
       role: 'user',
@@ -78,7 +114,7 @@ export function useChatState() {
     setIsGenerating(true);
 
     const assistantId = `a-${Date.now()}`;
-    
+
     // Thêm tin nhắn chờ phản hồi (Loading frame)
     setMessages(prev => [...prev, {
       id: assistantId,
@@ -89,16 +125,19 @@ export function useChatState() {
       isStreaming: true,
     }]);
 
+    abortControllerRef.current = new AbortController();
+
     try {
       // Gọi API thực tế xuống FastApi
       const response = await fetch('http://localhost:8000/api/chat/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content, session_id: null, selected_doc_ids: selectedDocIds })
+        body: JSON.stringify({ content: content, session_id: null, selected_doc_ids: selectedDocIds }),
+        signal: abortControllerRef.current.signal,
       });
-      
+
       const data = await response.json();
-      
+
       const formattedCitations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
         id: `c-${c.document_id}-${c.chunk_index}-${index}`,
         sourceFile: c.sourceFile || `Tài liệu ${c.document_id}`,
@@ -112,7 +151,7 @@ export function useChatState() {
 
       // Stream giả lập lại kết quả trả về để mượt mà trên UI
       let i = 0;
-      const interval = setInterval(() => {
+      intervalRef.current = setInterval(() => {
         i += 4;
         setMessages(prev => prev.map(m =>
           m.id === assistantId
@@ -120,12 +159,14 @@ export function useChatState() {
             : m
         ));
         if (i >= fullResponse.length) {
-          clearInterval(interval);
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
           setIsGenerating(false);
         }
       }, 30);
 
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error(error);
       setMessages(prev => prev.map(m =>
         m.id === assistantId
@@ -147,5 +188,5 @@ export function useChatState() {
     setActiveSessionId('new-' + Date.now());
   }, []);
 
-  return { messages, sessions, activeSessionId, isGenerating, sendMessage, setFeedback, newSession, setActiveSessionId };
+  return { messages, sessions, activeSessionId, isGenerating, cancelledQuestion, sendMessage, cancelMessage, setFeedback, newSession, setActiveSessionId };
 }

@@ -8,6 +8,7 @@ interface ChatPanelProps {
   messages: Message[];
   isGenerating: boolean;
   onSend: (t: string) => void;
+  onCancel: () => void;
   onCitationClick: (c: Citation) => void;
   onFeedback: (id: string, type: 'like' | 'dislike') => void;
   prefill?: string;
@@ -17,13 +18,16 @@ interface ChatPanelProps {
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
-  messages, isGenerating, onSend, onCitationClick, onFeedback, prefill, onPrefillConsumed,
+  messages, isGenerating, onSend, onCancel, onCitationClick, onFeedback, prefill, onPrefillConsumed,
   checkedCount, totalCount,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const noSources = checkedCount === 0;
+
+  // Chỉ tin nhắn assistant cuối cùng (đã hoàn thành) mới hiển thị suggestions
+  const lastCompletedAssistantId = [...messages].reverse().find(m => m.role === 'assistant' && !m.isStreaming)?.id;
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-base">
@@ -120,6 +124,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onCitationClick={onCitationClick}
               onFeedback={onFeedback}
               onSuggestionClick={onSend}
+              showSuggestions={msg.id === lastCompletedAssistantId}
             />
           ))
         )}
@@ -132,6 +137,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         noSources={noSources}
         prefill={prefill}
         onPrefillConsumed={onPrefillConsumed}
+        isGenerating={isGenerating}
+        onCancel={onCancel}
       />
     </div>
   );

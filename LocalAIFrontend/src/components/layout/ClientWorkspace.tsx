@@ -15,8 +15,8 @@ export const ClientWorkspace: React.FC = () => {
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
 
   const {
-    messages, isGenerating,
-    sendMessage, setFeedback
+    messages, isGenerating, cancelledQuestion,
+    sendMessage, cancelMessage, setFeedback
   } = useChatState();
 
   const { highlight, highlightCitation } = useDocumentHighlight();
@@ -53,9 +53,10 @@ export const ClientWorkspace: React.FC = () => {
           messages={messages}
           isGenerating={isGenerating}
           onSend={(text) => sendMessage(text, Array.from(checkedIds))}
+          onCancel={cancelMessage}
           onCitationClick={handleCitationClick}
           onFeedback={setFeedback}
-          prefill={prefill}
+          prefill={prefill || cancelledQuestion || undefined}
           onPrefillConsumed={() => setPrefill(undefined)}
           checkedCount={checkedIds.size}
           totalCount={-1}
