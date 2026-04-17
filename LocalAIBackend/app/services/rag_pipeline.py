@@ -12,20 +12,22 @@ from langchain_core.prompts import PromptTemplate
 
 QA_PROMPT = PromptTemplate(
     input_variables=["context", "question"],
-    template="""CHI dùng thông tin từ NGỮ CẢNH dưới đây. Không tự bịa thêm thông tin ngoài tài liệu.
-Nếu không có thông tin liên quan, hãy nói: "Tôi không tìm thấy thông tin này trong tài liệu nội bộ."
-
-HƯỚNG DẪN FORMAT:
-- Câu trả lời phải đầy đủ, chi tiết, chia thành đoạn văn rõ ràng. Không trả lời quá ngắn.
-- Bôi đậm (**in đậm**) các con số, số tiền, mốc thời gian, tên điều khoản quan trọng.
-- Chèn số nguồn cuối câu khẳng định (ví dụ: "...đã được quy định rõ [1]."). Chỉ đặt [1],[2] khi nguồn đó thực sự chứa thông tin bạn vừa khẳng định.
-- Không liệt kê danh sách nguồn ở cuối bài.
+    template="""Bạn là chuyên gia phân tích tài liệu nội bộ. Chỉ dùng NGỮ CẢNH dưới đây. Tuyệt đối không tự bịa thông tin.
 
 --- NGỮ CẢNH ---
 {context}
 -----------------
 
 Câu hỏi: {question}
+
+LƯU Ý TỐI QUAN TRỌNG TRƯỚC KHI TRẢ LỜI:
+1. ĐỊNH DẠNG ĐẸP MẮT: Bắt đầu thẳng vào vấn đề. LUÔN LUÔN trình bày dưới dạng danh sách (Bullet points: -, *) nếu có nhiều ý. Bôi đậm (**in đậm**) các thông tin quan trọng.
+2. LUẬT TRÍCH DẪN (BẮT BUỘC): Bắt buộc chèn kí hiệu nguồn bằng CHỮ CÁI (ví dụ: [A], [B]) vào cuối MỌI CÂU VĂN mang thông tin (ngay trước dấu chấm câu).
+   - Tuyệt đối không tự bịa mã nguồn! Tính chính xác của trích dẫn quan trọng hơn số lượng. Nếu thông tin chỉ nằm ở TÀI LIỆU B, hãy dùng thẻ [B] cho tất cả các câu từ tài liệu đó.
+   - Ví dụ chuẩn: 
+     * Hệ thống được xây dựng trên kiến trúc MVC [A].
+     * Tiền tệ ràng buộc từ 1.000 VNĐ [A][C]. Tên chiến dịch từ 10 đến 200 ký tự [C].
+3. Ghi mã nguồn CHỮ CÁI dựa theo đúng [TÀI LIỆU X] ở phía trên.
 
 Trả lời:"""
 )
@@ -80,15 +82,9 @@ def _generate_suggestions(context: str, answer: str) -> list:
         return []
 
 
-def _extract_relevant_spans_batch(query: str, chunks: list) -> list[list[str]]:
+def _extract_relevant_spans_dynamic(chunk_queries: list[str], chunks: list) -> list[list[str]]:
     """
-    Tối ưu: Gom tất cả câu từ mọi chunk thành 1 batch duy nhất,
-    gọi reranker.predict() đúng 1 lần thay vì vòng lặp N lần.
-
-    Trả về list[list[str]]: mỗi phần tử là list các câu nổi bật của chunk tương ứng.
-    Edge case:
-    - Chunk không tách được câu (quá ngắn): trả về []
-    - reranker không load được: trả về [] cho tất cả chunks
+    Sử dụng chính câu văn mà LLM đã trích dẫn để tìm kiếm lại trong chunk gốc.
     """
     try:
         reranker = get_reranker()
@@ -98,21 +94,20 @@ def _extract_relevant_spans_batch(query: str, chunks: list) -> list[list[str]]:
         print(f"[SubChunk] Không load được reranker: {e}")
         return [[] for _ in chunks]
 
-    # Tách câu từ tất cả chunks và ghi nhớ range
     all_pairs = []
-    chunk_ranges = []   # (start_idx, end_idx, sentences_list) cho mỗi chunk
+    chunk_ranges = []
 
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks):
+        c_query = chunk_queries[i]
         sentences = [
             s.strip()
             for s in re.split(r'(?<=[.!?\n])\s+', chunk.content)
             if len(s.strip()) > 15
         ]
         start = len(all_pairs)
-        all_pairs.extend([[query, s] for s in sentences])
+        all_pairs.extend([[c_query, s] for s in sentences])
         chunk_ranges.append((start, len(all_pairs), sentences))
 
-    # Gọi predict() đúng 1 lần cho toàn bộ batch
     results: list[list[str]] = []
     if not all_pairs:
         return [[] for _ in chunks]
@@ -123,16 +118,14 @@ def _extract_relevant_spans_batch(query: str, chunks: list) -> list[list[str]]:
         print(f"[SubChunk ERROR] Batch predict thất bại: {e}")
         return [[] for _ in chunks]
 
-    # Phân phối kết quả về từng chunk
     for (start, end, sentences) in chunk_ranges:
         if not sentences:
             results.append([])
             continue
         chunk_scores = all_scores[start:end].tolist() if hasattr(all_scores, 'tolist') else list(all_scores[start:end])
         scored = sorted(zip(chunk_scores, sentences), key=lambda x: x[0], reverse=True)
-        best = [s for score, s in scored if score > -2.0][:2]
-        if not best and scored:
-            best = [scored[0][1]]
+        # Bắt buộc điểm cross-encoder > 0.0 để loại bỏ câu không liên quan
+        best = [s for score, s in scored if score > 0.0][:2]
         results.append(best)
 
     return results
@@ -161,7 +154,7 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
         }
 
     # 1. Hybrid Retrieval (Semantic + FTS5 + Page Expansion)
-    chunks = hybrid_retrieve(db=db, query=query, top_k=5, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+    chunks = hybrid_retrieve(db=db, query=query, top_k=10, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         return {
@@ -172,28 +165,13 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
 
     # 2. Ghép ngữ cảnh
     context_parts = []
-    for i, chunk in enumerate(chunks, start=1):
-        context_parts.append(f"[NGUỒN {i}]\n{chunk.content}")
+    for i, chunk in enumerate(chunks):
+        letter = chr(65 + (i % 26)) # 0 -> A, 1 -> B...
+        context_parts.append(f"[TÀI LIỆU {letter}]\n{chunk.content}")
 
     merged_context = "\n\n".join(context_parts)
 
-    # 3. Batch sub-chunk rerank cho relevant_spans — 1 lần predict cho tất cả chunk
-    all_relevant_spans = _extract_relevant_spans_batch(query, chunks)
-
-    # 4. Tổng hợp citations
-    citations = []
-    for i, chunk in enumerate(chunks):
-        citations.append({
-            "content_preview": chunk.content[:120] + "...",
-            "document_id": chunk.document_id,
-            "chunk_index": chunk.chunk_index,
-            "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
-            "rerank_score": round(chunk.rerank_score, 4),
-            "source_type": chunk.source_type,
-            "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
-        })
-
-    # 5. Anti-hallucination check
+    # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM
     if check_hallucination(merged_context, query):
         return {
             "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
@@ -201,13 +179,48 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
             "suggestions": []
         }
 
-    # 6. Gọi LLM (với auto-retry nếu Ollama restart)
+    # 4. Gọi LLM
     prompt = QA_PROMPT.format(context=merged_context, question=query)
     raw_response = safe_llm_invoke(prompt)
-
-    # 7. Lọc PII + log tiếng Anh rò rỉ
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
+
+    # TRICK: Ép AI dùng Chữ Cái [A], [B] để trị bệnh tự đồng bộ Số Thứ Tự -> Lúc này ta Convert ngược lại về [1], [2] cho Frontend!
+    def map_letter_to_int(match):
+        letter = match.group(1)
+        return f"[{ord(letter) - 64}]"
+    
+    safe_response = re.sub(r'\[([A-Z])\]', map_letter_to_int, safe_response)
+
+    # 5. Khai thác SEARCH & HIGHLIGHT thông minh: 
+    # Bóc tách chính xác các câu AI vừa biên dịch để làm mồi tìm kiếm ngược về mã nguồn gốc
+    chunk_queries = [query] * len(chunks)
+    for sentence in re.split(r'(?<=[.!?\n])', safe_response):
+        matches = re.findall(r'\[(\d+)\]', sentence)
+        for m in matches:
+            idx = int(m) - 1
+            if 0 <= idx < len(chunks):
+                if chunk_queries[idx] == query:
+                    chunk_queries[idx] = sentence.strip()
+                else:
+                    chunk_queries[idx] += " " + sentence.strip()
+
+    # 6. Rerank tìm highlight (Dynamic Spans)
+    all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
+
+    # 7. Đóng gói citations mượt mà
+    citations = []
+    for i, chunk in enumerate(chunks):
+        citations.append({
+            "content_preview": chunk.content[:120] + "...",
+            "document_id": chunk.document_id,
+            "chunk_index": chunk.chunk_index,
+            "page": chunk.chunk_index + 1,
+            "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
+            "rerank_score": round(chunk.rerank_score, 4),
+            "source_type": chunk.source_type,
+            "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
+        })
 
     # 8. Sinh gợi ý câu hỏi tiếp theo
     suggestions = _generate_suggestions(merged_context, safe_response)

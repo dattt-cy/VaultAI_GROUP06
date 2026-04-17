@@ -114,8 +114,10 @@ def _keyword_search(db: Session, query: str, k: int, allowed_doc_ids: list[int] 
         ORDER BY score
         LIMIT :k
     """)
+    clean_query = query.replace('"', '""')
+    fts_query = f'"{clean_query}"'
     try:
-        rows = db.execute(sql, {"query": query, "k": k}).fetchall()
+        rows = db.execute(sql, {"query": fts_query, "k": k}).fetchall()
     except Exception as e:
         err_str = str(e).lower()
         # Nếu FTS table bị corrupt hoặc schema lỗi → reset flag để rebuild lần tới
