@@ -1,5 +1,5 @@
-import React from 'react';
-import { ExternalLink } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ExternalLink, ChevronRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message, Citation } from '../../hooks/useChatState';
 import { CitationTag } from './CitationTag';
@@ -78,6 +78,24 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   }
 
+  const [panelOpen, setPanelOpen] = useState(false);
+  const reasoningScrollRef = useRef<HTMLDivElement>(null);
+  const steps = message.thinkingSteps ?? [];
+  const hasReasoning = !!(message.reasoningContent && message.reasoningContent.length > 0);
+  const showPanel = message.isStreaming || steps.length > 0 || hasReasoning || message.isReasoning;
+
+  // Tự mở ngay khi bước đầu tiên đến (không chờ reasoning_start)
+  useEffect(() => {
+    if (steps.length > 0 || message.isReasoning) setPanelOpen(true);
+  }, [steps.length, message.isReasoning]);
+
+  // Auto-scroll reasoning xuống cuối
+  useEffect(() => {
+    if (message.isReasoning && reasoningScrollRef.current) {
+      reasoningScrollRef.current.scrollTop = reasoningScrollRef.current.scrollHeight;
+    }
+  }, [message.reasoningContent, message.isReasoning]);
+
   return (
     <div className="flex gap-2.5 mb-5 animate-fade-in">
       <img src="/logo.png" alt="AI" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 mt-0.5 shadow-sm" />
@@ -88,16 +106,93 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           Trợ lý AI · {message.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
         </div>
 
-        {/* Bubble */}
-        <div className="card-ai">
+        {/* Panel Gemini-style — 1 thanh duy nhất */}
+        {showPanel && (
+          <div className="mb-2">
+            {/* Header bar — luôn hiển thị, click để expand/collapse */}
+            <button
+              onClick={() => setPanelOpen(o => !o)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border bg-elevated hover:bg-hover transition-colors"
+            >
+              {/* Gradient spinner như Gemini */}
+              <div className="w-4 h-4 flex-shrink-0 relative">
+                <div
+                  className={`absolute inset-0 rounded-full ${message.isStreaming ? 'animate-spin' : ''}`}
+                  style={{ background: 'conic-gradient(from 0deg, #3b82f6 0%, #f59e0b 40%, #10b981 70%, #3b82f6 100%)' }}
+                />
+                <div className="absolute inset-[2.5px] rounded-full bg-elevated" />
+              </div>
+
+              {/* Text trạng thái hiện tại */}
+              <span className="text-[13px] text-text-primary flex-1 text-left truncate">
+                {message.isStreaming
+                  ? (message.isReasoning
+                      ? 'Đang suy luận...'
+                      : (steps.length > 0 ? steps[steps.length - 1] : 'Đang xử lý...'))
+                  : (hasReasoning
+                      ? `Đã suy luận · ${message.reasoningTime ?? 0}s`
+                      : `Đã xử lý · ${steps.length} bước`)}
+              </span>
+
+              <ChevronRight className={`w-4 h-4 text-text-muted flex-shrink-0 transition-transform duration-200 ${panelOpen ? 'rotate-90' : ''}`} />
+            </button>
+
+            {/* Nội dung mở rộng — chỉ hiện khi có steps hoặc reasoning */}
+            {panelOpen && (steps.length > 0 || message.isReasoning || hasReasoning) && (
+              <div className="mt-1 rounded-xl border border-border bg-elevated px-3 py-2.5 space-y-2">
+                {/* Pipeline steps */}
+                {steps.length > 0 && (
+                  <div className="space-y-1">
+                    {steps.map((step, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px] text-text-muted">
+                        <span className="text-[9px] text-accent/70 flex-shrink-0">✓</span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Reasoning text stream */}
+                {(message.isReasoning || hasReasoning) && (
+                  <>
+                    {steps.length > 0 && <div className="border-t border-border/40" />}
+                    {message.isReasoning && !hasReasoning ? (
+                      /* Chờ token đầu tiên từ model */
+                      <div className="flex items-center gap-2 text-[11px] text-accent/70 italic">
+                        <span className="w-2.5 h-2.5 border border-accent/50 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                        <span>Mô hình đang suy nghĩ...</span>
+                      </div>
+                    ) : (
+                      <div
+                        ref={reasoningScrollRef}
+                        className="text-[12px] text-text-muted leading-relaxed italic max-h-52 overflow-y-auto whitespace-pre-wrap"
+                      >
+                        {message.reasoningContent}
+                        {message.isReasoning && (
+                          <span className="inline-block w-0.5 h-3 bg-accent ml-0.5 align-middle animate-blink" />
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bubble — ẩn khi panel đang chạy và chưa có content */}
+        {(message.content || !message.isStreaming || !showPanel) && <div className="card-ai">
           {/* Text + inline citations */}
           <div className="text-[14px] leading-relaxed text-text-primary">
             {message.isStreaming && message.content === '' ? (
-              <div className="flex items-center gap-1.5 h-5 px-1 py-1 opacity-70">
-                <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
+              /* Chỉ hiện "..." khi không có panel (edge case) */
+              !showPanel ? (
+                <div className="flex items-center gap-1.5 h-5 px-1 py-1 opacity-70">
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              ) : null
             ) : (
               <div className="[&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-2 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-2 [&_strong]:font-bold [&_strong]:text-accent [&_strong]:bg-accent/15 [&_strong]:px-1.5 [&_strong]:py-0.5 [&_strong]:rounded-md [&_em]:italic">
                 <ReactMarkdown
@@ -173,7 +268,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <ChatActions messageId={message.id} feedback={message.feedback} onFeedback={onFeedback} />
             </>
           )}
-        </div>
+        </div>}
 
         {/* Contextual Suggestions - chỉ hiển thị cho tin nhắn assistant cuối cùng */}
         {showSuggestions && !message.isStreaming && message.suggestions && message.suggestions.length > 0 && (

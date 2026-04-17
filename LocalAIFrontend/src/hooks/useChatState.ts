@@ -18,6 +18,10 @@ export interface Message {
   feedback?: 'like' | 'dislike' | null;
   suggestions?: string[];
   isCancelled?: boolean;
+  thinkingSteps?: string[];
+  reasoningContent?: string;
+  reasoningTime?: number;   // giây
+  isReasoning?: boolean;    // true khi đang stream thinking
 }
 
 export interface ChatSession {
@@ -115,55 +119,92 @@ export function useChatState() {
 
     const assistantId = `a-${Date.now()}`;
 
-    // Thêm tin nhắn chờ phản hồi (Loading frame)
     setMessages(prev => [...prev, {
       id: assistantId,
       role: 'assistant',
-      content: '', // Empty content -> ChatMessage should render an animation
+      content: '',
       citations: [],
+      thinkingSteps: [],
       timestamp: new Date(),
       isStreaming: true,
     }]);
 
     abortControllerRef.current = new AbortController();
+    let reasoningStartTime = 0;
 
     try {
-      // Gọi API thực tế xuống FastApi
-      const response = await fetch('http://localhost:8000/api/chat/message', {
+      const response = await fetch('http://localhost:8000/api/chat/message/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content, session_id: null, selected_doc_ids: selectedDocIds }),
+        body: JSON.stringify({ content, session_id: null, selected_doc_ids: selectedDocIds }),
         signal: abortControllerRef.current.signal,
       });
 
-      const data = await response.json();
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      const formattedCitations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
-        id: `c-${c.document_id}-${c.chunk_index}-${index}`,
-        sourceFile: c.sourceFile || `Tài liệu ${c.document_id}`,
-        page: c.page_number || (c.chunk_index + 1),  // ★ Dùng page_number thật từ backend ★
-        excerpt: c.content_preview,
-        relevant_spans: c.relevant_spans || [],
-      }));
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      const suggestions: string[] = data.suggestions || [];
-      const fullResponse = data.reply || "Dữ liệu trả về bị rỗng.";
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-      // Stream giả lập lại kết quả trả về để mượt mà trên UI
-      let i = 0;
-      intervalRef.current = setInterval(() => {
-        i += 4;
-        setMessages(prev => prev.map(m =>
-          m.id === assistantId
-            ? { ...m, content: fullResponse.slice(0, i), citations: formattedCitations, suggestions: i >= fullResponse.length ? suggestions : [], isStreaming: i < fullResponse.length }
-            : m
-        ));
-        if (i >= fullResponse.length) {
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
-          setIsGenerating(false);
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'reasoning_start') {
+              reasoningStartTime = Date.now();
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, isReasoning: true, reasoningContent: '' } : m
+              ));
+            } else if (data.type === 'reasoning') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, reasoningContent: (m.reasoningContent ?? '') + data.content }
+                  : m
+              ));
+            } else if (data.type === 'reasoning_done') {
+              const elapsed = reasoningStartTime ? (Date.now() - reasoningStartTime) / 1000 : 0;
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, isReasoning: false, reasoningTime: parseFloat(elapsed.toFixed(1)) }
+                  : m
+              ));
+            } else if (data.type === 'thinking') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, thinkingSteps: [...(m.thinkingSteps ?? []), data.step] }
+                  : m
+              ));
+            } else if (data.type === 'token') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, content: m.content + data.content }
+                  : m
+              ));
+            } else if (data.type === 'done') {
+              const citations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
+                id: `c-${c.document_id}-${c.chunk_index}-${index}`,
+                sourceFile: c.sourceFile || `Tài liệu ${c.document_id}`,
+                page: c.page_number || (c.chunk_index + 1),
+                excerpt: c.content_preview,
+                relevant_spans: c.relevant_spans || [],
+              }));
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId
+                  ? { ...m, citations, suggestions: data.suggestions || [], isStreaming: false }
+                  : m
+              ));
+              setIsGenerating(false);
+            }
+          } catch { /* JSON parse error — skip malformed line */ }
         }
-      }, 30);
+      }
 
     } catch (error: any) {
       if (error.name === 'AbortError') return;
