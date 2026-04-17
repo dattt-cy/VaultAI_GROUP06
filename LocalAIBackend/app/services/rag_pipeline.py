@@ -1,7 +1,10 @@
 import re
+import json
+from typing import Generator
 from sqlalchemy.orm import Session
 from .hybrid_retriever import hybrid_retrieve, get_reranker
-from .llm_engine import safe_llm_invoke, check_hallucination, apply_pii_masking, log_english_leakage
+from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
+from app.core.config import settings
 from langchain_core.prompts import PromptTemplate
 
 
@@ -228,3 +231,90 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
         "citations": citations,
         "suggestions": suggestions,
     }
+
+
+# ---------------------------------------------------------------------------
+# SSE Streaming variant
+# ---------------------------------------------------------------------------
+
+def _sse(data: dict) -> str:
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> Generator[str, None, None]:
+    """
+    Streaming version của query_rag — yield SSE events:
+      {"type":"thinking","step":"..."}   — bước xử lý pipeline
+      {"type":"token","content":"..."}   — từng token LLM sinh ra
+      {"type":"done","citations":[...],"suggestions":[...]}
+    """
+    yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
+
+    chunks = hybrid_retrieve(db=db, query=query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+
+    if not chunks:
+        yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
+        yield _sse({"type": "done", "citations": [], "suggestions": []})
+        return
+
+    doc_ids = {c.document_id for c in chunks}
+    yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
+    yield _sse({"type": "thinking", "step": "🧠 Đang tổng hợp câu trả lời..."})
+
+    context_parts = [f"[TÀI LIỆU {chr(65 + i % 26)}]\n{chunk.content}" for i, chunk in enumerate(chunks)]
+    merged_context = "\n\n".join(context_parts)
+
+    if check_hallucination(merged_context, query):
+        yield _sse({"type": "done", "citations": [], "suggestions": []})
+        return
+
+    prompt = QA_PROMPT.format(context=merged_context, question=query)
+
+    full_response = ""
+    if settings.THINKING_ENABLED:
+        yield _sse({"type": "reasoning_start"})
+        for kind, token in stream_llm_invoke_with_thinking(prompt):
+            if kind == "thinking":
+                yield _sse({"type": "reasoning", "content": token})
+            else:
+                full_response += token
+                yield _sse({"type": "token", "content": token})
+        yield _sse({"type": "reasoning_done"})
+    else:
+        for token in stream_llm_invoke(prompt):
+            full_response += token
+            yield _sse({"type": "token", "content": token})
+
+    # Post-process (giống query_rag)
+    safe_response = apply_pii_masking(full_response)
+    safe_response = re.sub(r'\[([A-Z])\]', lambda m: f"[{ord(m.group(1)) - 64}]", safe_response)
+    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
+    log_english_leakage(safe_response)
+
+    chunk_queries = [query] * len(chunks)
+    for sentence in re.split(r'(?<=[.!?\n])', safe_response):
+        for m in re.findall(r'\[(\d+)\]', sentence):
+            idx = int(m) - 1
+            if 0 <= idx < len(chunks):
+                if chunk_queries[idx] == query:
+                    chunk_queries[idx] = sentence.strip()
+                else:
+                    chunk_queries[idx] += " " + sentence.strip()
+
+    all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
+
+    citations = []
+    for i, chunk in enumerate(chunks):
+        citations.append({
+            "content_preview": chunk.content[:120] + "...",
+            "document_id": chunk.document_id,
+            "chunk_index": chunk.chunk_index,
+            "page": chunk.chunk_index + 1,
+            "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
+            "rerank_score": round(chunk.rerank_score, 4),
+            "source_type": chunk.source_type,
+            "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
+        })
+
+    suggestions = _generate_suggestions(merged_context, safe_response)
+    yield _sse({"type": "done", "citations": citations, "suggestions": suggestions})

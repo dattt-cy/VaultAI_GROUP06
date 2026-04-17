@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.3       # Thấp hơn → ít hallucinate, bám sát context hơn
     LLM_NUM_PREDICT: int = 2048        # Cho phép câu trả lời dài và chi tiết hơn
     LLM_NUM_CTX: int = 8192            # 7 chunks × ~800 chars ≈ 2000 tokens + prompt 1500 = cần ít nhất 6000
+
+    # Thinking / Reasoning Settings
+    THINKING_ENABLED: bool = True
+    THINKING_MODEL_NAME: str = "qwen3:8b"  # Model hỗ trợ native thinking qua Ollama think=true
     
     # Embedding Model Settings
     EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"

@@ -1,4 +1,7 @@
 import re
+import json
+import requests
+from typing import Generator, Tuple
 from langchain_ollama import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.core.config import settings
@@ -84,6 +87,31 @@ def safe_llm_invoke(user_content: str) -> str:
 
 
 
+def stream_llm_invoke(user_content: str) -> Generator[str, None, None]:
+    """
+    Gọi ChatOllama với streaming — yield từng token khi LLM sinh ra.
+    Interface: nhận str, yield str (từng token).
+    """
+    wrapped = (
+        "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
+        + user_content
+        + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
+    )
+    messages = [
+        SystemMessage(content=VIETNAMESE_SYSTEM_PROMPT),
+        HumanMessage(content=wrapped),
+    ]
+    try:
+        for chunk in get_llm().stream(messages):
+            if chunk.content:
+                yield chunk.content
+    except Exception as e:
+        err_str = str(e).lower()
+        if "connection" in err_str or "refused" in err_str or "timeout" in err_str:
+            reset_llm_instance()
+        raise
+
+
 def apply_pii_masking(text: str) -> str:
     """Che số điện thoại và email trong output trước khi trả về user."""
     # Số điện thoại Việt Nam 10 chữ số
@@ -100,6 +128,66 @@ def check_hallucination(context: str, query: str) -> bool:
     if not context or context.strip() == "":
         return True
     return False
+
+
+def stream_llm_invoke_with_thinking(user_content: str) -> Generator[Tuple[str, str], None, None]:
+    """
+    Gọi thinking model (qwen3:8b) qua Ollama HTTP API với think=true.
+    Yield tuple (kind, token):
+      ("thinking", token) — token thuộc phần suy luận nội tâm
+      ("answer", token)   — token thuộc phần câu trả lời thực sự
+    Fallback về stream_llm_invoke nếu thinking model không available.
+    """
+    wrapped = (
+        "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
+        + user_content
+        + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
+    )
+    payload = {
+        "model": settings.THINKING_MODEL_NAME,
+        "messages": [
+            {"role": "system", "content": VIETNAMESE_SYSTEM_PROMPT},
+            {"role": "user", "content": wrapped},
+        ],
+        "stream": True,
+        "think": True,
+        "options": {
+            "temperature": settings.LLM_TEMPERATURE,
+            "num_predict": settings.LLM_NUM_PREDICT,
+            "num_ctx": settings.LLM_NUM_CTX,
+        },
+    }
+    try:
+        with requests.post(
+            f"{settings.OLLAMA_BASE_URL}/api/chat",
+            json=payload,
+            stream=True,
+            timeout=120,
+        ) as resp:
+            resp.raise_for_status()
+            for raw_line in resp.iter_lines():
+                if not raw_line:
+                    continue
+                try:
+                    chunk = json.loads(raw_line)
+                except json.JSONDecodeError:
+                    continue
+                msg = chunk.get("message", {})
+                thinking_token = msg.get("thinking", "")
+                answer_token = msg.get("content", "")
+                if thinking_token:
+                    yield ("thinking", thinking_token)
+                if answer_token:
+                    yield ("answer", answer_token)
+    except requests.exceptions.ConnectionError:
+        # Ollama không chạy hoặc model chưa pull — fallback sang model thường
+        print(f"[Thinking] Không kết nối được {settings.THINKING_MODEL_NAME}, fallback về {settings.LLM_MODEL_NAME}")
+        for token in stream_llm_invoke(user_content):
+            yield ("answer", token)
+    except requests.exceptions.HTTPError as e:
+        print(f"[Thinking] HTTP lỗi ({e}), fallback về model thường")
+        for token in stream_llm_invoke(user_content):
+            yield ("answer", token)
 
 
 def log_english_leakage(response: str) -> None:

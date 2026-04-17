@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_db
 from app.schemas.chat_schema import ChatRequest
-from app.services.rag_pipeline import query_rag
+from app.services.rag_pipeline import query_rag, query_rag_stream
 
 router = APIRouter()
 
@@ -20,6 +21,15 @@ async def chat_message(
         "citations": result["citations"],
         "suggestions": result.get("suggestions", []),
     }
+
+
+@router.post("/message/stream")
+async def chat_message_stream(request: ChatRequest, db: Session = Depends(get_db)):
+    return StreamingResponse(
+        query_rag_stream(query=request.content, db=db, allowed_doc_ids=request.selected_doc_ids),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/suggestions")
