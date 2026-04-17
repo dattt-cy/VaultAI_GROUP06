@@ -12,7 +12,7 @@ from langchain_core.prompts import PromptTemplate
 
 QA_PROMPT = PromptTemplate(
     input_variables=["context", "question"],
-    template="""Bạn là chuyên gia phân tích tài liệu nội bộ. Chỉ dùng NGỮ CẢNH dưới đây. Tuyệt đối không tự bịa thông tin.
+    template="""Bạn là trợ lý AI phân tích tài liệu nội bộ. Chỉ sử dụng thông tin từ NGỮ CẢNH bên dưới. Tuyệt đối không tự bịa thêm thông tin.
 
 --- NGỮ CẢNH ---
 {context}
@@ -20,14 +20,11 @@ QA_PROMPT = PromptTemplate(
 
 Câu hỏi: {question}
 
-LƯU Ý TỐI QUAN TRỌNG TRƯỚC KHI TRẢ LỜI:
-1. ĐỊNH DẠNG ĐẸP MẮT: Bắt đầu thẳng vào vấn đề. LUÔN LUÔN trình bày dưới dạng danh sách (Bullet points: -, *) nếu có nhiều ý. Bôi đậm (**in đậm**) các thông tin quan trọng.
-2. LUẬT TRÍCH DẪN (BẮT BUỘC): Bắt buộc chèn kí hiệu nguồn bằng CHỮ CÁI (ví dụ: [A], [B]) vào cuối MỌI CÂU VĂN mang thông tin (ngay trước dấu chấm câu).
-   - Tuyệt đối không tự bịa mã nguồn! Tính chính xác của trích dẫn quan trọng hơn số lượng. Nếu thông tin chỉ nằm ở TÀI LIỆU B, hãy dùng thẻ [B] cho tất cả các câu từ tài liệu đó.
-   - Ví dụ chuẩn: 
-     * Hệ thống được xây dựng trên kiến trúc MVC [A].
-     * Tiền tệ ràng buộc từ 1.000 VNĐ [A][C]. Tên chiến dịch từ 10 đến 200 ký tự [C].
-3. Ghi mã nguồn CHỮ CÁI dựa theo đúng [TÀI LIỆU X] ở phía trên.
+HƯỚNG DẪN TRẢ LỜI:
+- Trả lời trực tiếp, tự nhiên. Dùng đoạn văn cho câu trả lời đơn giản; dùng danh sách (-) khi liệt kê nhiều mục rõ ràng.
+- Bôi đậm (**...**) các số liệu, tên điều khoản, mốc thời gian quan trọng.
+- Sau MỖI câu có thông tin cụ thể, chèn ký hiệu tài liệu nguồn [A], [B]... khớp với nhãn [TÀI LIỆU X] ở trên.
+- Nếu không tìm thấy thông tin trong ngữ cảnh, nói rõ: "Tôi không tìm thấy thông tin này trong tài liệu."
 
 Trả lời:"""
 )
@@ -124,8 +121,7 @@ def _extract_relevant_spans_dynamic(chunk_queries: list[str], chunks: list) -> l
             continue
         chunk_scores = all_scores[start:end].tolist() if hasattr(all_scores, 'tolist') else list(all_scores[start:end])
         scored = sorted(zip(chunk_scores, sentences), key=lambda x: x[0], reverse=True)
-        # Bắt buộc điểm cross-encoder > 0.0 để loại bỏ câu không liên quan
-        best = [s for score, s in scored if score > 0.0][:2]
+        best = [s for score, s in scored if score > -2.0][:3]
         results.append(best)
 
     return results
@@ -154,7 +150,7 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
         }
 
     # 1. Hybrid Retrieval (Semantic + FTS5 + Page Expansion)
-    chunks = hybrid_retrieve(db=db, query=query, top_k=10, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+    chunks = hybrid_retrieve(db=db, query=query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         return {
@@ -191,6 +187,8 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
         return f"[{ord(letter) - 64}]"
     
     safe_response = re.sub(r'\[([A-Z])\]', map_letter_to_int, safe_response)
+    # Strip any context labels that leaked verbatim into the response (e.g. "[TÀI LIỆU J]")
+    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
 
     # 5. Khai thác SEARCH & HIGHLIGHT thông minh: 
     # Bóc tách chính xác các câu AI vừa biên dịch để làm mồi tìm kiếm ngược về mã nguồn gốc

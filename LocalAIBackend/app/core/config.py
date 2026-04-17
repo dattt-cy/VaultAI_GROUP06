@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     LLM_MODEL_NAME: str = "qwen2.5:7b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     LLM_TEMPERATURE: float = 0.3       # Thấp hơn → ít hallucinate, bám sát context hơn
-    LLM_NUM_PREDICT: int = 1024        # Số token tối đa trong output (default Ollama quá thấp)
-    LLM_NUM_CTX: int = 4096            # Context window: đủ chứa 5 chunks + prompt
+    LLM_NUM_PREDICT: int = 2048        # Cho phép câu trả lời dài và chi tiết hơn
+    LLM_NUM_CTX: int = 8192            # 7 chunks × ~800 chars ≈ 2000 tokens + prompt 1500 = cần ít nhất 6000
     
     # Embedding Model Settings
     EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
