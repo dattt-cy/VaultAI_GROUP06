@@ -4,20 +4,40 @@ import type { HighlightState } from '../../hooks/useDocumentHighlight';
 import { useDocumentContent } from '../../hooks/useDocumentContent';
 
 export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: string | null }> = ({ highlight, filename }) => {
-  const highlightRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const highlightRef = useRef<HTMLElement | null>(null);
   const { data, loading, error } = useDocumentContent(filename);
 
   useEffect(() => {
-    if (highlight.isVisible && highlight.citation)
-      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [highlight]);
+    if (!loading && highlight.isVisible && highlight.citation && highlightRef.current && scrollContainerRef.current) {
+      setTimeout(() => {
+        const container = scrollContainerRef.current;
+        const chunkTarget = highlightRef.current;
+        if (!container || !chunkTarget) return;
+        
+        // Ưu tiên tìm chính xác dòng chữ được tô màu, nếu không thấy thì cuộn theo cả khối Chunk
+        const target = chunkTarget.querySelector('.highlight-target-text') as HTMLElement || chunkTarget;
+        
+        const rect = target.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        // Tính toán khoảng scroll tương đối để đưa target vào giữa container (Triệt tiêu lỗi giựt chéo màn hình của scrollIntoView)
+        const scrollAmount = rect.top - containerRect.top - (container.clientHeight / 2) + (rect.height / 2);
+        
+        container.scrollBy({ top: scrollAmount, behavior: 'auto' });
+      }, 100);
+    }
+  }, [highlight, loading, data]);
+
+  // Hàm chuẩn hóa chuỗi để so khớp Highlight chính xác 100% không bị lệch dấu/xuống dòng
+  const normalizeForMatch = (str: string) => str.replace(/[^\w\sà-ỹÀ-Ỹ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 
   // Trạng thái đang xử lý (PROCESSING / PENDING)
   const isProcessing = !loading && !error && data &&
     (data.ingestion_status === 'PROCESSING' || data.ingestion_status === 'PENDING');
 
   return (
-    <div className="h-full overflow-y-auto px-5 py-4 select-none-all text-[14px]">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto px-5 pt-4 pb-[50vh] select-none-all text-[14px]">
       {/* Doc header */}
       <div className="text-center mb-5 pb-4 border-b border-border">
         <p className="text-[14px] text-text-muted uppercase tracking-wider mb-1">Đang xem</p>
@@ -112,22 +132,53 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
 
             <div
               ref={isHl ? highlightRef : undefined}
-              className={`p-3.5 rounded-lg border transition-all duration-500 ${
+              className={`p-3.5 rounded-lg border transition-all duration-500 relative overflow-hidden ${
                 isHl
-                  ? 'border-yellow-600/60 animate-highlight'
+                  ? 'border-warning/60 shadow-[0_0_15px_rgba(187,128,9,0.15)]'
                   : 'bg-elevated border-border'
               }`}
-              style={isHl ? { backgroundColor: 'rgba(187,128,9,0.2)', border: '1.5px solid rgba(187,128,9,0.6)' } : {}}
             >
-              {nonEmptyLines.length > 0 ? nonEmptyLines.map((line, i) => (
-                <p key={i} className={`leading-7 text-[13px] ${line.includes('████') ? 'text-danger font-mono' : 'text-text-primary'}`}>
-                  {line}
-                </p>
-              )) : (
-                <p className="text-[13px] text-text-muted italic">(Đoạn không có nội dung)</p>
-              )}
               {isHl && (
-                <div className="mt-2 pt-2 border-t border-yellow-600/30 flex items-center gap-1.5">
+                <div className="absolute top-0 left-0 w-1 h-full bg-warning animate-pulse" />
+              )}
+              <div className="relative z-10">
+                {nonEmptyLines.length > 0 ? nonEmptyLines.map((line, i) => {
+                  const spans = highlight.citation?.relevant_spans || [];
+                  let isLineRelevant = false;
+                  
+                  if (isHl) {
+                    if (spans.length === 0) {
+                      isLineRelevant = true; // Fallback: Tô vàng cả dòng nếu không có chấm điểm câu
+                    } else {
+                      const cleanLine = normalizeForMatch(line);
+                      isLineRelevant = spans.some(s => {
+                        const cleanS = normalizeForMatch(s);
+                        if (cleanS.length < 5) return false;
+                        
+                        // Nới lỏng so sánh: kiểm tra bao hàm 2 chiều hoặc khớp 15 ký tự đầu/cuối
+                        return cleanLine.includes(cleanS) || cleanS.includes(cleanLine) || 
+                               (cleanS.length > 20 && (cleanLine.includes(cleanS.slice(0, 15)) || cleanLine.includes(cleanS.slice(-15))));
+                      });
+                    }
+                  }
+
+                  return (
+                    <p key={i} className={`leading-7 text-[13px] mb-1.5 ${
+                      line.includes('████') 
+                        ? 'text-danger font-mono' 
+                        : isLineRelevant 
+                          ? 'highlight-target-text bg-warning/25 text-text-primary px-1.5 py-0.5 rounded border-b border-warning/30 font-medium tracking-wide inline-block shadow-sm transition-all' 
+                          : 'text-text-primary'
+                    }`}>
+                      {line}
+                    </p>
+                  );
+                }) : (
+                  <p className="text-[13px] text-text-muted italic">(Đoạn không có nội dung)</p>
+                )}
+              </div>
+              {isHl && (
+                <div className="mt-2 pt-2 border-t border-warning/20 flex items-center gap-1.5 relative z-10">
                   <Shield className="w-3.5 h-3.5 text-warning" />
                   <span className="text-[14px] text-warning font-semibold">Đoạn văn bản được trích dẫn</span>
                 </div>

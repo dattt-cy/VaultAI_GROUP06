@@ -13,10 +13,6 @@ export function useDocumentHighlight() {
   const highlightCitation = useCallback((citation: Citation) => {
     setActiveFile(citation.sourceFile);
     setHighlight({ citation, isVisible: true });
-    // Auto-fade after 4 seconds
-    setTimeout(() => {
-      setHighlight(prev => ({ ...prev, isVisible: false }));
-    }, 4000);
   }, []);
 
   const clearHighlight = useCallback(() => {

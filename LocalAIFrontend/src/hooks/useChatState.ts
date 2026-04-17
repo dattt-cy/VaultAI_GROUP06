@@ -5,6 +5,7 @@ export interface Citation {
   sourceFile: string;
   page: number;
   excerpt: string;
+  relevant_spans?: string[];
 }
 
 export interface Message {
@@ -101,8 +102,9 @@ export function useChatState() {
       const formattedCitations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
         id: `c-${c.document_id}-${c.chunk_index}-${index}`,
         sourceFile: c.sourceFile || `Tài liệu ${c.document_id}`,
-        page: c.chunk_index + 1,
-        excerpt: c.content_preview
+        page: c.page_number || (c.chunk_index + 1),  // ★ Dùng page_number thật từ backend ★
+        excerpt: c.content_preview,
+        relevant_spans: c.relevant_spans || [],
       }));
 
       const suggestions: string[] = data.suggestions || [];
