@@ -26,6 +26,7 @@ Câu hỏi: {question}
 HƯỚNG DẪN TRẢ LỜI:
 - Trả lời trực tiếp, tự nhiên. Dùng đoạn văn cho câu trả lời đơn giản; dùng danh sách (-) khi liệt kê nhiều mục rõ ràng.
 - Bôi đậm (**...**) các số liệu, tên điều khoản, mốc thời gian quan trọng.
+- Sau mỗi câu hoặc ý có thông tin cụ thể từ tài liệu, chèn nhãn nguồn tương ứng [A], [B], [C]... khớp với [TÀI LIỆU X] ở trên. Ví dụ: "Hạn mức tối đa là 10 triệu. [B]"
 - Nếu không tìm thấy thông tin trong ngữ cảnh, nói rõ: "Tôi không tìm thấy thông tin này trong tài liệu."
 
 Trả lời:"""
@@ -129,65 +130,39 @@ def _extract_relevant_spans_dynamic(chunk_queries: list[str], chunks: list) -> l
     return results
 
 
-def _assign_citations_by_reranker(sentences: list[str], chunks: list) -> list[tuple[str, "int | None"]]:
+def _process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
     """
-    Dùng reranker để gán chunk_index chính xác cho từng câu trong câu trả lời.
-    Trả về list (sentence, chunk_idx) — chunk_idx là None nếu không tìm được khớp.
+    Xử lý response chứa inline citations [A],[B],[C] do LLM tự chèn:
+    - Gom markers của từng dòng, chuyển về cuối dòng dưới dạng [N]
+    - Trả về (response đã format, citation_source_lines)
+
+    Tại sao dùng LLM tự cite thay vì reranker:
+    LLM đọc context và biết chính xác "thông tin này từ TÀI LIỆU A/B/C".
+    Reranker đoán ngược sau khi đã tạo text — dễ nhầm khi chunks cùng chủ đề.
     """
-    if not sentences or not chunks:
-        return [(s, None) for s in sentences]
+    lines = response.split('\n')
+    result_lines = []
+    citation_source_lines: dict[int, list[str]] = {}
 
-    meaningful = [(i, s) for i, s in enumerate(sentences) if len(s.strip()) >= 15]
-    if not meaningful:
-        return [(s, None) for s in sentences]
+    for line in lines:
+        markers = re.findall(r'\[([A-Z])\]', line)
+        # Xóa markers khỏi nội dung dòng
+        clean = re.sub(r'\s*\[([A-Z])\]\s*', ' ', line)
+        clean = re.sub(r'\s+', ' ', clean).strip()
 
-    try:
-        reranker = get_reranker()
-        if not reranker:
-            return [(s, None) for s in sentences]
-    except Exception as e:
-        print(f"[CitationAssign] Không load được reranker: {e}")
-        return [(s, None) for s in sentences]
+        if markers and clean:
+            # Chọn marker xuất hiện nhiều nhất (hoặc đầu tiên nếu bằng nhau)
+            best_letter = max(set(markers), key=markers.count)
+            chunk_idx = ord(best_letter) - 65  # A→0, B→1, C→2 ...
+            if 0 <= chunk_idx < num_chunks:
+                result_lines.append(f"{clean} [{chunk_idx + 1}]")
+                citation_source_lines.setdefault(chunk_idx, []).append(clean)
+                continue
 
-    all_pairs = []
-    for _, sentence in meaningful:
-        for chunk in chunks:
-            all_pairs.append([sentence, chunk.content])
+        # Dòng trống hoặc không có citation → giữ nguyên
+        result_lines.append(line)
 
-    try:
-        all_scores = reranker.predict(all_pairs)
-    except Exception as e:
-        print(f"[CitationAssign ERROR] {e}")
-        return [(s, None) for s in sentences]
-
-    if hasattr(all_scores, 'tolist'):
-        all_scores = all_scores.tolist()
-    else:
-        all_scores = list(all_scores)
-
-    n = len(chunks)
-    assignments: dict[int, "int | None"] = {}
-    for j, (orig_idx, _) in enumerate(meaningful):
-        chunk_scores = all_scores[j * n:(j + 1) * n]
-        best_chunk = max(range(n), key=lambda k: chunk_scores[k])
-        best_score = chunk_scores[best_chunk]
-        assignments[orig_idx] = best_chunk if best_score > -2.0 else None
-
-    return [(s, assignments.get(i)) for i, s in enumerate(sentences)]
-
-
-def _rebuild_response_with_citations(line_assignments: list[tuple[str, "int | None"]]) -> str:
-    """
-    Ghép lại câu trả lời với citation [N] ở cuối mỗi dòng có nguồn,
-    giữ nguyên cấu trúc markdown (newline, bullet points, bold...).
-    """
-    parts = []
-    for line, chunk_idx in line_assignments:
-        if chunk_idx is not None:
-            parts.append(f"{line.rstrip()} [{chunk_idx + 1}]")
-        else:
-            parts.append(line)
-    return "\n".join(parts)
+    return '\n'.join(result_lines), citation_source_lines
 
 
 def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: list = None):
@@ -244,30 +219,20 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
 
-    # Strip bất kỳ citation marker nào LLM có thể tự thêm
-    safe_response = re.sub(r'\[[A-Z]\]', '', safe_response)
+    # 5. Xóa context labels, giữ lại [A]/[B] citations do LLM chèn
     safe_response = re.sub(r'\[\d+\]', '', safe_response)
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
 
-    # 5. Gán citation bằng reranker — chính xác hơn LLM tự chèn
-    lines = safe_response.split('\n')
-    line_assignments = _assign_citations_by_reranker(lines, chunks)
-    safe_response = _rebuild_response_with_citations(line_assignments)
+    # 6. Xử lý LLM citations: gom [A][B] về cuối dòng, map sang [1][2]
+    safe_response, citation_source_lines = _process_llm_citations(safe_response, len(chunks))
 
-    # 6. Build chunk_queries + source_lines (dòng câu trả lời đã cite chunk đó)
+    # 7. Build chunk_queries cho relevant spans
     chunk_queries = [query] * len(chunks)
-    citation_source_lines: dict[int, list[str]] = {}
-    for line, chunk_idx in line_assignments:
-        if chunk_idx is not None and 0 <= chunk_idx < len(chunks):
-            stripped = line.strip()
-            if stripped:
-                citation_source_lines.setdefault(chunk_idx, []).append(stripped)
-            if chunk_queries[chunk_idx] == query:
-                chunk_queries[chunk_idx] = stripped or query
-            else:
-                chunk_queries[chunk_idx] += " " + stripped
+    for chunk_idx, src_lines in citation_source_lines.items():
+        if 0 <= chunk_idx < len(chunks):
+            chunk_queries[chunk_idx] = " ".join(src_lines)
 
-    # 7. Rerank tìm highlight (Dynamic Spans)
+    # 8. Rerank tìm highlight (Dynamic Spans)
     all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
 
     # 8. Đóng gói citations
@@ -355,30 +320,20 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
 
     # Post-process
     safe_response = apply_pii_masking(full_response)
-    safe_response = re.sub(r'\[[A-Z]\]', '', safe_response)
     safe_response = re.sub(r'\[\d+\]', '', safe_response)
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
     log_english_leakage(safe_response)
 
-    # Gán citation bằng reranker
-    lines = safe_response.split('\n')
-    line_assignments = _assign_citations_by_reranker(lines, chunks)
-    safe_response = _rebuild_response_with_citations(line_assignments)
+    # Xử lý LLM citations: gom [A][B] về cuối dòng, map sang [1][2]
+    safe_response, citation_source_lines = _process_llm_citations(safe_response, len(chunks))
 
     # Gửi corrected_text để frontend thay thế text đã stream bằng bản có citation
     yield _sse({"type": "corrected_text", "content": safe_response})
 
     chunk_queries = [query] * len(chunks)
-    citation_source_lines: dict[int, list[str]] = {}
-    for line, chunk_idx in line_assignments:
-        if chunk_idx is not None and 0 <= chunk_idx < len(chunks):
-            stripped = line.strip()
-            if stripped:
-                citation_source_lines.setdefault(chunk_idx, []).append(stripped)
-            if chunk_queries[chunk_idx] == query:
-                chunk_queries[chunk_idx] = stripped or query
-            else:
-                chunk_queries[chunk_idx] += " " + stripped
+    for chunk_idx, src_lines in citation_source_lines.items():
+        if 0 <= chunk_idx < len(chunks):
+            chunk_queries[chunk_idx] = " ".join(src_lines)
 
     all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
 
