@@ -42,18 +42,27 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
   // Chunk content đầy đủ làm ngữ cảnh phía dưới
   const chunkText = stripMd(citation.excerpt);
 
-  // Highlight vùng khớp trong chunk (tìm theo 4 từ đầu của câu cite)
+  // Tìm vị trí match, lấy cửa sổ ~200 ký tự trước + match + ~400 ký tự sau
   const getChunkParts = () => {
     if (!citedText || !chunkText) return { before: '', match: '', after: chunkText };
     const words = citedText.split(/\s+/).filter(w => w.length >= 3);
     const needle = words.slice(0, 4).join(' ');
     const idx = needle ? chunkText.toLowerCase().indexOf(needle.toLowerCase()) : -1;
     if (idx === -1) return { before: '', match: '', after: chunkText };
+
     const matchEnd = Math.min(idx + citedText.length + 10, chunkText.length);
+
+    // Lùi ~200 ký tự trước match, tiến ~400 ký tự sau match
+    const windowStart = Math.max(0, idx - 200);
+    const windowEnd = Math.min(chunkText.length, matchEnd + 400);
+
+    const prefix = windowStart > 0 ? '...' : '';
+    const suffix = windowEnd < chunkText.length ? '...' : '';
+
     return {
-      before: chunkText.slice(0, idx),
+      before: prefix + chunkText.slice(windowStart, idx),
       match: chunkText.slice(idx, matchEnd),
-      after: chunkText.slice(matchEnd),
+      after: chunkText.slice(matchEnd, windowEnd) + suffix,
     };
   };
 
