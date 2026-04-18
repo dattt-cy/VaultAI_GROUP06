@@ -52,7 +52,7 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
   return (
     <div
       ref={popupRef}
-      style={{ position: 'fixed', top, left, zIndex: 9999, width: 320 }}
+      style={{ position: 'fixed', top, left, zIndex: 9999, width: 360 }}
       className="bg-surface border border-border rounded-xl shadow-xl overflow-hidden animate-fade-in"
     >
       {/* Header */}
@@ -65,9 +65,9 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
         </button>
       </div>
 
-      {/* Preview — hiển thị đoạn liên quan, không phải header tài liệu */}
-      <div className="px-3 py-2.5">
-        <p className="text-[12px] text-text-secondary leading-relaxed line-clamp-4 italic">
+      {/* Preview — hiển thị đoạn liên quan, có scroll */}
+      <div className="px-3 py-2.5 max-h-40 overflow-y-auto">
+        <p className="text-[12px] text-text-secondary leading-relaxed italic whitespace-pre-wrap">
           "{previewText}"
         </p>
       </div>
