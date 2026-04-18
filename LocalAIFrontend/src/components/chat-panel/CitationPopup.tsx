@@ -42,27 +42,28 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
   // Chunk content đầy đủ làm ngữ cảnh phía dưới
   const chunkText = stripMd(citation.excerpt);
 
-  // Tìm vị trí match, lấy cửa sổ ~200 ký tự trước + match + ~400 ký tự sau
+  // Fuzzy match: thử giảm dần số từ cho đến khi tìm được vị trí trong chunk
   const getChunkParts = () => {
     if (!citedText || !chunkText) return { before: '', match: '', after: chunkText };
+
     const words = citedText.split(/\s+/).filter(w => w.length >= 3);
-    const needle = words.slice(0, 4).join(' ');
-    const idx = needle ? chunkText.toLowerCase().indexOf(needle.toLowerCase()) : -1;
+    let idx = -1;
+    let needle = '';
+
+    for (let n = Math.min(5, words.length); n >= 2; n--) {
+      needle = words.slice(0, n).join(' ');
+      idx = chunkText.toLowerCase().indexOf(needle.toLowerCase());
+      if (idx !== -1) break;
+    }
+
+    // Match thất bại (LLM paraphrase) → show toàn bộ chunk
     if (idx === -1) return { before: '', match: '', after: chunkText };
 
-    const matchEnd = Math.min(idx + citedText.length + 10, chunkText.length);
-
-    // Lùi ~200 ký tự trước match, tiến ~400 ký tự sau match
-    const windowStart = Math.max(0, idx - 200);
-    const windowEnd = Math.min(chunkText.length, matchEnd + 400);
-
-    const prefix = windowStart > 0 ? '...' : '';
-    const suffix = windowEnd < chunkText.length ? '...' : '';
-
+    const matchEnd = Math.min(idx + Math.max(citedText.length, needle.length) + 10, chunkText.length);
     return {
-      before: prefix + chunkText.slice(windowStart, idx),
+      before: chunkText.slice(0, idx),
       match: chunkText.slice(idx, matchEnd),
-      after: chunkText.slice(matchEnd, windowEnd) + suffix,
+      after: chunkText.slice(matchEnd),
     };
   };
 
@@ -74,7 +75,7 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
   return (
     <div
       ref={popupRef}
-      style={{ position: 'fixed', top, left, zIndex: 9999, width: 360 }}
+      style={{ position: 'fixed', top, left, zIndex: 9999, width: 400 }}
       className="bg-surface border border-border rounded-xl shadow-xl overflow-hidden animate-fade-in"
     >
       {/* Header */}
@@ -102,7 +103,7 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
           <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1 font-semibold">
             Ngữ cảnh trong tài liệu
           </p>
-          <div className="max-h-44 overflow-y-auto pr-1">
+          <div className="max-h-64 overflow-y-auto pr-1">
             <p className="text-[12px] text-text-secondary leading-relaxed whitespace-pre-wrap">
               {match ? (
                 <>
