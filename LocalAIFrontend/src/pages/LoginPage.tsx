@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Loader2, ShieldCheck, User, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -9,15 +10,20 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username || !password) { setError('Vui lòng nhập đầy đủ thông tin đăng nhập'); return; }
     setLoading(true); setError('');
-    await new Promise(r => setTimeout(r, 900));
-    if (password.length >= 8) navigate('/workspace');
-    else setError('Tên đăng nhập hoặc mật khẩu không đúng');
-    setLoading(false);
+    try {
+      await login(username, password);
+      navigate('/workspace');
+    } catch (err: any) {
+      setError(err.message || 'Đăng nhập thất bại');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -101,7 +107,7 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <div className="mt-3 p-2.5 rounded-lg bg-elevated border border-border text-center">
-            <span className="text-[12px] text-text-muted">Demo: bất kỳ username + mật khẩu ≥ 8 ký tự</span>
+            <span className="text-[12px] text-text-muted">Liên hệ Admin để được cấp tài khoản</span>
           </div>
         </div>
       </div>

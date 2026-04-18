@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { FileExplorer } from './FileExplorer';
 import { DropZone } from './DropZone';
 import { useDocumentTree } from '../../hooks/useDocumentTree';
@@ -13,7 +13,7 @@ interface LeftPanelProps {
 export const LeftPanel: React.FC<LeftPanelProps> = ({
   onSelectFile, onSelectionChange, onBackToDashboard,
 }) => {
-  const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree(1);
+  const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree();
   const [search, setSearch] = useState('');
 
   return (

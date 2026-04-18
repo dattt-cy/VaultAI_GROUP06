@@ -1,28 +1,25 @@
 import { useState, useCallback } from 'react';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../utils/apiClient';
 
 export type UploadStatus = 'uploading' | 'processing' | 'done' | 'error';
 
 export interface UploadItem {
-  id: string;           // local temp id
+  id: string;
   filename: string;
-  progress: number;     // 0-100 (upload progress)
+  progress: number;
   status: UploadStatus;
   error?: string;
-  docId?: number;       // document.id từ DB sau khi ingest xong
+  docId?: number;
 }
 
 interface UseDocumentUploadOptions {
   categoryId?: number;
-  userId?: number;
   scope?: 'COMPANY' | 'PERSONAL';
-  onSuccess?: () => void;   // callback để refresh file list
+  onSuccess?: () => void;
 }
 
 export function useDocumentUpload({
   categoryId = 1,
-  userId = 1,
   scope = 'COMPANY',
   onSuccess,
 }: UseDocumentUploadOptions = {}) {
@@ -33,29 +30,20 @@ export function useDocumentUpload({
 
   const uploadFile = useCallback(async (file: File) => {
     const id = `${Date.now()}-${file.name}`;
-
-    setUploads(prev => [...prev, {
-      id,
-      filename: file.name,
-      progress: 0,
-      status: 'uploading',
-    }]);
+    setUploads(prev => [...prev, { id, filename: file.name, progress: 0, status: 'uploading' }]);
 
     try {
-      // Dùng XMLHttpRequest để theo dõi progress upload
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         const formData = new FormData();
         formData.append('file', file);
         formData.append('category_id', String(categoryId));
-        formData.append('user_id', String(userId));
         formData.append('scope', scope);
 
+        xhr.withCredentials = true;  // send cookie for auth
+
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            update(id, { progress: pct });
-          }
+          if (e.lengthComputable) update(id, { progress: Math.round((e.loaded / e.total) * 100) });
         };
 
         xhr.onload = () => {
@@ -76,14 +64,13 @@ export function useDocumentUpload({
         xhr.send(formData);
       });
 
-      // Upload done → chờ ingestion
       update(id, { progress: 100, status: 'processing' });
 
-      // Poll status mỗi 2s tối đa 60s
+      // Poll ingestion status every 2s, max 60s
       const deadline = Date.now() + 60_000;
       const poll = setInterval(async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/documents/list?user_id=${userId}`);
+          const res = await fetch(`${API_BASE}/api/documents/list`, { credentials: 'include' });
           const data = await res.json();
           const match = (data.documents as any[]).find(
             d => d.title === file.name.replace(/ /g, '_') || d.title === file.name
@@ -98,17 +85,16 @@ export function useDocumentUpload({
             update(id, { status: 'error', error: 'Ingestion thất bại' });
           } else if (Date.now() > deadline) {
             clearInterval(poll);
-            update(id, { status: 'done' }); // timeout → assume done
+            update(id, { status: 'done' });
             onSuccess?.();
             setTimeout(() => setUploads(prev => prev.filter(u => u.id !== id)), 2000);
           }
         } catch { /* ignore poll errors */ }
       }, 2000);
-
     } catch (err: any) {
       update(id, { status: 'error', error: err.message });
     }
-  }, [categoryId, userId, scope, onSuccess]);
+  }, [categoryId, scope, onSuccess]);
 
   const uploadFiles = useCallback((files: File[]) => {
     files.forEach(uploadFile);

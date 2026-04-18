@@ -1,12 +1,13 @@
 import React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ClientWorkspace } from '../components/layout/ClientWorkspace';
 
-/**
- * WorkspacePage – the main 3-column workspace.
- * Rendered at route /workspace.
- */
 const WorkspacePage: React.FC = () => {
-  return <ClientWorkspace />;
+  const [searchParams] = useSearchParams();
+  const idParam = searchParams.get('id');
+  const initialSessionId = idParam && idParam !== 'new' ? parseInt(idParam, 10) : null;
+
+  return <ClientWorkspace initialSessionId={initialSessionId} />;
 };
 
 export default WorkspacePage;

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopHeader } from './TopHeader';
 import { LeftPanel } from '../left-panel/LeftPanel';
@@ -8,7 +8,11 @@ import { useChatState } from '../../hooks/useChatState';
 import { useDocumentHighlight } from '../../hooks/useDocumentHighlight';
 import type { Citation } from '../../hooks/useChatState';
 
-export const ClientWorkspace: React.FC = () => {
+interface ClientWorkspaceProps {
+  initialSessionId?: number | null;
+}
+
+export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSessionId }) => {
   const navigate = useNavigate();
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<string | undefined>();
@@ -16,8 +20,13 @@ export const ClientWorkspace: React.FC = () => {
 
   const {
     messages, isGenerating, cancelledQuestion,
-    sendMessage, cancelMessage, setFeedback
+    sendMessage, cancelMessage, setFeedback, loadSession,
   } = useChatState();
+
+  // Load session từ URL param khi workspace mở
+  useEffect(() => {
+    if (initialSessionId) loadSession(initialSessionId);
+  }, [initialSessionId]); // eslint-disable-line
 
   const { highlight, highlightCitation } = useDocumentHighlight();
 
@@ -32,7 +41,7 @@ export const ClientWorkspace: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <TopHeader role="Sổ tay AI" />
+      <TopHeader />
 
       <div style={{
         flex: 1,

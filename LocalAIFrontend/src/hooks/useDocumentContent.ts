@@ -36,7 +36,8 @@ export function useDocumentContent(filename?: string | null) {
     const fetchContent = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/api/documents/content?filename=${encodeURIComponent(filename)}`
+          `http://localhost:8000/api/documents/content?filename=${encodeURIComponent(filename)}`,
+          { credentials: 'include' }
         );
 
         // Đọc body JSON trước khi check status để lấy thông báo lỗi

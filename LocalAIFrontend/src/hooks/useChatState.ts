@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { API_BASE } from '../utils/apiClient';
 
 export interface Citation {
   id: string;
@@ -20,60 +21,80 @@ export interface Message {
   isCancelled?: boolean;
   thinkingSteps?: string[];
   reasoningContent?: string;
-  reasoningTime?: number;   // giây
-  isReasoning?: boolean;    // true khi đang stream thinking
+  reasoningTime?: number;
+  isReasoning?: boolean;
 }
 
 export interface ChatSession {
-  id: string;
+  id: number;
   title: string;
-  messages: Message[];
-  createdAt: Date;
+  updatedAt: Date;
+  messageCount: number;
+  lastMessage?: string;
 }
 
-const SAMPLE_CITATIONS: Citation[] = [
-  { id: 'c1', sourceFile: 'Quy chế nội bộ 2024.pdf', page: 5, excerpt: 'Điều 12. Quyền và nghĩa vụ của nhân viên...' },
-  { id: 'c2', sourceFile: 'Hợp đồng lao động mẫu.docx', page: 2, excerpt: 'Điều khoản 3. Mức lương và phụ cấp...' },
-];
-
-const SAMPLE_SESSIONS: ChatSession[] = [
-  {
-    id: 's1',
-    title: 'Tra cứu quy chế lương thưởng',
-    createdAt: new Date(Date.now() - 86400000),
-    messages: [],
-  },
-  {
-    id: 's2',
-    title: 'Hợp đồng dịch vụ với đối tác A',
-    createdAt: new Date(Date.now() - 172800000),
-    messages: [],
-  },
-  {
-    id: 's3',
-    title: 'So sánh quy định 2023 vs 2024',
-    createdAt: new Date(Date.now() - 259200000),
-    messages: [],
-  },
-];
+const WELCOME_MSG: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  content: 'Xin chào! Tôi là Trợ lý AI nội bộ. Tôi có thể giúp bạn tra cứu, tóm tắt và phân tích các tài liệu nội bộ. Hãy chọn tài liệu và đặt câu hỏi để bắt đầu.',
+  citations: [],
+  suggestions: [],
+  timestamp: new Date(),
+};
 
 export function useChatState() {
-  const [sessions, setSessions] = useState<ChatSession[]>(SAMPLE_SESSIONS);
-  const [activeSessionId, setActiveSessionId] = useState<string>('current');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Xin chào! Tôi là Trợ lý AI nội bộ. Tôi có thể giúp bạn tra cứu, tóm tắt và phân tích các tài liệu nội bộ. Hãy chọn tài liệu và đặt câu hỏi để bắt đầu.',
-      citations: [],
-      suggestions: [],
-      timestamp: new Date(),
-    },
-  ]);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Message[]>([WELCOME_MSG]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [cancelledQuestion, setCancelledQuestion] = useState('');
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Load session list from API
+  const loadSessions = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/sessions`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSessions(
+        (data.sessions ?? []).map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          updatedAt: new Date(s.updated_at),
+          messageCount: s.message_count,
+          lastMessage: s.last_message,
+        }))
+      );
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadSessions(); }, [loadSessions]);
+
+  // Load messages of an existing session
+  const loadSession = useCallback(async (sessionId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/sessions/${sessionId}/messages`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs: Message[] = (data.messages ?? []).map((m: any) => ({
+        id: String(m.id),
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        citations: [],
+        timestamp: new Date(m.created_at),
+      }));
+      setMessages(msgs.length > 0 ? msgs : [WELCOME_MSG]);
+      setCurrentSessionId(sessionId);
+    } catch { /* ignore */ }
+  }, []);
+
+  const newSession = useCallback(() => {
+    setMessages([WELCOME_MSG]);
+    setCurrentSessionId(null);
+    setCancelledQuestion('');
+  }, []);
 
   const cancelMessage = useCallback(() => {
     setMessages(prev => {
@@ -94,14 +115,7 @@ export function useChatState() {
         },
       ];
     });
-
     abortControllerRef.current?.abort();
-
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
     setIsGenerating(false);
   }, []);
 
@@ -118,7 +132,6 @@ export function useChatState() {
     setIsGenerating(true);
 
     const assistantId = `a-${Date.now()}`;
-
     setMessages(prev => [...prev, {
       id: assistantId,
       role: 'assistant',
@@ -133,10 +146,15 @@ export function useChatState() {
     let reasoningStartTime = 0;
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat/message/stream', {
+      const response = await fetch(`${API_BASE}/api/chat/message/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, session_id: null, selected_doc_ids: selectedDocIds }),
+        credentials: 'include',
+        body: JSON.stringify({
+          content,
+          session_id: currentSessionId,
+          selected_doc_ids: selectedDocIds,
+        }),
         signal: abortControllerRef.current.signal,
       });
 
@@ -183,9 +201,7 @@ export function useChatState() {
               ));
             } else if (data.type === 'token') {
               setMessages(prev => prev.map(m =>
-                m.id === assistantId
-                  ? { ...m, content: m.content + data.content }
-                  : m
+                m.id === assistantId ? { ...m, content: m.content + data.content } : m
               ));
             } else if (data.type === 'done') {
               const citations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
@@ -200,23 +216,26 @@ export function useChatState() {
                   ? { ...m, citations, suggestions: data.suggestions || [], isStreaming: false }
                   : m
               ));
+              // Update session tracking
+              if (data.session_id) {
+                setCurrentSessionId(data.session_id);
+                loadSessions();
+              }
               setIsGenerating(false);
             }
-          } catch { /* JSON parse error — skip malformed line */ }
+          } catch { /* malformed SSE line */ }
         }
       }
-
     } catch (error: any) {
       if (error.name === 'AbortError') return;
-      console.error(error);
       setMessages(prev => prev.map(m =>
         m.id === assistantId
-          ? { ...m, content: "Lỗi kết nối đến Backend Local AI ở cổng 8000. Bạn đã chạy API chưa?", isStreaming: false }
+          ? { ...m, content: 'Lỗi kết nối đến Backend Local AI ở cổng 8000. Bạn đã chạy API chưa?', isStreaming: false }
           : m
       ));
       setIsGenerating(false);
     }
-  }, []);
+  }, [currentSessionId, loadSessions]);
 
   const setFeedback = useCallback((msgId: string, feedback: 'like' | 'dislike') => {
     setMessages(prev => prev.map(m =>
@@ -224,10 +243,17 @@ export function useChatState() {
     ));
   }, []);
 
-  const newSession = useCallback(() => {
-    setMessages([]);
-    setActiveSessionId('new-' + Date.now());
-  }, []);
+  const deleteSession = useCallback(async (sessionId: number) => {
+    await fetch(`${API_BASE}/api/chat/sessions/${sessionId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (currentSessionId === sessionId) newSession();
+    loadSessions();
+  }, [currentSessionId, newSession, loadSessions]);
 
-  return { messages, sessions, activeSessionId, isGenerating, cancelledQuestion, sendMessage, cancelMessage, setFeedback, newSession, setActiveSessionId };
+  return {
+    messages, sessions, currentSessionId, isGenerating, cancelledQuestion,
+    sendMessage, cancelMessage, setFeedback, newSession, loadSession, deleteSession, loadSessions,
+  };
 }

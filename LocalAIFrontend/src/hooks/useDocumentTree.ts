@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../utils/apiClient';
 
 export interface RealDocument {
-  id: number;             // integer DB id → dùng cho selected_doc_ids
+  id: number;
   title: string;
-  file_type: string;      // 'pdf' | 'docx' | 'xlsx' | ...
-  scope: string;          // 'COMPANY' | 'PERSONAL'
+  file_type: string;
+  scope: string;
   category_id: number | null;
   category_name: string | null;
-  ingestion_status: string; // 'PENDING' | 'PROCESSING' | 'DONE' | 'ERROR'
+  ingestion_status: string;
   total_tokens: number;
   uploaded_by: number;
 }
@@ -30,13 +29,7 @@ export interface DocumentTreeState {
   deleteDocument: (id: number) => Promise<void>;
 }
 
-/**
- * Hook fetch danh sách tài liệu THỰC từ backend SQLite.
- * Thay thế mockdata SHARED_FILES / PRIVATE_FILES tĩnh trong FileExplorer.
- *
- * @param userId  ID người dùng hiện tại (mặc định 1 khi chưa có auth)
- */
-export function useDocumentTree(userId: number = 1): DocumentTreeState {
+export function useDocumentTree(): DocumentTreeState {
   const [sharedDocs, setSharedDocs] = useState<RealDocument[]>([]);
   const [privateDocs, setPrivateDocs] = useState<RealDocument[]>([]);
   const [categories, setCategories] = useState<RealCategory[]>([]);
@@ -48,15 +41,14 @@ export function useDocumentTree(userId: number = 1): DocumentTreeState {
     setError(null);
     try {
       const [docsRes, catsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/documents/list?user_id=${userId}`),
-        fetch(`${API_BASE}/api/documents/categories`),
+        fetch(`${API_BASE}/api/documents/list`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/documents/categories`, { credentials: 'include' }),
       ]);
 
       if (!docsRes.ok) throw new Error(`HTTP ${docsRes.status}`);
 
       const docsData = await docsRes.json();
       const catsData = catsRes.ok ? await catsRes.json() : { categories: [] };
-
       const allDocs: RealDocument[] = docsData.documents ?? [];
 
       setSharedDocs(allDocs.filter(d => d.scope === 'COMPANY'));
@@ -67,10 +59,13 @@ export function useDocumentTree(userId: number = 1): DocumentTreeState {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   const deleteDocument = useCallback(async (id: number) => {
-    await fetch(`${API_BASE}/api/documents/${id}`, { method: 'DELETE' });
+    await fetch(`${API_BASE}/api/documents/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
     await fetchAll();
   }, [fetchAll]);
 
