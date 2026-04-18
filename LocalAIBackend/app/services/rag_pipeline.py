@@ -273,13 +273,19 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
     full_response = ""
     if settings.THINKING_ENABLED:
         yield _sse({"type": "reasoning_start"})
+        reasoning_done_sent = False
         for kind, token in stream_llm_invoke_with_thinking(prompt):
             if kind == "thinking":
                 yield _sse({"type": "reasoning", "content": token})
             else:
+                # Gửi reasoning_done ngay trước token trả lời đầu tiên
+                if not reasoning_done_sent:
+                    yield _sse({"type": "reasoning_done"})
+                    reasoning_done_sent = True
                 full_response += token
                 yield _sse({"type": "token", "content": token})
-        yield _sse({"type": "reasoning_done"})
+        if not reasoning_done_sent:
+            yield _sse({"type": "reasoning_done"})
     else:
         for token in stream_llm_invoke(prompt):
             full_response += token
