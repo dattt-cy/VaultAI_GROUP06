@@ -36,19 +36,30 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
      .replace(/\s+/g, ' ')
      .trim();
 
-  // sourceLine = câu CỤ THỂ được click (thay đổi theo từng occurrence của [1], [2]...)
-  // relevant_spans = đoạn khớp nhất trong chunk (cố định cho mọi occurrence)
-  // Ưu tiên: sourceLine → relevant_spans → source_lines → excerpt
-  const spans = (citation.relevant_spans ?? []).filter(s => s.trim().length > 0);
-  const srcLines = (citation.source_lines ?? []).filter(s => s.trim().length > 0);
+  // Câu được cite (thay đổi theo từng occurrence)
+  const citedText = sourceLine ? stripMd(sourceLine) : null;
 
-  const previewText = sourceLine
-    ? stripMd(sourceLine)
-    : spans.length > 0
-      ? stripMd(spans.join(' '))
-      : srcLines.length > 0
-        ? stripMd(srcLines.join(' '))
-        : stripMd(citation.excerpt);
+  // Chunk content làm ngữ cảnh — highlight vùng khớp với citedText
+  const chunkText = stripMd(citation.excerpt);
+
+  // Tách chunk thành before / match / after xung quanh citedText
+  const getChunkParts = () => {
+    if (!citedText || !chunkText) return { before: chunkText, match: '', after: '' };
+    // Tìm vị trí khớp bằng cách so sánh các từ dài (>= 3 ký tự)
+    const words = citedText.split(/\s+/).filter(w => w.length >= 3);
+    const needle = words.slice(0, 4).join(' '); // dùng 4 từ đầu làm anchor
+    const idx = needle ? chunkText.toLowerCase().indexOf(needle.toLowerCase()) : -1;
+    if (idx === -1) return { before: chunkText, match: '', after: '' };
+    // Mở rộng match ra toàn bộ citedText
+    const matchEnd = Math.min(idx + citedText.length + 20, chunkText.length);
+    return {
+      before: chunkText.slice(0, idx),
+      match: chunkText.slice(idx, matchEnd),
+      after: chunkText.slice(matchEnd),
+    };
+  };
+
+  const { before, match, after } = getChunkParts();
 
   const top = anchorRect.bottom + 6;
   const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 336));
@@ -69,10 +80,20 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
         </button>
       </div>
 
-      {/* Preview — hiển thị đoạn liên quan, có scroll */}
-      <div className="px-3 py-2.5 max-h-40 overflow-y-auto">
-        <p className="text-[12px] text-text-secondary leading-relaxed italic whitespace-pre-wrap">
-          "{previewText}"
+      {/* Nội dung chunk với phần được cite nổi bật */}
+      <div className="px-3 py-2.5 max-h-52 overflow-y-auto">
+        <p className="text-[12px] text-text-secondary leading-relaxed whitespace-pre-wrap">
+          {match ? (
+            <>
+              {before && <span className="opacity-70">{before}</span>}
+              <span className="bg-warning/30 text-text-primary font-medium px-0.5 rounded">
+                {match}
+              </span>
+              {after && <span className="opacity-70">{after}</span>}
+            </>
+          ) : (
+            <span>{chunkText}</span>
+          )}
         </p>
       </div>
 
