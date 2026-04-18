@@ -36,22 +36,20 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
      .replace(/\s+/g, ' ')
      .trim();
 
-  // Câu được cite (thay đổi theo từng occurrence)
+  // Câu trung tâm — thay đổi theo từng occurrence được click
   const citedText = sourceLine ? stripMd(sourceLine) : null;
 
-  // Chunk content làm ngữ cảnh — highlight vùng khớp với citedText
+  // Chunk content đầy đủ làm ngữ cảnh phía dưới
   const chunkText = stripMd(citation.excerpt);
 
-  // Tách chunk thành before / match / after xung quanh citedText
+  // Highlight vùng khớp trong chunk (tìm theo 4 từ đầu của câu cite)
   const getChunkParts = () => {
-    if (!citedText || !chunkText) return { before: chunkText, match: '', after: '' };
-    // Tìm vị trí khớp bằng cách so sánh các từ dài (>= 3 ký tự)
+    if (!citedText || !chunkText) return { before: '', match: '', after: chunkText };
     const words = citedText.split(/\s+/).filter(w => w.length >= 3);
-    const needle = words.slice(0, 4).join(' '); // dùng 4 từ đầu làm anchor
+    const needle = words.slice(0, 4).join(' ');
     const idx = needle ? chunkText.toLowerCase().indexOf(needle.toLowerCase()) : -1;
-    if (idx === -1) return { before: chunkText, match: '', after: '' };
-    // Mở rộng match ra toàn bộ citedText
-    const matchEnd = Math.min(idx + citedText.length + 20, chunkText.length);
+    if (idx === -1) return { before: '', match: '', after: chunkText };
+    const matchEnd = Math.min(idx + citedText.length + 10, chunkText.length);
     return {
       before: chunkText.slice(0, idx),
       match: chunkText.slice(idx, matchEnd),
@@ -80,22 +78,36 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
         </button>
       </div>
 
-      {/* Nội dung chunk với phần được cite nổi bật */}
-      <div className="px-3 py-2.5 max-h-52 overflow-y-auto">
-        <p className="text-[12px] text-text-secondary leading-relaxed whitespace-pre-wrap">
-          {match ? (
-            <>
-              {before && <span className="opacity-70">{before}</span>}
-              <span className="bg-warning/30 text-text-primary font-medium px-0.5 rounded">
-                {match}
-              </span>
-              {after && <span className="opacity-70">{after}</span>}
-            </>
-          ) : (
-            <span>{chunkText}</span>
-          )}
-        </p>
-      </div>
+      {/* Câu trung tâm — luôn thay đổi theo từng click */}
+      {citedText && (
+        <div className="mx-3 mt-2.5 px-2.5 py-2 rounded-lg bg-accent/10 border-l-2 border-accent/50">
+          <p className="text-[12px] text-text-primary leading-relaxed font-medium">
+            {citedText}
+          </p>
+        </div>
+      )}
+
+      {/* Ngữ cảnh chunk — đoạn dài từ tài liệu, có scroll */}
+      {chunkText && (
+        <div className="px-3 pt-2 pb-1">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1 font-semibold">
+            Ngữ cảnh trong tài liệu
+          </p>
+          <div className="max-h-44 overflow-y-auto pr-1">
+            <p className="text-[12px] text-text-secondary leading-relaxed whitespace-pre-wrap">
+              {match ? (
+                <>
+                  {before && <span className="opacity-60">{before}</span>}
+                  <span className="bg-warning/25 text-text-primary px-0.5 rounded">{match}</span>
+                  {after && <span className="opacity-60">{after}</span>}
+                </>
+              ) : (
+                chunkText
+              )}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Navigate button */}
       <div className="px-3 pb-3">
