@@ -254,19 +254,23 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
     line_assignments = _assign_citations_by_reranker(lines, chunks)
     safe_response = _rebuild_response_with_citations(line_assignments)
 
-    # 6. Build chunk_queries từ kết quả gán citation để tìm relevant spans
+    # 6. Build chunk_queries + source_lines (dòng câu trả lời đã cite chunk đó)
     chunk_queries = [query] * len(chunks)
-    for sentence, chunk_idx in line_assignments:
+    citation_source_lines: dict[int, list[str]] = {}
+    for line, chunk_idx in line_assignments:
         if chunk_idx is not None and 0 <= chunk_idx < len(chunks):
+            stripped = line.strip()
+            if stripped:
+                citation_source_lines.setdefault(chunk_idx, []).append(stripped)
             if chunk_queries[chunk_idx] == query:
-                chunk_queries[chunk_idx] = sentence
+                chunk_queries[chunk_idx] = stripped or query
             else:
-                chunk_queries[chunk_idx] += " " + sentence
+                chunk_queries[chunk_idx] += " " + stripped
 
     # 7. Rerank tìm highlight (Dynamic Spans)
     all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
 
-    # 7. Đóng gói citations mượt mà
+    # 8. Đóng gói citations
     citations = []
     for i, chunk in enumerate(chunks):
         citations.append({
@@ -278,6 +282,7 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
             "rerank_score": round(chunk.rerank_score, 4),
             "source_type": chunk.source_type,
             "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
+            "source_lines": citation_source_lines.get(i, []),
         })
 
     # 8. Sinh gợi ý câu hỏi tiếp theo
@@ -364,12 +369,16 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
     yield _sse({"type": "corrected_text", "content": safe_response})
 
     chunk_queries = [query] * len(chunks)
-    for sentence, chunk_idx in line_assignments:
+    citation_source_lines: dict[int, list[str]] = {}
+    for line, chunk_idx in line_assignments:
         if chunk_idx is not None and 0 <= chunk_idx < len(chunks):
+            stripped = line.strip()
+            if stripped:
+                citation_source_lines.setdefault(chunk_idx, []).append(stripped)
             if chunk_queries[chunk_idx] == query:
-                chunk_queries[chunk_idx] = sentence
+                chunk_queries[chunk_idx] = stripped or query
             else:
-                chunk_queries[chunk_idx] += " " + sentence
+                chunk_queries[chunk_idx] += " " + stripped
 
     all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
 
@@ -384,6 +393,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
             "rerank_score": round(chunk.rerank_score, 4),
             "source_type": chunk.source_type,
             "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
+            "source_lines": citation_source_lines.get(i, []),
         })
 
     # Yield done immediately — không đợi suggestions để tránh delay 4-5s
