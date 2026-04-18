@@ -84,10 +84,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const hasReasoning = !!(message.reasoningContent && message.reasoningContent.length > 0);
   const showPanel = message.isStreaming || steps.length > 0 || hasReasoning || message.isReasoning;
 
-  // Tự mở ngay khi bước đầu tiên đến (không chờ reasoning_start)
+  // Tự mở khi bắt đầu suy luận, tự đóng khi trả lời xong
   useEffect(() => {
     if (steps.length > 0 || message.isReasoning) setPanelOpen(true);
   }, [steps.length, message.isReasoning]);
+
+  useEffect(() => {
+    if (!message.isStreaming) setPanelOpen(false);
+  }, [message.isStreaming]);
 
   // Auto-scroll reasoning xuống cuối
   useEffect(() => {

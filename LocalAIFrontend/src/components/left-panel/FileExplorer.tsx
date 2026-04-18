@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { ChevronRight, FileText, FileSpreadsheet, FileImage, Minus, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ChevronRight, FileText, FileSpreadsheet, FileImage, Minus, Loader2, AlertCircle, RefreshCw, Trash2, X, Check } from 'lucide-react';
 import type { RealDocument, RealCategory } from '../../hooks/useDocumentTree';
 
 // ── File type icon ────────────────────────────────────────────────────────────
@@ -17,10 +17,13 @@ const FileIcon: React.FC<{ type: string }> = ({ type }) => {
 
 // ── Ingestion status dot ──────────────────────────────────────────────────────
 const StatusDot: React.FC<{ status: string }> = ({ status }) => {
-  if (status === 'SUCCESS')    return <span className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" title="Đã xử lý" />;
-  if (status === 'PROCESSING') return <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse flex-shrink-0" title="Đang xử lý" />;
-  if (status === 'FAILED')     return <span className="w-1.5 h-1.5 rounded-full bg-danger flex-shrink-0" title="Lỗi xử lý" />;
-  return                              <span className="w-1.5 h-1.5 rounded-full bg-text-muted/40 flex-shrink-0" title="Chờ xử lý" />;
+  if (status === 'SUCCESS' || status === 'COMPLETED')
+    return <span className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" title="Đã xử lý" />;
+  if (status === 'PROCESSING')
+    return <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse flex-shrink-0" title="Đang xử lý" />;
+  if (status === 'FAILED')
+    return <span className="w-1.5 h-1.5 rounded-full bg-danger flex-shrink-0" title="Lỗi xử lý" />;
+  return <span className="w-1.5 h-1.5 rounded-full bg-text-muted/40 flex-shrink-0" title="Chờ xử lý" />;
 };
 
 // ── Circular checkbox ─────────────────────────────────────────────────────────
@@ -64,41 +67,94 @@ interface DocRowProps {
   checked: boolean;
   onToggle: (id: number) => void;
   onSelectFile: (name: string) => void;
+  onDelete: (id: number) => Promise<void>;
   accentColor: string;
 }
-const DocRow: React.FC<DocRowProps> = ({ doc, checked, onToggle, onSelectFile, accentColor }) => (
-  <div
-    className={`flex items-center gap-2 w-full py-1.5 pl-9 pr-2.5 group
-                transition-colors duration-100 hover:bg-hover
-                ${checked ? 'bg-accent/5' : ''}`}
-  >
-    <button onClick={() => onSelectFile(doc.title)} className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left">
-      <FileIcon type={doc.file_type} />
-      <span className={`text-[12px] truncate flex-1 text-left ${checked ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
-        {doc.title}
-      </span>
-      <StatusDot status={doc.ingestion_status} />
-    </button>
-    <NbCheckbox
-      checked={checked}
-      onChange={e => { e.stopPropagation(); onToggle(doc.id); }}
-      accentColor={accentColor}
-    />
+const DocRow: React.FC<DocRowProps> = ({ doc, checked, onToggle, onSelectFile, onDelete, accentColor }) => {
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    await onDelete(doc.id);
+    setDeleting(false);
+    setConfirming(false);
+  };
+
+  return (
+    <div
+      className={`flex items-center gap-2 w-full py-1.5 pl-9 pr-2 group
+                  transition-colors duration-100 hover:bg-hover
+                  ${checked ? 'bg-accent/5' : ''}`}
+    >
+      {confirming ? (
+        /* Inline delete confirm */
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-[11px] text-danger truncate flex-1">Xóa tài liệu?</span>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center justify-center w-5 h-5 rounded bg-danger/20 hover:bg-danger/40 text-danger transition-colors"
+            title="Xác nhận xóa"
+          >
+            {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+          </button>
+          <button
+            onClick={() => setConfirming(false)}
+            className="flex items-center justify-center w-5 h-5 rounded bg-border/30 hover:bg-border/60 text-text-muted transition-colors"
+            title="Hủy"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <>
+          <button onClick={() => onSelectFile(doc.title)} className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left">
+            <FileIcon type={doc.file_type} />
+            <span className={`text-[12px] truncate flex-1 text-left ${checked ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
+              {doc.title}
+            </span>
+            <StatusDot status={doc.ingestion_status} />
+          </button>
+          {/* Delete button — visible on hover */}
+          <button
+            onClick={e => { e.stopPropagation(); setConfirming(true); }}
+            className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded hover:bg-danger/20 text-text-muted hover:text-danger transition-all duration-100 flex-shrink-0"
+            title="Xóa tài liệu"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+          <NbCheckbox
+            checked={checked}
+            onChange={e => { e.stopPropagation(); onToggle(doc.id); }}
+            accentColor={accentColor}
+          />
+        </>
+      )}
+    </div>
+  );
+};
+
+// ── Collapsible wrapper (grid trick — no max-h cutoff) ────────────────────────
+const Collapsible: React.FC<{ open: boolean; children: React.ReactNode }> = ({ open, children }) => (
+  <div className={`grid transition-all duration-200 ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+    <div className="overflow-hidden">{children}</div>
   </div>
 );
 
 // ── Category group row ────────────────────────────────────────────────────────
 interface CategoryGroupProps {
-  category: RealCategory | null;  // null = "Không có danh mục"
+  category: RealCategory | null;
   docs: RealDocument[];
   checkedIds: Set<number>;
   onToggleIds: (ids: number[]) => void;
   onSelectFile: (name: string) => void;
+  onDelete: (id: number) => Promise<void>;
   search: string;
   accentColor: string;
 }
 const CategoryGroup: React.FC<CategoryGroupProps> = ({
-  category, docs, checkedIds, onToggleIds, onSelectFile, search, accentColor,
+  category, docs, checkedIds, onToggleIds, onSelectFile, onDelete, search, accentColor,
 }) => {
   const [open, setOpen] = useState(true);
 
@@ -141,8 +197,7 @@ const CategoryGroup: React.FC<CategoryGroupProps> = ({
         />
       </div>
 
-      {/* Doc rows */}
-      <div className={`overflow-hidden transition-all duration-200 ${open || search ? 'max-h-96' : 'max-h-0'}`}>
+      <Collapsible open={open || !!search}>
         {filtered.map(doc => (
           <DocRow
             key={doc.id}
@@ -150,10 +205,11 @@ const CategoryGroup: React.FC<CategoryGroupProps> = ({
             checked={checkedIds.has(doc.id)}
             onToggle={id => onToggleIds([id])}
             onSelectFile={onSelectFile}
+            onDelete={onDelete}
             accentColor={accentColor}
           />
         ))}
-      </div>
+      </Collapsible>
     </div>
   );
 };
@@ -162,6 +218,7 @@ const CategoryGroup: React.FC<CategoryGroupProps> = ({
 interface SectionHeaderProps {
   dotColor: string;
   label: string;
+  count: number;
   open: boolean;
   onToggle: () => void;
   checkedCount: number;
@@ -171,13 +228,14 @@ interface SectionHeaderProps {
   accentColor: string;
 }
 const SectionHeader: React.FC<SectionHeaderProps> = ({
-  dotColor, label, open, onToggle, checkedCount,
+  dotColor, label, count, open, onToggle, checkedCount,
   isAllChecked, isIndeterminate, onToggleAll, accentColor,
 }) => (
   <div className="flex items-center gap-1.5 px-3 pr-2.5 py-1.5 hover:bg-hover/50 transition-colors">
     <button onClick={onToggle} className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left">
       <span className={`w-2 h-2 rounded-full ${dotColor} flex-shrink-0`} />
       <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex-1 text-left">{label}</span>
+      <span className="text-[10px] text-text-muted/60 mr-1">{count}</span>
       {checkedCount > 0 && (
         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${accentColor} text-white mr-1`}>
           {checkedCount}
@@ -194,10 +252,22 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
   </div>
 );
 
+// ── Build catMap helper ───────────────────────────────────────────────────────
+function buildCatMap(docs: RealDocument[]): Map<number | null, RealDocument[]> {
+  const map = new Map<number | null, RealDocument[]>();
+  for (const doc of docs) {
+    const key = doc.category_id;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(doc);
+  }
+  return map;
+}
+
 // ── Main FileExplorer ─────────────────────────────────────────────────────────
 interface FileExplorerProps {
   onSelectFile: (name: string) => void;
   onSelectionChange: (checkedIds: Set<number>) => void;
+  onDelete: (id: number) => Promise<void>;
   search?: string;
   sharedDocs: RealDocument[];
   privateDocs: RealDocument[];
@@ -207,8 +277,8 @@ interface FileExplorerProps {
   refetch: () => void;
 }
 
-export const FileExplorer: React.FC<FileExplorerProps> = ({ 
-  onSelectFile, onSelectionChange, search = '',
+export const FileExplorer: React.FC<FileExplorerProps> = ({
+  onSelectFile, onSelectionChange, onDelete, search = '',
   sharedDocs, privateDocs, categories, loading, error, refetch
 }) => {
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
@@ -227,15 +297,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     update(next);
   };
 
-  // Group shared docs by category
-  const catMap = new Map<number | null, RealDocument[]>();
-  for (const doc of sharedDocs) {
-    const key = doc.category_id;
-    if (!catMap.has(key)) catMap.set(key, []);
-    catMap.get(key)!.push(doc);
-  }
+  const sharedCatMap = buildCatMap(sharedDocs);
+  const privateCatMap = buildCatMap(privateDocs);
 
-  // Section-level helpers
   const allSharedIds = sharedDocs.map(d => d.id);
   const sharedChecked = allSharedIds.filter(id => checkedIds.has(id));
   const isSharedAll = sharedChecked.length === allSharedIds.length && allSharedIds.length > 0;
@@ -246,7 +310,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const isPrivateAll = privateChecked.length === allPrivateIds.length && allPrivateIds.length > 0;
   const isPrivatePartial = privateChecked.length > 0 && !isPrivateAll;
 
-  // ── Loading state ──
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-text-muted">
@@ -256,7 +319,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     );
   }
 
-  // ── Error state ──
   if (error) {
     return (
       <div className="flex flex-col items-center gap-2 py-6 px-4">
@@ -272,7 +334,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     );
   }
 
-  // ── Empty state ──
   if (sharedDocs.length === 0 && privateDocs.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
@@ -292,6 +353,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           <SectionHeader
             dotColor="bg-accent"
             label="Kho dùng chung"
+            count={sharedDocs.length}
             open={sharedOpen}
             onToggle={() => setSharedOpen(o => !o)}
             checkedCount={sharedChecked.length}
@@ -300,9 +362,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             onToggleAll={e => { e.stopPropagation(); toggleIds(allSharedIds); }}
             accentColor="bg-accent"
           />
-          <div className={`overflow-hidden transition-all duration-200 ${sharedOpen ? 'max-h-[600px]' : 'max-h-0'}`}>
-            {/* Grouped by category */}
-            {Array.from(catMap.entries()).map(([catId, docs]) => {
+          <Collapsible open={sharedOpen}>
+            {Array.from(sharedCatMap.entries()).map(([catId, docs]) => {
               const category = categories.find(c => c.id === catId) ?? null;
               return (
                 <CategoryGroup
@@ -312,12 +373,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   checkedIds={checkedIds}
                   onToggleIds={toggleIds}
                   onSelectFile={onSelectFile}
+                  onDelete={onDelete}
                   search={search}
                   accentColor="bg-accent"
                 />
               );
             })}
-          </div>
+          </Collapsible>
         </div>
       )}
 
@@ -327,6 +389,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           <SectionHeader
             dotColor="bg-warning"
             label="Kho cá nhân"
+            count={privateDocs.length}
             open={privateOpen}
             onToggle={() => setPrivateOpen(o => !o)}
             checkedCount={privateChecked.length}
@@ -335,20 +398,24 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             onToggleAll={e => { e.stopPropagation(); toggleIds(allPrivateIds); }}
             accentColor="bg-warning"
           />
-          <div className={`overflow-hidden transition-all duration-200 ${privateOpen ? 'max-h-[300px]' : 'max-h-0'}`}>
-            {privateDocs
-              .filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()))
-              .map(doc => (
-                <DocRow
-                  key={doc.id}
-                  doc={doc}
-                  checked={checkedIds.has(doc.id)}
-                  onToggle={id => toggleIds([id])}
+          <Collapsible open={privateOpen}>
+            {Array.from(privateCatMap.entries()).map(([catId, docs]) => {
+              const category = categories.find(c => c.id === catId) ?? null;
+              return (
+                <CategoryGroup
+                  key={catId ?? 'uncategorized'}
+                  category={category}
+                  docs={docs}
+                  checkedIds={checkedIds}
+                  onToggleIds={toggleIds}
                   onSelectFile={onSelectFile}
+                  onDelete={onDelete}
+                  search={search}
                   accentColor="bg-warning"
                 />
-              ))}
-          </div>
+              );
+            })}
+          </Collapsible>
         </div>
       )}
     </div>

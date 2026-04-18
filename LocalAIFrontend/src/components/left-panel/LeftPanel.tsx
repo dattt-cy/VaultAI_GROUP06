@@ -13,7 +13,7 @@ interface LeftPanelProps {
 export const LeftPanel: React.FC<LeftPanelProps> = ({
   onSelectFile, onSelectionChange, onBackToDashboard,
 }) => {
-  const { sharedDocs, privateDocs, categories, loading, error, refetch } = useDocumentTree(1);
+  const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree(1);
   const [search, setSearch] = useState('');
 
   return (
@@ -31,7 +31,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
         <span className="text-[12px] font-bold text-text-primary tracking-wide">Nguồn tài liệu</span>
       </div>
 
-      {/* ── Search bar ── */}
+      {/* ── Search bar + DropZone ── */}
       <div className="px-2.5 py-2 border-b border-border flex-shrink-0">
         <div className="relative mb-2">
           <Search className="w-3.5 h-3.5 text-text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -45,7 +45,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                        focus:border-accent/60 focus:ring-1 focus:ring-accent/10 transition-all"
           />
         </div>
-        <DropZone onSuccess={refetch} />
+        <DropZone categories={categories} onSuccess={refetch} />
       </div>
 
       {/* ── File Tree ── */}
@@ -53,6 +53,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
         <FileExplorer
           onSelectFile={onSelectFile}
           onSelectionChange={onSelectionChange}
+          onDelete={deleteDocument}
           search={search}
           sharedDocs={sharedDocs}
           privateDocs={privateDocs}

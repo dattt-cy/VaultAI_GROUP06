@@ -27,6 +27,7 @@ export interface DocumentTreeState {
   loading: boolean;
   error: string | null;
   refetch: () => void;
+  deleteDocument: (id: number) => Promise<void>;
 }
 
 /**
@@ -68,7 +69,12 @@ export function useDocumentTree(userId: number = 1): DocumentTreeState {
     }
   }, [userId]);
 
+  const deleteDocument = useCallback(async (id: number) => {
+    await fetch(`${API_BASE}/api/documents/${id}`, { method: 'DELETE' });
+    await fetchAll();
+  }, [fetchAll]);
+
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  return { sharedDocs, privateDocs, categories, loading, error, refetch: fetchAll };
+  return { sharedDocs, privateDocs, categories, loading, error, refetch: fetchAll, deleteDocument };
 }
