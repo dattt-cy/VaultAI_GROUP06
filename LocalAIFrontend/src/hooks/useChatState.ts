@@ -8,6 +8,7 @@ export interface Citation {
   chunk_index: number;
   excerpt: string;
   relevant_spans?: string[];
+  source_lines?: string[];
 }
 
 export interface Message {
@@ -220,6 +221,7 @@ export function useChatState() {
                 chunk_index: c.chunk_index ?? index,
                 excerpt: c.content_preview,
                 relevant_spans: c.relevant_spans || [],
+                source_lines: c.source_lines || [],
               }));
               setMessages(prev => prev.map(m =>
                 m.id === assistantId

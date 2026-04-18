@@ -30,9 +30,9 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
 
   const { highlight, highlightCitation } = useDocumentHighlight();
 
-  const handleCitationClick = (c: Citation) => {
+  const handleCitationClick = (c: Citation, sourceLine?: string) => {
     setActiveFile(c.sourceFile);
-    highlightCitation(c);
+    highlightCitation(c, sourceLine);
   };
 
   const handleSelectionChange = useCallback((ids: Set<number>) => {

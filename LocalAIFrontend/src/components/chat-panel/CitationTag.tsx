@@ -4,18 +4,19 @@ import type { Citation } from '../../hooks/useChatState';
 interface CitationTagProps {
   citation: Citation;
   index: number;
-  onClick: (c: Citation) => void;
-  onShowPopup?: (citation: Citation, rect: DOMRect) => void;
+  sourceLine?: string;
+  onClick: (c: Citation, sourceLine?: string) => void;
+  onShowPopup?: (citation: Citation, rect: DOMRect, sourceLine?: string) => void;
 }
 
-export const CitationTag: React.FC<CitationTagProps> = ({ citation, index, onClick, onShowPopup }) => {
+export const CitationTag: React.FC<CitationTagProps> = ({ citation, index, sourceLine, onClick, onShowPopup }) => {
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const handleClick = () => {
     if (onShowPopup && btnRef.current) {
-      onShowPopup(citation, btnRef.current.getBoundingClientRect());
+      onShowPopup(citation, btnRef.current.getBoundingClientRect(), sourceLine);
     } else {
-      onClick(citation);
+      onClick(citation, sourceLine);
     }
   };
 

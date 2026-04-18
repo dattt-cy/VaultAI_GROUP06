@@ -8,7 +8,7 @@ import { ChatActions } from './ChatActions';
 
 interface MessageBubbleProps {
   message: Message;
-  onCitationClick: (c: Citation) => void;
+  onCitationClick: (c: Citation, sourceLine?: string) => void;
   onFeedback: (id: string, type: 'like' | 'dislike') => void;
   onSuggestionClick?: (s: string) => void;
   showSuggestions?: boolean;
@@ -65,7 +65,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   }
 
-  const [popupState, setPopupState] = useState<{ citation: Citation; rect: DOMRect } | null>(null);
+  const [popupState, setPopupState] = useState<{ citation: Citation; rect: DOMRect; sourceLine?: string } | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const reasoningScrollRef = useRef<HTMLDivElement>(null);
   const steps = message.thinkingSteps ?? [];
@@ -203,15 +203,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       if (props.href?.startsWith('#cite-')) {
                         const parts = props.href.replace('#cite-', '').split('-');
                         const oldIdx = parseInt(parts[0], 10);
+                        const occ = parts.length > 1 ? parseInt(parts[1], 10) : 0;
                         const citation = message.citations?.[oldIdx];
                         if (citation) {
                           const newIdx = indexMap.get(oldIdx) || (oldIdx + 1);
+                          const sourceLine = citation.source_lines?.[occ];
                           return (
                             <CitationTag
                               citation={citation}
                               index={newIdx - 1}
+                              sourceLine={sourceLine}
                               onClick={onCitationClick}
-                              onShowPopup={(c, rect) => setPopupState({ citation: c, rect })}
+                              onShowPopup={(c, rect, sl) => setPopupState({ citation: c, rect, sourceLine: sl })}
                             />
                           );
                         }
@@ -290,6 +293,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <CitationPopup
         citation={popupState.citation}
         anchorRect={popupState.rect}
+        sourceLine={popupState.sourceLine}
         onNavigate={onCitationClick}
         onClose={() => setPopupState(null)}
       />

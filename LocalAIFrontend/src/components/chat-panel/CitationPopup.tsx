@@ -5,12 +5,13 @@ import type { Citation } from '../../hooks/useChatState';
 interface CitationPopupProps {
   citation: Citation;
   anchorRect: DOMRect;
-  onNavigate: (c: Citation) => void;
+  sourceLine?: string;
+  onNavigate: (c: Citation, sourceLine?: string) => void;
   onClose: () => void;
 }
 
 export const CitationPopup: React.FC<CitationPopupProps> = ({
-  citation, anchorRect, onNavigate, onClose,
+  citation, anchorRect, sourceLine, onNavigate, onClose,
 }) => {
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -61,7 +62,7 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
       {/* Navigate button */}
       <div className="px-3 pb-3">
         <button
-          onClick={() => { onNavigate(citation); onClose(); }}
+          onClick={() => { onNavigate(citation, sourceLine); onClose(); }}
           className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent/80 font-medium transition-colors"
         >
           <ExternalLink className="w-3 h-3" />

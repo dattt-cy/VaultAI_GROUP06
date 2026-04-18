@@ -69,19 +69,31 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
           pg.chunk_index != null &&
           highlight.citation.chunk_index === pg.chunk_index;
 
-        const relevantSpans: string[] = (highlight.citation?.relevant_spans ?? []).filter(s => s.length > 0);
+        const highlightLine = highlight.highlightLine ?? '';
 
-        const lineMatchesSpan = (line: string): boolean => {
-          if (relevantSpans.length === 0) return true;
-          const lower = line.toLowerCase();
-          return relevantSpans.some(span => {
-            const spanLower = span.toLowerCase();
-            // Match if line contains any 5+ char word from the span
-            return spanLower.split(/\s+/).filter(w => w.length >= 5).some(w => lower.includes(w));
-          });
+        // Strip markdown and normalise for Vietnamese word-overlap matching
+        const cleanMd = (s: string) =>
+          s.replace(/\*{1,3}|_{1,3}|`|#+|-\s*/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+
+        const scoreLineMatch = (docLine: string): number => {
+          if (!highlightLine) return 0;
+          const src = cleanMd(highlightLine);
+          const doc = cleanMd(docLine);
+          // Use 2-char minimum — Vietnamese syllables are typically 2–5 chars
+          const srcTokens = src.split(/\s+/).filter(w => w.length >= 2);
+          const docSet = new Set(doc.split(/\s+/).filter(w => w.length >= 2));
+          if (srcTokens.length === 0) return 0;
+          const matched = srcTokens.filter(w => docSet.has(w)).length;
+          return matched / srcTokens.length;
         };
 
         const nonEmptyLines = pg.lines.filter(l => l.trim() !== '');
+
+        const lineScores = isHl ? nonEmptyLines.map(l => scoreLineMatch(l)) : null;
+        const maxScore = lineScores ? Math.max(...lineScores) : 0;
+        // Highlight only lines within 80% of the best score, and at least 35% overlap
+        const scoreThreshold = highlightLine ? Math.max(0.35, maxScore * 0.8) : 0;
+
         return (
           <div key={pg.chunk_index ?? pg.page}>
             {pgIdx > 0 && (
@@ -103,7 +115,10 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
               }`}
             >
               {nonEmptyLines.length > 0 ? nonEmptyLines.map((line, i) => {
-                const spanHl = isHl && lineMatchesSpan(line);
+                const score = lineScores?.[i] ?? 0;
+                const spanHl = isHl && (highlightLine
+                  ? score >= scoreThreshold && maxScore >= 0.3
+                  : true);
                 return (
                   <p key={i} className={`leading-[1.75] text-[13px] mb-1 ${
                     line.includes('████')
