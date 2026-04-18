@@ -29,7 +29,15 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
     ? citation.sourceFile.slice(0, 33) + '…'
     : citation.sourceFile;
 
-  // Tính vị trí: ưu tiên hiện bên dưới anchor, nếu không đủ chỗ thì hiện bên trên
+  // Ưu tiên: relevant_spans → source_lines → excerpt (header chunk, ít hữu ích nhất)
+  const spans = citation.relevant_spans ?? [];
+  const srcLines = citation.source_lines ?? [];
+  const previewText = spans.length > 0
+    ? spans[0]
+    : srcLines.length > 0
+      ? srcLines[0]
+      : citation.excerpt;
+
   const top = anchorRect.bottom + 6;
   const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 336));
 
@@ -44,18 +52,15 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
         <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
         <span className="text-[12px] font-medium text-text-primary flex-1 truncate">{shortName}</span>
         <span className="text-[10px] text-text-muted flex-shrink-0 mr-1">Đoạn {citation.chunk_index + 1}</span>
-        <button
-          onClick={onClose}
-          className="text-text-muted hover:text-text-primary transition-colors"
-        >
+        <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
           <X className="w-3 h-3" />
         </button>
       </div>
 
-      {/* Excerpt */}
+      {/* Preview — hiển thị đoạn liên quan, không phải header tài liệu */}
       <div className="px-3 py-2.5">
         <p className="text-[12px] text-text-secondary leading-relaxed line-clamp-4 italic">
-          "{citation.excerpt}"
+          "{previewText}"
         </p>
       </div>
 
