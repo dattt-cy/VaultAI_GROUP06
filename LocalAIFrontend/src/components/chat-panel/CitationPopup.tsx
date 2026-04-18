@@ -29,14 +29,22 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
     ? citation.sourceFile.slice(0, 33) + '…'
     : citation.sourceFile;
 
-  // Ưu tiên: relevant_spans → source_lines → excerpt (header chunk, ít hữu ích nhất)
-  const spans = citation.relevant_spans ?? [];
-  const srcLines = citation.source_lines ?? [];
+  // Strip markdown: **bold**, *italic*, - bullets, # headers
+  const stripMd = (s: string) =>
+    s.replace(/\*{1,3}(.*?)\*{1,3}/g, '$1')
+     .replace(/^[-#]+\s*/gm, '')
+     .replace(/\s+/g, ' ')
+     .trim();
+
+  // Ưu tiên relevant_spans (nhiều câu nhất có thể), fallback source_lines, fallback excerpt
+  const spans = (citation.relevant_spans ?? []).filter(s => s.trim().length > 0);
+  const srcLines = (citation.source_lines ?? []).filter(s => s.trim().length > 0);
+
   const previewText = spans.length > 0
-    ? spans[0]
+    ? stripMd(spans.join(' '))
     : srcLines.length > 0
-      ? srcLines[0]
-      : citation.excerpt;
+      ? stripMd(srcLines.join(' '))
+      : stripMd(citation.excerpt);
 
   const top = anchorRect.bottom + 6;
   const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 336));
