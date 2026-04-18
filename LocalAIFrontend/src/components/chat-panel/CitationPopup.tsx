@@ -36,15 +36,19 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
      .replace(/\s+/g, ' ')
      .trim();
 
-  // Ưu tiên relevant_spans (nhiều câu nhất có thể), fallback source_lines, fallback excerpt
+  // sourceLine = câu CỤ THỂ được click (thay đổi theo từng occurrence của [1], [2]...)
+  // relevant_spans = đoạn khớp nhất trong chunk (cố định cho mọi occurrence)
+  // Ưu tiên: sourceLine → relevant_spans → source_lines → excerpt
   const spans = (citation.relevant_spans ?? []).filter(s => s.trim().length > 0);
   const srcLines = (citation.source_lines ?? []).filter(s => s.trim().length > 0);
 
-  const previewText = spans.length > 0
-    ? stripMd(spans.join(' '))
-    : srcLines.length > 0
-      ? stripMd(srcLines.join(' '))
-      : stripMd(citation.excerpt);
+  const previewText = sourceLine
+    ? stripMd(sourceLine)
+    : spans.length > 0
+      ? stripMd(spans.join(' '))
+      : srcLines.length > 0
+        ? stripMd(srcLines.join(' '))
+        : stripMd(citation.excerpt);
 
   const top = anchorRect.bottom + 6;
   const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 336));
