@@ -124,7 +124,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             {/* Header bar — luôn hiển thị, click để expand/collapse */}
             <button
               onClick={() => setPanelOpen(o => !o)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border bg-elevated hover:bg-hover transition-colors"
+              disabled={message.isStreaming && message.content !== ''}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border bg-elevated hover:bg-hover transition-colors disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-elevated"
             >
               {/* Gradient spinner như Gemini */}
               <div className="w-4 h-4 flex-shrink-0 relative">
@@ -233,10 +234,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   {processedContent}
                 </ReactMarkdown>
               </div>
-            )}
-            {/* Streaming cursor */}
-            {message.isStreaming && message.content !== '' && (
-              <span className="inline-block w-0.5 h-3.5 bg-accent ml-0.5 align-middle animate-blink" />
             )}
           </div>
 
