@@ -239,7 +239,7 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
     citations = []
     for i, chunk in enumerate(chunks):
         citations.append({
-            "content_preview": chunk.content[:800] + ("..." if len(chunk.content) > 800 else ""),
+            "content_preview": chunk.content,
             "document_id": chunk.document_id,
             "chunk_index": chunk.chunk_index,
             "page": chunk.chunk_index + 1,
@@ -340,7 +340,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
     citations = []
     for i, chunk in enumerate(chunks):
         citations.append({
-            "content_preview": chunk.content[:800] + ("..." if len(chunk.content) > 800 else ""),
+            "content_preview": chunk.content,
             "document_id": chunk.document_id,
             "chunk_index": chunk.chunk_index,
             "page": chunk.chunk_index + 1,
