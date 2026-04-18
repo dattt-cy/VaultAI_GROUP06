@@ -3,6 +3,7 @@ import { ExternalLink, ChevronRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message, Citation } from '../../hooks/useChatState';
 import { CitationTag } from './CitationTag';
+import { CitationPopup } from './CitationPopup';
 import { ChatActions } from './ChatActions';
 
 interface MessageBubbleProps {
@@ -30,21 +31,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const indexMap = new Map<number, number>();
   usedIndicesArray.forEach((oldIdx, i) => indexMap.set(oldIdx, i + 1));
 
-  // Build per-occurrence sentence map: citation index → ordered list of sentences citing it
-  // This enables clicking [1] next to sentence X to highlight exactly sentence X in the document
-  const sentencesByCitation = new Map<number, string[]>();
-  if (!isUser && message.content) {
-    message.content.split(/(?<=[.!?\n])\s+/).forEach(sentence => {
-      Array.from(sentence.matchAll(/\[(\d+)\]/g)).forEach(m => {
-        const oldIdx = parseInt(m[1], 10) - 1;
-        if (!sentencesByCitation.has(oldIdx)) sentencesByCitation.set(oldIdx, []);
-        const clean = sentence.replace(/\[\d+\]/g, '').trim();
-        if (clean.length > 5) sentencesByCitation.get(oldIdx)!.push(clean);
-      });
-    });
-  }
-
-  // Convert [1] → [1](#cite-0-{occurrence}) — encode which occurrence so each click highlights precisely
+  // Convert [1] → [1](#cite-0-{occurrence})
   const occurrenceTracker: Record<number, number> = {};
   const processedContent = message.content.replace(/\[(\d+)\]/g, (_, p1) => {
     const oldIdx = parseInt(p1, 10) - 1;
@@ -78,6 +65,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   }
 
+  const [popupState, setPopupState] = useState<{ citation: Citation; rect: DOMRect } | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const reasoningScrollRef = useRef<HTMLDivElement>(null);
   const steps = message.thinkingSteps ?? [];
@@ -109,6 +97,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   }, [message.reasoningContent, message.isReasoning]);
 
   return (
+    <>
     <div className="flex gap-2.5 mb-5 animate-fade-in">
       <img src="/logo.png" alt="AI" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 mt-0.5 shadow-sm" />
 
@@ -214,17 +203,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       if (props.href?.startsWith('#cite-')) {
                         const parts = props.href.replace('#cite-', '').split('-');
                         const oldIdx = parseInt(parts[0], 10);
-                        const occurrence = parseInt(parts[1] ?? '0', 10);
                         const citation = message.citations?.[oldIdx];
                         if (citation) {
                           const newIdx = indexMap.get(oldIdx) || (oldIdx + 1);
-                          // Override relevant_spans with the exact sentence the user clicked
-                          const sentences = sentencesByCitation.get(oldIdx) || [];
-                          const specificSentence = sentences[occurrence];
-                          const enrichedCitation: Citation = specificSentence
-                            ? { ...citation, relevant_spans: [specificSentence] }
-                            : citation;
-                          return <CitationTag citation={enrichedCitation} index={newIdx - 1} onClick={onCitationClick} />;
+                          return (
+                            <CitationTag
+                              citation={citation}
+                              index={newIdx - 1}
+                              onClick={onCitationClick}
+                              onShowPopup={(c, rect) => setPopupState({ citation: c, rect })}
+                            />
+                          );
                         }
                       }
                       return <a {...props} className="text-accent underline hover:text-accent/80" />;
@@ -296,5 +285,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
       </div>
     </div>
+
+    {popupState && (
+      <CitationPopup
+        citation={popupState.citation}
+        anchorRect={popupState.rect}
+        onNavigate={onCitationClick}
+        onClose={() => setPopupState(null)}
+      />
+    )}
+    </>
   );
 };

@@ -1,0 +1,73 @@
+import React, { useEffect, useRef } from 'react';
+import { FileText, ExternalLink, X } from 'lucide-react';
+import type { Citation } from '../../hooks/useChatState';
+
+interface CitationPopupProps {
+  citation: Citation;
+  anchorRect: DOMRect;
+  onNavigate: (c: Citation) => void;
+  onClose: () => void;
+}
+
+export const CitationPopup: React.FC<CitationPopupProps> = ({
+  citation, anchorRect, onNavigate, onClose,
+}) => {
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [onClose]);
+
+  const shortName = citation.sourceFile.length > 36
+    ? citation.sourceFile.slice(0, 33) + '…'
+    : citation.sourceFile;
+
+  // Tính vị trí: ưu tiên hiện bên dưới anchor, nếu không đủ chỗ thì hiện bên trên
+  const top = anchorRect.bottom + 6;
+  const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 336));
+
+  return (
+    <div
+      ref={popupRef}
+      style={{ position: 'fixed', top, left, zIndex: 9999, width: 320 }}
+      className="bg-surface border border-border rounded-xl shadow-xl overflow-hidden animate-fade-in"
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-elevated border-b border-border/60">
+        <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+        <span className="text-[12px] font-medium text-text-primary flex-1 truncate">{shortName}</span>
+        <span className="text-[10px] text-text-muted flex-shrink-0 mr-1">Đoạn {citation.chunk_index + 1}</span>
+        <button
+          onClick={onClose}
+          className="text-text-muted hover:text-text-primary transition-colors"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Excerpt */}
+      <div className="px-3 py-2.5">
+        <p className="text-[12px] text-text-secondary leading-relaxed line-clamp-4 italic">
+          "{citation.excerpt}"
+        </p>
+      </div>
+
+      {/* Navigate button */}
+      <div className="px-3 pb-3">
+        <button
+          onClick={() => { onNavigate(citation); onClose(); }}
+          className="flex items-center gap-1.5 text-[11px] text-accent hover:text-accent/80 font-medium transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          Xem trong tài liệu
+        </button>
+      </div>
+    </div>
+  );
+};

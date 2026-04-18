@@ -5,6 +5,7 @@ export interface Citation {
   id: string;
   sourceFile: string;
   page: number;
+  chunk_index: number;
   excerpt: string;
   relevant_spans?: string[];
 }
@@ -207,11 +208,16 @@ export function useChatState() {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, suggestions: data.suggestions || [] } : m
               ));
+            } else if (data.type === 'corrected_text') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, content: data.content } : m
+              ));
             } else if (data.type === 'done') {
               const citations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
                 id: `c-${c.document_id}-${c.chunk_index}-${index}`,
                 sourceFile: c.sourceFile || `Tài liệu ${c.document_id}`,
-                page: c.page_number || (c.chunk_index + 1),
+                page: c.chunk_index + 1,
+                chunk_index: c.chunk_index ?? index,
                 excerpt: c.content_preview,
                 relevant_spans: c.relevant_spans || [],
               }));

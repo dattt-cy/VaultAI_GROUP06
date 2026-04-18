@@ -4,40 +4,23 @@ import type { HighlightState } from '../../hooks/useDocumentHighlight';
 import { useDocumentContent } from '../../hooks/useDocumentContent';
 
 export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: string | null }> = ({ highlight, filename }) => {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const highlightRef = useRef<HTMLElement | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
   const { data, loading, error } = useDocumentContent(filename);
 
   useEffect(() => {
-    if (!loading && highlight.isVisible && highlight.citation && highlightRef.current && scrollContainerRef.current) {
-      setTimeout(() => {
-        const container = scrollContainerRef.current;
-        const chunkTarget = highlightRef.current;
-        if (!container || !chunkTarget) return;
-        
-        // Ưu tiên tìm chính xác dòng chữ được tô màu, nếu không thấy thì cuộn theo cả khối Chunk
-        const target = chunkTarget.querySelector('.highlight-target-text') as HTMLElement || chunkTarget;
-        
-        const rect = target.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        
-        // Tính toán khoảng scroll tương đối để đưa target vào giữa container (Triệt tiêu lỗi giựt chéo màn hình của scrollIntoView)
-        const scrollAmount = rect.top - containerRect.top - (container.clientHeight / 2) + (rect.height / 2);
-        
-        container.scrollBy({ top: scrollAmount, behavior: 'auto' });
-      }, 100);
+    if (!loading && highlight.isVisible && highlight.citation && highlightRef.current) {
+      requestAnimationFrame(() => {
+        highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     }
   }, [highlight, loading, data]);
-
-  // Hàm chuẩn hóa chuỗi để so khớp Highlight chính xác 100% không bị lệch dấu/xuống dòng
-  const normalizeForMatch = (str: string) => str.replace(/[^\w\sà-ỹÀ-Ỹ]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 
   // Trạng thái đang xử lý (PROCESSING / PENDING)
   const isProcessing = !loading && !error && data &&
     (data.ingestion_status === 'PROCESSING' || data.ingestion_status === 'PENDING');
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-y-auto px-4 pt-3 pb-[50vh] select-none-all">
+    <div className="h-full overflow-y-auto px-4 pt-3 pb-[50vh] select-none-all">
       {/* Loading state */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-text-muted">
@@ -81,11 +64,26 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
 
       {/* Real content */}
       {!loading && !error && !isProcessing && data && data.pages.map((pg, pgIdx) => {
-        const isHl = highlight.isVisible && highlight.citation?.page === pg.page;
+        const isHl = highlight.isVisible &&
+          highlight.citation != null &&
+          pg.chunk_index != null &&
+          highlight.citation.chunk_index === pg.chunk_index;
+
+        const relevantSpans: string[] = (highlight.citation?.relevant_spans ?? []).filter(s => s.length > 0);
+
+        const lineMatchesSpan = (line: string): boolean => {
+          if (relevantSpans.length === 0) return true;
+          const lower = line.toLowerCase();
+          return relevantSpans.some(span => {
+            const spanLower = span.toLowerCase();
+            // Match if line contains any 5+ char word from the span
+            return spanLower.split(/\s+/).filter(w => w.length >= 5).some(w => lower.includes(w));
+          });
+        };
+
         const nonEmptyLines = pg.lines.filter(l => l.trim() !== '');
         return (
-          <div key={pg.page}>
-            {/* Minimal chunk divider — only between chunks */}
+          <div key={pg.chunk_index ?? pg.page}>
             {pgIdx > 0 && (
               <div className="flex items-center gap-2 my-3">
                 <div className="flex-1 h-px bg-border/50" />
@@ -105,29 +103,13 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
               }`}
             >
               {nonEmptyLines.length > 0 ? nonEmptyLines.map((line, i) => {
-                const spans = highlight.citation?.relevant_spans || [];
-                let isLineRelevant = false;
-
-                if (isHl) {
-                  if (spans.length === 0) {
-                    isLineRelevant = true;
-                  } else {
-                    const cleanLine = normalizeForMatch(line);
-                    isLineRelevant = spans.some(s => {
-                      const cleanS = normalizeForMatch(s);
-                      if (cleanS.length < 5) return false;
-                      return cleanLine.includes(cleanS) || cleanS.includes(cleanLine) ||
-                        (cleanS.length > 20 && (cleanLine.includes(cleanS.slice(0, 15)) || cleanLine.includes(cleanS.slice(-15))));
-                    });
-                  }
-                }
-
+                const spanHl = isHl && lineMatchesSpan(line);
                 return (
                   <p key={i} className={`leading-[1.75] text-[13px] mb-1 ${
                     line.includes('████')
                       ? 'text-danger font-mono'
-                      : isLineRelevant
-                        ? 'highlight-target-text bg-warning/20 text-text-primary px-1 rounded border-b border-warning/30 inline-block'
+                      : spanHl
+                        ? 'bg-warning/20 text-text-primary px-1 rounded'
                         : 'text-text-primary'
                   }`}>
                     {line}
