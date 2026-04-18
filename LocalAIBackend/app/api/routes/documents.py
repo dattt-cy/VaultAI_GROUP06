@@ -14,8 +14,9 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_db, get_current_user
 from app.models.doc_model import Document, Category
+from app.models.user_model import User
 from app.services.ingestion_service import ingest_file
 
 router = APIRouter()
@@ -62,10 +63,10 @@ def _run_ingestion(file_path: str, filename: str, file_type: str,
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    category_id: int = Form(1),           # ID category mặc định = 1
-    user_id: int = Form(1),               # ID user hiện tại
-    scope: str = Form("COMPANY"),         # 'COMPANY' | 'PERSONAL'
+    category_id: int = Form(1),
+    scope: str = Form("COMPANY"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Nhận file từ frontend, lưu vào disk, và chạy ingestion trong background.
@@ -109,7 +110,7 @@ async def upload_document(
         filename=safe_name,
         file_type=ext,
         category_id=category_id,
-        uploaded_by=user_id,
+        uploaded_by=current_user.id,
         scope=scope,
     )
 
@@ -128,9 +129,9 @@ async def upload_document(
 @router.get("/list")
 async def list_documents(
     scope: Optional[str] = Query(None, description="'PERSONAL' | 'COMPANY' | None = all"),
-    user_id: int = Query(1),
     category_id: Optional[int] = Query(None),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Trả về danh sách tài liệu thực từ SQLite, nhóm theo scope và category.
@@ -148,7 +149,7 @@ async def list_documents(
     result = []
     for d in docs:
         # Kho cá nhân → chỉ hiện với đúng user upload
-        if d.document_scope == "PERSONAL" and d.uploaded_by != user_id:
+        if d.document_scope == "PERSONAL" and d.uploaded_by != current_user.id:
             continue
         result.append({
             "id": d.id,
@@ -181,10 +182,16 @@ async def list_categories(db: Session = Depends(get_db)):
 # DELETE /{doc_id}
 # ────────────────────────────────────────────────────────────────────────────
 @router.delete("/{doc_id}")
-async def delete_document(doc_id: int, db: Session = Depends(get_db)):
+async def delete_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
+    if doc.uploaded_by != current_user.id and current_user.role.name != "admin":
+        raise HTTPException(status_code=403, detail="Không có quyền xóa tài liệu này")
 
     # Xoá file trên disk nếu còn
     if doc.file_path and os.path.exists(doc.file_path):
@@ -205,6 +212,7 @@ async def delete_document(doc_id: int, db: Session = Depends(get_db)):
 async def get_document_content(
     filename: Optional[str] = Query(None),
     db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
     """
     Trả về tất cả các page (chunk) của tài liệu dựa theo tên file (title).
