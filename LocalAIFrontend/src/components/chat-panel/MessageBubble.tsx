@@ -84,11 +84,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const hasReasoning = !!(message.reasoningContent && message.reasoningContent.length > 0);
   const showPanel = message.isStreaming || steps.length > 0 || hasReasoning || message.isReasoning;
 
-  // Tự mở khi bắt đầu suy luận, tự đóng khi trả lời xong
+  // Tự mở khi bắt đầu suy luận
   useEffect(() => {
     if (steps.length > 0 || message.isReasoning) setPanelOpen(true);
   }, [steps.length, message.isReasoning]);
 
+  // Ẩn panel khi token đầu tiên xuất hiện (đang trả lời, không còn suy luận)
+  useEffect(() => {
+    if (message.isStreaming && message.content !== '' && !message.isReasoning) {
+      setPanelOpen(false);
+    }
+  }, [message.content, message.isStreaming, message.isReasoning]);
+
+  // Đóng panel khi trả lời xong
   useEffect(() => {
     if (!message.isStreaming) setPanelOpen(false);
   }, [message.isStreaming]);

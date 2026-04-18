@@ -203,6 +203,10 @@ export function useChatState() {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, content: m.content + data.content } : m
               ));
+            } else if (data.type === 'suggestions') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, suggestions: data.suggestions || [] } : m
+              ));
             } else if (data.type === 'done') {
               const citations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
                 id: `c-${c.document_id}-${c.chunk_index}-${index}`,
