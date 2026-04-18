@@ -316,5 +316,9 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
             "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
         })
 
+    # Yield done immediately — không đợi suggestions để tránh delay 4-5s
+    yield _sse({"type": "done", "citations": citations, "suggestions": []})
+    # Sinh suggestions sau, gửi qua event riêng
     suggestions = _generate_suggestions(merged_context, safe_response)
-    yield _sse({"type": "done", "citations": citations, "suggestions": suggestions})
+    if suggestions:
+        yield _sse({"type": "suggestions", "suggestions": suggestions})
