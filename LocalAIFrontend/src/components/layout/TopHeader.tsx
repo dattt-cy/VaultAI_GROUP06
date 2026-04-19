@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Circle, LogOut, Plus } from 'lucide-react';
+import { Circle, LogOut, Plus, Shield } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 export const TopHeader: React.FC = () => {
@@ -52,6 +52,18 @@ export const TopHeader: React.FC = () => {
         </div>
 
         <div className="w-px h-5 bg-border hidden sm:block" />
+
+        {/* Admin Panel link */}
+        {isAdmin && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 border border-danger/40 text-danger hover:bg-danger/10 rounded-lg transition-colors text-[12px] font-semibold"
+            title="Admin Panel"
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Admin</span>
+          </button>
+        )}
 
         {/* New notebook */}
         <button
