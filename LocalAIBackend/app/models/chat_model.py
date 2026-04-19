@@ -25,7 +25,8 @@ class Message(Base):
     
     prompt_tokens = Column(Integer, default=0)
     completion_tokens = Column(Integer, default=0)
-    latency_ms = Column(BigInteger, default=0) 
+    latency_ms = Column(BigInteger, default=0)
+    citations_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     session = relationship("ChatSession", back_populates="messages")

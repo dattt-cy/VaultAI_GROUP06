@@ -12,6 +12,18 @@ from app.api.routes import documents, chat, admin, auth
 
 Base.metadata.create_all(bind=engine)
 
+# Migrate existing tables: add columns not yet present
+def _run_migrations():
+    from sqlalchemy import text, inspect
+    with engine.connect() as conn:
+        inspector = inspect(engine)
+        msg_cols = {c["name"] for c in inspector.get_columns("messages")}
+        if "citations_json" not in msg_cols:
+            conn.execute(text("ALTER TABLE messages ADD COLUMN citations_json TEXT"))
+            conn.commit()
+
+_run_migrations()
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"

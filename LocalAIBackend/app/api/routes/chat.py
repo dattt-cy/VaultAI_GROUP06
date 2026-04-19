@@ -80,6 +80,8 @@ async def chat_message_stream(
 
     def saving_generator():
         full_content = ""
+        corrected_content = ""
+        saved_citations = []
         for chunk in raw_gen:
             if chunk.startswith("data: "):
                 try:
@@ -87,8 +89,11 @@ async def chat_message_stream(
                     if data.get("type") == "token":
                         full_content += data.get("content", "")
                         yield chunk
+                    elif data.get("type") == "corrected_text":
+                        corrected_content = data.get("content", "")
+                        yield chunk
                     elif data.get("type") == "done":
-                        # Inject session_id so frontend can track it
+                        saved_citations = data.get("citations", [])
                         data["session_id"] = session_id
                         yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
                     else:
@@ -98,13 +103,16 @@ async def chat_message_stream(
             else:
                 yield chunk
 
+        # Use corrected_text if available (it has [1][2] citations instead of raw [A][B])
+        save_content = corrected_content or full_content
         # Persist assistant message after stream completes
-        if full_content:
+        if save_content:
             save_db = db
             save_db.add(Message(
                 session_id=session_id,
                 sender_type="assistant",
-                content=full_content,
+                content=save_content,
+                citations_json=json.dumps(saved_citations, ensure_ascii=False) if saved_citations else None,
             ))
             save_db.execute(
                 __import__("sqlalchemy").text(
@@ -208,6 +216,7 @@ async def get_session_messages(
                 "id": m.id,
                 "role": m.sender_type,
                 "content": m.content,
+                "citations": json.loads(m.citations_json) if m.citations_json else [],
                 "created_at": m.created_at.isoformat(),
             }
             for m in msgs
