@@ -15,6 +15,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
 }) => {
   const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree();
   const [search, setSearch] = useState('');
+  const [scope, setScope] = useState<'PERSONAL' | 'COMPANY'>('COMPANY');
 
   return (
     <div className="flex flex-col h-full bg-surface border-r border-border overflow-hidden">
@@ -31,6 +32,30 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
         <span className="text-[12px] font-bold text-text-primary tracking-wide">Nguồn tài liệu</span>
       </div>
 
+      {/* ── Scope tabs ── */}
+      <div className="flex border-b border-border flex-shrink-0">
+        <button
+          onClick={() => setScope('PERSONAL')}
+          className={`flex-1 py-2 text-[11px] font-semibold transition-colors border-b-2 ${
+            scope === 'PERSONAL'
+              ? 'border-warning text-warning bg-warning/5'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          Cá nhân
+        </button>
+        <button
+          onClick={() => setScope('COMPANY')}
+          className={`flex-1 py-2 text-[11px] font-semibold transition-colors border-b-2 ${
+            scope === 'COMPANY'
+              ? 'border-accent text-accent bg-accent/5'
+              : 'border-transparent text-text-muted hover:text-text-primary'
+          }`}
+        >
+          Chung
+        </button>
+      </div>
+
       {/* ── Search bar + DropZone ── */}
       <div className="px-2.5 py-2 border-b border-border flex-shrink-0">
         <div className="relative mb-2">
@@ -45,7 +70,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                        focus:border-accent/60 focus:ring-1 focus:ring-accent/10 transition-all"
           />
         </div>
-        <DropZone categories={categories} onSuccess={refetch} />
+        <DropZone categories={categories} onSuccess={refetch} scope={scope} />
       </div>
 
       {/* ── File Tree ── */}
@@ -61,6 +86,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           loading={loading}
           error={error}
           refetch={refetch}
+          activeScope={scope}
         />
       </div>
 

@@ -6,11 +6,11 @@ import type { RealCategory } from '../../hooks/useDocumentTree';
 interface DropZoneProps {
   categories: RealCategory[];
   onSuccess?: () => void;
+  scope?: 'PERSONAL' | 'COMPANY';
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess }) => {
+export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess, scope = 'COMPANY' }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [scope, setScope] = useState<'PERSONAL' | 'COMPANY'>('PERSONAL');
   const [categoryId, setCategoryId] = useState<number>(
     categories.find(c => c.name === 'Chung')?.id ?? categories[0]?.id ?? 1
   );
@@ -31,33 +31,9 @@ export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess }) => 
 
   return (
     <div className="flex flex-col gap-2">
-      {/* ── Scope + Category selectors ── */}
+      {/* ── Category selector (chỉ hiện khi scope COMPANY) ── */}
+      {scope === 'COMPANY' && (
       <div className="flex items-center gap-1.5">
-        {/* Scope toggle */}
-        <div className="flex rounded-md overflow-hidden border border-border flex-shrink-0">
-          <button
-            onClick={() => setScope('PERSONAL')}
-            className={`px-2 py-1 text-[10px] font-semibold transition-colors ${
-              scope === 'PERSONAL'
-                ? 'bg-warning text-white'
-                : 'bg-elevated text-text-muted hover:text-text-primary'
-            }`}
-          >
-            Cá nhân
-          </button>
-          <button
-            onClick={() => setScope('COMPANY')}
-            className={`px-2 py-1 text-[10px] font-semibold transition-colors ${
-              scope === 'COMPANY'
-                ? 'bg-accent text-white'
-                : 'bg-elevated text-text-muted hover:text-text-primary'
-            }`}
-          >
-            Chung
-          </button>
-        </div>
-
-        {/* Category dropdown */}
         <div className="relative flex-1 min-w-0">
           <select
             value={categoryId}
@@ -72,6 +48,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess }) => 
           <ChevronDown className="w-3 h-3 text-text-muted absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       </div>
+      )}
 
       {/* ── Drop zone area ── */}
       <div

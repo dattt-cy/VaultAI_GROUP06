@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FileText, ExternalLink, X } from 'lucide-react';
 import type { Citation } from '../../hooks/useChatState';
 
@@ -14,6 +14,21 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
   citation, anchorRect, sourceLine, onNavigate, onClose,
 }) => {
   const popupRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number }>({
+    top: anchorRect.bottom + 6,
+    left: Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 416)),
+  });
+
+  useLayoutEffect(() => {
+    if (!popupRef.current) return;
+    const { height } = popupRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - anchorRect.bottom - 8;
+    const top = spaceBelow >= height
+      ? anchorRect.bottom + 6
+      : Math.max(8, anchorRect.top - height - 6);
+    const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 416));
+    setPos({ top, left });
+  }, [anchorRect]);
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -69,13 +84,10 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
 
   const { before, match, after } = getChunkParts();
 
-  const top = anchorRect.bottom + 6;
-  const left = Math.max(8, Math.min(anchorRect.left - 8, window.innerWidth - 336));
-
   return (
     <div
       ref={popupRef}
-      style={{ position: 'fixed', top, left, zIndex: 9999, width: 400 }}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999, width: 400 }}
       className="bg-surface border border-border rounded-xl shadow-xl overflow-hidden animate-fade-in"
     >
       {/* Header */}

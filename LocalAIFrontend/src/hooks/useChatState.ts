@@ -84,7 +84,15 @@ export function useChatState() {
         id: String(m.id),
         role: m.role as 'user' | 'assistant',
         content: m.content,
-        citations: [],
+        citations: (m.citations ?? []).map((c: any, index: number) => ({
+          id: `c-${c.document_id}-${c.chunk_index}-${index}`,
+          sourceFile: c.sourceFile,
+          page: c.chunk_index + 1,
+          chunk_index: c.chunk_index,
+          excerpt: c.content_preview,
+          relevant_spans: c.relevant_spans || [],
+          source_lines: c.source_lines || [],
+        })),
         timestamp: new Date(m.created_at),
       }));
       setMessages(msgs.length > 0 ? msgs : [WELCOME_MSG]);

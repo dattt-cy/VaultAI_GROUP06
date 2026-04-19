@@ -275,11 +275,13 @@ interface FileExplorerProps {
   loading: boolean;
   error: string | null;
   refetch: () => void;
+  activeScope?: 'PERSONAL' | 'COMPANY';
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   onSelectFile, onSelectionChange, onDelete, search = '',
-  sharedDocs, privateDocs, categories, loading, error, refetch
+  sharedDocs, privateDocs, categories, loading, error, refetch,
+  activeScope = 'COMPANY',
 }) => {
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [sharedOpen, setSharedOpen] = useState(true);
@@ -334,90 +336,89 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     );
   }
 
-  if (sharedDocs.length === 0 && privateDocs.length === 0) {
+  const activeDocs = activeScope === 'PERSONAL' ? privateDocs : sharedDocs;
+
+  if (activeDocs.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 py-8 px-4 text-center">
         <span className="text-[12px] text-text-muted leading-relaxed">
-          Chưa có tài liệu nào.<br />Hãy upload tài liệu để bắt đầu.
+          {activeScope === 'PERSONAL'
+            ? 'Chưa có tài liệu cá nhân.\nHãy upload để bắt đầu.'
+            : 'Chưa có tài liệu chung.\nHãy upload để bắt đầu.'}
         </span>
+      </div>
+    );
+  }
+
+  if (activeScope === 'PERSONAL') {
+    return (
+      <div className="py-1">
+        <SectionHeader
+          dotColor="bg-warning"
+          label="Kho cá nhân"
+          count={privateDocs.length}
+          open={privateOpen}
+          onToggle={() => setPrivateOpen(o => !o)}
+          checkedCount={privateChecked.length}
+          isAllChecked={isPrivateAll}
+          isIndeterminate={isPrivatePartial}
+          onToggleAll={e => { e.stopPropagation(); toggleIds(allPrivateIds); }}
+          accentColor="bg-warning"
+        />
+        <Collapsible open={privateOpen}>
+          {Array.from(privateCatMap.entries()).map(([catId, docs]) => {
+            const category = categories.find(c => c.id === catId) ?? null;
+            return (
+              <CategoryGroup
+                key={catId ?? 'uncategorized'}
+                category={category}
+                docs={docs}
+                checkedIds={checkedIds}
+                onToggleIds={toggleIds}
+                onSelectFile={onSelectFile}
+                onDelete={onDelete}
+                search={search}
+                accentColor="bg-warning"
+              />
+            );
+          })}
+        </Collapsible>
       </div>
     );
   }
 
   return (
     <div className="py-1">
-
-      {/* ── Kho dùng chung ── */}
-      {sharedDocs.length > 0 && (
-        <div className="mb-0.5">
-          <SectionHeader
-            dotColor="bg-accent"
-            label="Kho dùng chung"
-            count={sharedDocs.length}
-            open={sharedOpen}
-            onToggle={() => setSharedOpen(o => !o)}
-            checkedCount={sharedChecked.length}
-            isAllChecked={isSharedAll}
-            isIndeterminate={isSharedPartial}
-            onToggleAll={e => { e.stopPropagation(); toggleIds(allSharedIds); }}
-            accentColor="bg-accent"
-          />
-          <Collapsible open={sharedOpen}>
-            {Array.from(sharedCatMap.entries()).map(([catId, docs]) => {
-              const category = categories.find(c => c.id === catId) ?? null;
-              return (
-                <CategoryGroup
-                  key={catId ?? 'uncategorized'}
-                  category={category}
-                  docs={docs}
-                  checkedIds={checkedIds}
-                  onToggleIds={toggleIds}
-                  onSelectFile={onSelectFile}
-                  onDelete={onDelete}
-                  search={search}
-                  accentColor="bg-accent"
-                />
-              );
-            })}
-          </Collapsible>
-        </div>
-      )}
-
-      {/* ── Kho cá nhân ── */}
-      {privateDocs.length > 0 && (
-        <div className={sharedDocs.length > 0 ? 'border-t border-border/50 pt-0.5' : ''}>
-          <SectionHeader
-            dotColor="bg-warning"
-            label="Kho cá nhân"
-            count={privateDocs.length}
-            open={privateOpen}
-            onToggle={() => setPrivateOpen(o => !o)}
-            checkedCount={privateChecked.length}
-            isAllChecked={isPrivateAll}
-            isIndeterminate={isPrivatePartial}
-            onToggleAll={e => { e.stopPropagation(); toggleIds(allPrivateIds); }}
-            accentColor="bg-warning"
-          />
-          <Collapsible open={privateOpen}>
-            {Array.from(privateCatMap.entries()).map(([catId, docs]) => {
-              const category = categories.find(c => c.id === catId) ?? null;
-              return (
-                <CategoryGroup
-                  key={catId ?? 'uncategorized'}
-                  category={category}
-                  docs={docs}
-                  checkedIds={checkedIds}
-                  onToggleIds={toggleIds}
-                  onSelectFile={onSelectFile}
-                  onDelete={onDelete}
-                  search={search}
-                  accentColor="bg-warning"
-                />
-              );
-            })}
-          </Collapsible>
-        </div>
-      )}
+      <SectionHeader
+        dotColor="bg-accent"
+        label="Kho dùng chung"
+        count={sharedDocs.length}
+        open={sharedOpen}
+        onToggle={() => setSharedOpen(o => !o)}
+        checkedCount={sharedChecked.length}
+        isAllChecked={isSharedAll}
+        isIndeterminate={isSharedPartial}
+        onToggleAll={e => { e.stopPropagation(); toggleIds(allSharedIds); }}
+        accentColor="bg-accent"
+      />
+      <Collapsible open={sharedOpen}>
+        {Array.from(sharedCatMap.entries()).map(([catId, docs]) => {
+          const category = categories.find(c => c.id === catId) ?? null;
+          return (
+            <CategoryGroup
+              key={catId ?? 'uncategorized'}
+              category={category}
+              docs={docs}
+              checkedIds={checkedIds}
+              onToggleIds={toggleIds}
+              onSelectFile={onSelectFile}
+              onDelete={onDelete}
+              search={search}
+              accentColor="bg-accent"
+            />
+          );
+        })}
+      </Collapsible>
     </div>
   );
 };
