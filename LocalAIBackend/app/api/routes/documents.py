@@ -15,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db, get_current_user
-from app.models.doc_model import Document, Category
+from app.models.doc_model import Document, Category, CategoryPermission
 from app.models.user_model import User
 from app.services.ingestion_service import ingest_file
 
@@ -72,6 +72,16 @@ async def upload_document(
     Nhận file từ frontend, lưu vào disk, và chạy ingestion trong background.
     Trả về ngay lập tức với status PROCESSING để UI cập nhật.
     """
+    # Kiểm tra quyền upload vào kho chung
+    if scope.upper() == "COMPANY" and current_user.role.name != "admin":
+        perm = db.query(CategoryPermission).filter(
+            CategoryPermission.role_id == current_user.role_id,
+            CategoryPermission.category_id == category_id,
+            CategoryPermission.can_upload == True,
+        ).first()
+        if not perm:
+            raise HTTPException(status_code=403, detail="Không có quyền upload vào danh mục này")
+
     ext = _get_extension(file.filename)
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -146,11 +156,26 @@ async def list_documents(
 
     docs = query.order_by(Document.created_at.desc()).all()
 
+    # Lấy danh sách category_id user được xem trong kho chung (admin thấy tất cả)
+    if current_user.role.name != "admin":
+        allowed_cat_ids = {
+            p.category_id for p in db.query(CategoryPermission).filter(
+                CategoryPermission.role_id == current_user.role_id,
+                CategoryPermission.can_view == True,
+            ).all()
+        }
+    else:
+        allowed_cat_ids = None  # None = không giới hạn
+
     result = []
     for d in docs:
         # Kho cá nhân → chỉ hiện với đúng user upload
         if d.document_scope == "PERSONAL" and d.uploaded_by != current_user.id:
             continue
+        # Kho chung → chỉ hiện category được phân quyền can_view
+        if d.document_scope == "COMPANY" and allowed_cat_ids is not None:
+            if d.category_id not in allowed_cat_ids:
+                continue
         result.append({
             "id": d.id,
             "title": d.title,

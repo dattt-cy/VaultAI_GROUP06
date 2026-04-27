@@ -82,6 +82,7 @@ async def chat_message_stream(
         full_content = ""
         corrected_content = ""
         saved_citations = []
+        done_data = None
         for chunk in raw_gen:
             if chunk.startswith("data: "):
                 try:
@@ -94,8 +95,7 @@ async def chat_message_stream(
                         yield chunk
                     elif data.get("type") == "done":
                         saved_citations = data.get("citations", [])
-                        data["session_id"] = session_id
-                        yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+                        done_data = data
                     else:
                         yield chunk
                 except Exception:
@@ -103,24 +103,32 @@ async def chat_message_stream(
             else:
                 yield chunk
 
-        # Use corrected_text if available (it has [1][2] citations instead of raw [A][B])
+        # Persist assistant message before yielding done so we can include message_id
         save_content = corrected_content or full_content
-        # Persist assistant message after stream completes
+        message_id = None
         if save_content:
-            save_db = db
-            save_db.add(Message(
+            import sqlalchemy
+            msg = Message(
                 session_id=session_id,
                 sender_type="assistant",
                 content=save_content,
                 citations_json=json.dumps(saved_citations, ensure_ascii=False) if saved_citations else None,
-            ))
-            save_db.execute(
-                __import__("sqlalchemy").text(
-                    "UPDATE chat_sessions SET updated_at = :now WHERE id = :id"
-                ),
+            )
+            db.add(msg)
+            db.execute(
+                sqlalchemy.text("UPDATE chat_sessions SET updated_at = :now WHERE id = :id"),
                 {"now": datetime.utcnow(), "id": session_id},
             )
-            save_db.commit()
+            db.commit()
+            db.refresh(msg)
+            message_id = msg.id
+
+        # Yield done event with session_id and message_id
+        if done_data is not None:
+            done_data["session_id"] = session_id
+            if message_id:
+                done_data["message_id"] = message_id
+            yield f"data: {json.dumps(done_data, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         saving_generator(),
@@ -222,6 +230,50 @@ async def get_session_messages(
             for m in msgs
         ],
     }
+
+
+@router.post("/messages/{message_id}/feedback")
+async def save_feedback(
+    message_id: int,
+    reaction: str,
+    user_comment: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.chat_model import Feedback as FeedbackModel
+    msg = db.query(Message).join(ChatSession).filter(
+        Message.id == message_id,
+        ChatSession.user_id == current_user.id,
+    ).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message không tồn tại")
+
+    existing = db.query(FeedbackModel).filter(FeedbackModel.message_id == message_id).first()
+    if existing:
+        existing.reaction = reaction
+        existing.user_comment = user_comment
+    else:
+        db.add(FeedbackModel(message_id=message_id, reaction=reaction, user_comment=user_comment))
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/sessions/{session_id}")
+async def update_session(
+    session_id: int,
+    title: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session không tồn tại")
+    session.session_title = title[:100]
+    db.commit()
+    return {"success": True, "title": session.session_title}
 
 
 @router.delete("/sessions/{session_id}")
