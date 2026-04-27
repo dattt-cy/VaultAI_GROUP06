@@ -23,15 +23,10 @@ export const TopHeader: React.FC = () => {
     <header className="h-12 bg-surface border-b border-border flex items-center justify-between px-4 flex-shrink-0 z-50">
       {/* Logo */}
       <div className="flex items-center gap-2.5">
-        <img src="/logo.png" alt="Local AI Logo" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
-        <span className="font-semibold text-[15px] text-text-primary">Local AI</span>
+        <img src="/logo.png" alt="VaultAI Logo" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
+        <span className="font-semibold text-[15px] text-text-primary">VaultAI</span>
         <span className="badge bg-accent/15 text-accent border border-accent/40">NỘI BỘ</span>
       </div>
-
-      {/* Center title */}
-      <p className="text-[14px] text-text-secondary truncate max-w-lg">
-        Hệ thống xử lý văn bản nội bộ không dùng Cloud
-      </p>
 
       {/* Right */}
       <div className="flex items-center gap-3">
@@ -41,17 +36,10 @@ export const TopHeader: React.FC = () => {
           <span className="text-[12px] text-text-muted">Trực tuyến</span>
         </div>
 
-        <div className="w-px h-5 bg-border" />
-
         {/* Role badge */}
-        <div className="flex items-center gap-1.5 hidden sm:flex">
-          <span className="text-[12px] text-text-muted">vai trò:</span>
-          <span className={`badge border ${isAdmin ? 'bg-danger/15 text-danger border-danger/30' : 'bg-warning/15 text-warning border-warning/30'}`}>
-            {isAdmin ? 'Admin' : 'Người dùng'}
-          </span>
-        </div>
-
-        <div className="w-px h-5 bg-border hidden sm:block" />
+        <span className={`badge border hidden sm:inline-flex ${isAdmin ? 'bg-danger/15 text-danger border-danger/30' : 'bg-warning/15 text-warning border-warning/30'}`}>
+          {isAdmin ? 'Admin' : 'Người dùng'}
+        </span>
 
         {/* Admin Panel link */}
         {isAdmin && (
@@ -68,13 +56,13 @@ export const TopHeader: React.FC = () => {
         {/* New notebook */}
         <button
           onClick={() => navigate('/workspace?id=new')}
-          className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 bg-[#1f1f1f] hover:bg-[#333333] text-white rounded-full transition-colors font-semibold text-[11px] shadow-sm ml-1"
+          className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 bg-accent/10 hover:bg-accent/20 text-accent border border-accent/30 rounded-full transition-colors font-semibold text-[11px]"
         >
           <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-          Tạo sổ ghi chú
+          Ghi chú mới
         </button>
 
-        <div className="w-px h-5 bg-border ml-1" />
+        <div className="w-px h-5 bg-border" />
 
         {/* User info + logout */}
         <div className="flex items-center gap-2">

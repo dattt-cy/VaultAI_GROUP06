@@ -48,9 +48,16 @@ export const DocumentViewer: React.FC<{ highlight: HighlightState; filename?: st
 
       {/* Empty state — no filename selected */}
       {!loading && !error && !filename && (
-        <div className="flex flex-col items-center justify-center py-16 gap-2 text-text-muted">
-          <FileText className="w-8 h-8 opacity-40" />
-          <p className="text-[13px] text-center">Chọn tài liệu để xem nội dung.</p>
+        <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
+          <div className="w-12 h-12 rounded-xl bg-elevated border border-border flex items-center justify-center">
+            <FileText className="w-6 h-6 text-text-muted opacity-50" />
+          </div>
+          <div>
+            <p className="text-[13px] text-text-secondary font-medium mb-1">Chưa chọn tài liệu</p>
+            <p className="text-[12px] text-text-muted leading-relaxed">
+              Click vào <span className="font-mono text-citation bg-citation/10 px-1 rounded">[1]</span> trong câu trả lời để xem đoạn trích dẫn nguồn tại đây.
+            </p>
+          </div>
         </div>
       )}
 

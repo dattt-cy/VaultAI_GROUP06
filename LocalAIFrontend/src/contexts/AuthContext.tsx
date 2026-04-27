@@ -3,12 +3,20 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 const API_BASE = 'http://localhost:8000';
 const USER_KEY = 'localai_user';
 
+export interface CategoryPermission {
+  category_id: number;
+  can_view: boolean;
+  can_upload: boolean;
+  can_delete: boolean;
+}
+
 export interface AuthUser {
   id: number;
   username: string;
   full_name: string;
   role: string;
   department?: string;
+  category_permissions: CategoryPermission[];
 }
 
 interface AuthContextType {
@@ -43,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           full_name: data.full_name,
           role: data.role,
           department: data.department,
+          category_permissions: data.category_permissions ?? [],
         };
         setUser(u);
         localStorage.setItem(USER_KEY, JSON.stringify(u));
@@ -72,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       full_name: data.full_name,
       role: data.role,
       department: data.department,
+      category_permissions: data.category_permissions ?? [],
     };
     setUser(u);
     localStorage.setItem(USER_KEY, JSON.stringify(u));

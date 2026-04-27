@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import { TopHeader } from './TopHeader';
 import { LeftPanel } from '../left-panel/LeftPanel';
 import { ChatPanel } from '../chat-panel/ChatPanel';
@@ -17,6 +18,9 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<string | undefined>();
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [selectedDocNames, setSelectedDocNames] = useState<string[]>([]);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
   const {
     messages, isGenerating, cancelledQuestion,
@@ -35,47 +39,83 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
     highlightCitation(c, sourceLine);
   };
 
-  const handleSelectionChange = useCallback((ids: Set<number>) => {
+  const handleSelectionChange = useCallback((ids: Set<number>, names: string[]) => {
     setCheckedIds(new Set(ids));
+    setSelectedDocNames(names);
   }, []);
+
+  const leftWidth = leftOpen ? '320px' : '0px';
+  const rightWidth = rightOpen ? '360px' : '0px';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <TopHeader />
 
-      <div style={{
-        flex: 1,
-        display: 'grid',
-        gridTemplateColumns: '320px 1fr 360px',
-        overflow: 'hidden',
-        minHeight: 0,
-      }}>
-        {/* LEFT: Source management */}
-        <LeftPanel
-          onSelectFile={setActiveFile}
-          onSelectionChange={handleSelectionChange}
-          onBackToDashboard={() => navigate('/dashboard')}
-        />
+      {/* Wrapper relative để đặt toggle buttons lên trên grid */}
+      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          display: 'grid',
+          gridTemplateColumns: `${leftWidth} 1fr ${rightWidth}`,
+          transition: 'grid-template-columns 200ms ease',
+          overflow: 'hidden',
+        }}>
+          {/* LEFT: Source management */}
+          <div style={{ overflow: 'hidden', minWidth: 0 }}>
+            <LeftPanel
+              onSelectFile={setActiveFile}
+              onSelectionChange={handleSelectionChange}
+              onBackToDashboard={() => navigate('/dashboard')}
+              onCollapse={() => setLeftOpen(false)}
+            />
+          </div>
 
-        {/* CENTER: Chatbot */}
-        <ChatPanel
-          messages={messages}
-          isGenerating={isGenerating}
-          onSend={(text) => sendMessage(text, Array.from(checkedIds))}
-          onCancel={cancelMessage}
-          onCitationClick={handleCitationClick}
-          onFeedback={setFeedback}
-          prefill={prefill || cancelledQuestion || undefined}
-          onPrefillConsumed={() => setPrefill(undefined)}
-          checkedCount={checkedIds.size}
-          totalCount={-1}
-        />
+          {/* CENTER: Chatbot */}
+          <ChatPanel
+            messages={messages}
+            isGenerating={isGenerating}
+            onSend={(text) => sendMessage(text, Array.from(checkedIds))}
+            onCancel={cancelMessage}
+            onCitationClick={handleCitationClick}
+            onFeedback={setFeedback}
+            prefill={prefill || cancelledQuestion || undefined}
+            onPrefillConsumed={() => setPrefill(undefined)}
+            checkedCount={checkedIds.size}
+            checkedIds={checkedIds}
+            selectedDocNames={selectedDocNames}
+          />
 
-        {/* RIGHT: Document viewer */}
-        <DocumentPanel
-          highlight={highlight}
-          activeFile={activeFile}
-        />
+          {/* RIGHT: Document viewer */}
+          <div style={{ overflow: 'hidden', minWidth: 0 }}>
+            <DocumentPanel
+              highlight={highlight}
+              activeFile={activeFile}
+              onCollapse={() => setRightOpen(false)}
+            />
+          </div>
+        </div>
+
+        {/* Re-open tabs — chỉ hiện khi panel đang đóng */}
+        {!leftOpen && (
+          <button
+            onClick={() => setLeftOpen(true)}
+            style={{ position: 'absolute', top: '40px', left: 0, zIndex: 30 }}
+            className="w-5 h-9 flex items-center justify-center bg-elevated border border-border border-l-0 rounded-r-md text-text-muted hover:text-text-primary hover:bg-hover transition-colors shadow-sm"
+            title="Hiện panel trái"
+          >
+            <ChevronRightIcon className="w-3 h-3" />
+          </button>
+        )}
+        {!rightOpen && (
+          <button
+            onClick={() => setRightOpen(true)}
+            style={{ position: 'absolute', top: '40px', right: 0, zIndex: 30 }}
+            className="w-5 h-9 flex items-center justify-center bg-elevated border border-border border-r-0 rounded-l-md text-text-muted hover:text-text-primary hover:bg-hover transition-colors shadow-sm"
+            title="Hiện panel phải"
+          >
+            <ChevronLeft className="w-3 h-3" />
+          </button>
+        )}
       </div>
     </div>
   );

@@ -75,7 +75,7 @@ export function useDocumentUpload({
           const match = (data.documents as any[]).find(
             d => d.title === file.name.replace(/ /g, '_') || d.title === file.name
           );
-          if (match && (match.ingestion_status === 'SUCCESS' || match.ingestion_status === 'DONE')) {
+          if (match && (match.ingestion_status === 'COMPLETED' || match.ingestion_status === 'SUCCESS' || match.ingestion_status === 'DONE')) {
             clearInterval(poll);
             update(id, { status: 'done', docId: match.id });
             onSuccess?.();

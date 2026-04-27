@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Send, Square, BookOpen } from 'lucide-react';
+import { Send, Square, BookOpen } from 'lucide-react';
+
+const CHAR_WARN_THRESHOLD = 200;
 
 interface ChatInputProps {
   onSend: (text: string) => void;
@@ -13,7 +15,6 @@ interface ChatInputProps {
 
 export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, noSources, prefill, onPrefillConsumed, isGenerating, onCancel }) => {
   const [value, setValue] = useState('');
-  const [recording, setRecording] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -24,7 +25,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, noSource
     if (ref.current) { ref.current.style.height = 'auto'; ref.current.style.height = Math.min(ref.current.scrollHeight, 160) + 'px'; }
   }, [value]);
 
+  // Ctrl+/ to focus input
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '/') { e.preventDefault(); ref.current?.focus(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const send = () => { const t = value.trim(); if (!t || disabled) return; onSend(t); setValue(''); };
+
+  const charCount = value.length;
+  const showCounter = charCount > CHAR_WARN_THRESHOLD;
 
   return (
     <div className="px-4 pb-4 pt-3 border-t border-border bg-surface flex-shrink-0">
@@ -46,34 +59,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, noSource
             ? 'border-border opacity-50 cursor-not-allowed'
             : 'border-border focus-within:border-accent/60 focus-within:shadow-sm focus-within:shadow-accent/5'}`}
       >
-        <textarea
-          ref={ref}
-          rows={1}
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={noSources
-            ? 'Chọn nguồn tài liệu trước khi đặt câu hỏi...'
-            : 'Đặt câu hỏi về tài liệu nội bộ... (Enter để gửi)'}
-          disabled={disabled}
-          className="flex-1 bg-transparent border-none outline-none text-text-primary text-[14px]
-                     resize-none min-h-6 max-h-40 overflow-y-auto leading-relaxed
-                     placeholder:text-text-muted py-1 disabled:opacity-50 disabled:cursor-not-allowed"
-        />
+        <div className="flex-1 relative">
+          <textarea
+            ref={ref}
+            rows={1}
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={noSources
+              ? 'Chọn nguồn tài liệu trước khi đặt câu hỏi...'
+              : 'Đặt câu hỏi... (Enter gửi · Shift+Enter xuống dòng · Ctrl+/ focus)'}
+            disabled={disabled}
+            className="w-full bg-transparent border-none outline-none text-text-primary text-[14px]
+                       resize-none min-h-6 max-h-40 overflow-y-auto leading-relaxed
+                       placeholder:text-text-muted py-1 disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          {showCounter && (
+            <span className={`absolute bottom-0 right-0 text-[10px] font-mono tabular-nums ${charCount > 1000 ? 'text-danger' : 'text-text-muted'}`}>
+              {charCount}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 pb-0.5">
-          <button
-            onClick={() => setRecording(r => !r)}
-            disabled={noSources}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer border
-              ${noSources
-                ? 'opacity-40 cursor-not-allowed border-transparent text-text-muted'
-                : recording
-                  ? 'bg-danger/15 border-danger/40 text-danger animate-pulse'
-                  : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}
-          >
-            {recording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-          </button>
-
           {isGenerating ? (
             <button
               onClick={onCancel}

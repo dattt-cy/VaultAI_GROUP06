@@ -1,16 +1,25 @@
 import React, { useState } from 'react';
-import { FileText, ZoomIn, ZoomOut, Lock, Search } from 'lucide-react';
+import { ChevronsRight, FileText, ZoomIn, ZoomOut, Lock, Search } from 'lucide-react';
 import { DocumentViewer } from './DocumentViewer';
 import { SecurityOverlay } from './SecurityOverlay';
 import type { HighlightState } from '../../hooks/useDocumentHighlight';
 
-export const DocumentPanel: React.FC<{ highlight: HighlightState; activeFile?: string | null }> = ({ highlight, activeFile }) => {
+export const DocumentPanel: React.FC<{ highlight: HighlightState; activeFile?: string | null; onCollapse?: () => void }> = ({ highlight, activeFile, onCollapse }) => {
   const [zoom, setZoom] = useState(100);
 
   return (
     <div className="flex flex-col h-full bg-surface border-l border-border overflow-hidden">
       {/* Toolbar — single compact row */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-elevated flex-shrink-0">
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-base/80 transition-colors flex-shrink-0"
+            title="Ẩn panel"
+          >
+            <ChevronsRight className="w-3.5 h-3.5" />
+          </button>
+        )}
         <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
         <span className="text-[13px] font-medium text-text-secondary flex-1 truncate min-w-0">
           {activeFile ?? 'Trình xem tài liệu'}

@@ -266,7 +266,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* Actions */}
           {!message.isStreaming && (
             <>
-              <ChatActions messageId={message.id} feedback={message.feedback} onFeedback={onFeedback} />
+              <ChatActions messageId={message.id} feedback={message.feedback} onFeedback={onFeedback} content={message.content} />
             </>
           )}
         </div>}

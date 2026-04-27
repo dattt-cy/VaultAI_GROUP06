@@ -1,21 +1,35 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Search } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { ArrowLeft, ChevronsLeft, Search } from 'lucide-react';
 import { FileExplorer } from './FileExplorer';
 import { DropZone } from './DropZone';
 import { useDocumentTree } from '../../hooks/useDocumentTree';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LeftPanelProps {
   onSelectFile: (name: string) => void;
-  onSelectionChange: (ids: Set<number>) => void;
+  onSelectionChange: (ids: Set<number>, names: string[]) => void;
   onBackToDashboard: () => void;
+  onCollapse?: () => void;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
-  onSelectFile, onSelectionChange, onBackToDashboard,
+  onSelectFile, onSelectionChange, onBackToDashboard, onCollapse,
 }) => {
   const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree();
+
+  const handleSelectionChange = useCallback((ids: Set<number>) => {
+    const allDocs = [...sharedDocs, ...privateDocs];
+    const names = Array.from(ids)
+      .map(id => allDocs.find(d => d.id === id)?.title ?? '')
+      .filter(Boolean);
+    onSelectionChange(ids, names);
+  }, [sharedDocs, privateDocs, onSelectionChange]);
+  const { user, isAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<'PERSONAL' | 'COMPANY'>('COMPANY');
+
+  // Có quyền upload vào kho chung nếu là admin hoặc có ít nhất 1 category can_upload
+  const canUploadCompany = isAdmin || (user?.category_permissions ?? []).some(p => p.can_upload);
 
   return (
     <div className="flex flex-col h-full bg-surface border-r border-border overflow-hidden">
@@ -29,7 +43,16 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <span className="text-[12px] font-bold text-text-primary tracking-wide">Nguồn tài liệu</span>
+        <span className="text-[12px] font-bold text-text-primary tracking-wide flex-1">Nguồn tài liệu</span>
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-base/80 transition-colors"
+            title="Ẩn panel"
+          >
+            <ChevronsLeft className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* ── Scope tabs ── */}
@@ -70,14 +93,16 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
                        focus:border-accent/60 focus:ring-1 focus:ring-accent/10 transition-all"
           />
         </div>
-        <DropZone categories={categories} onSuccess={refetch} scope={scope} />
+        {(scope === 'PERSONAL' || canUploadCompany) && (
+          <DropZone categories={categories} onSuccess={refetch} scope={scope} />
+        )}
       </div>
 
       {/* ── File Tree ── */}
       <div className="flex-1 overflow-y-auto min-h-0 bg-base/30 pt-1">
         <FileExplorer
           onSelectFile={onSelectFile}
-          onSelectionChange={onSelectionChange}
+          onSelectionChange={handleSelectionChange}
           onDelete={deleteDocument}
           search={search}
           sharedDocs={sharedDocs}

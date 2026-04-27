@@ -15,14 +15,13 @@ const FileIcon: React.FC<{ type: string }> = ({ type }) => {
   return                   <FileText      className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />;
 };
 
-// ── Ingestion status dot ──────────────────────────────────────────────────────
-const StatusDot: React.FC<{ status: string }> = ({ status }) => {
-  if (status === 'SUCCESS' || status === 'COMPLETED')
-    return <span className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" title="Đã xử lý" />;
+// ── Ingestion status indicator ────────────────────────────────────────────────
+const StatusDot: React.FC<{ status: string; errorMessage?: string }> = ({ status, errorMessage }) => {
+  if (status === 'SUCCESS' || status === 'COMPLETED') return null;
   if (status === 'PROCESSING')
-    return <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse flex-shrink-0" title="Đang xử lý" />;
+    return <Loader2 className="w-3 h-3 text-warning animate-spin flex-shrink-0" title="Đang xử lý..." />;
   if (status === 'FAILED')
-    return <span className="w-1.5 h-1.5 rounded-full bg-danger flex-shrink-0" title="Lỗi xử lý" />;
+    return <AlertCircle className="w-3 h-3 text-danger flex-shrink-0" title={errorMessage ? `Lỗi: ${errorMessage}` : 'Xử lý thất bại'} />;
   return <span className="w-1.5 h-1.5 rounded-full bg-text-muted/40 flex-shrink-0" title="Chờ xử lý" />;
 };
 
@@ -32,14 +31,15 @@ interface NbCheckboxProps {
   indeterminate?: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   accentColor?: string;
+  className?: string;
 }
-const NbCheckbox: React.FC<NbCheckboxProps> = ({ checked, indeterminate = false, onChange, accentColor = 'bg-accent' }) => {
+const NbCheckbox: React.FC<NbCheckboxProps> = ({ checked, indeterminate = false, onChange, accentColor = 'bg-accent', className = '' }) => {
   const ref = React.useRef<HTMLInputElement>(null);
   React.useEffect(() => { if (ref.current) ref.current.indeterminate = indeterminate; }, [indeterminate]);
 
   return (
     <label
-      className="relative flex items-center justify-center w-4 h-4 flex-shrink-0 cursor-pointer"
+      className={`relative flex items-center justify-center w-4 h-4 flex-shrink-0 cursor-pointer ${className}`}
       onClick={e => e.stopPropagation()}
     >
       <input ref={ref} type="checkbox" checked={checked} onChange={onChange} className="sr-only" />
@@ -111,7 +111,10 @@ const DocRow: React.FC<DocRowProps> = ({ doc, checked, onToggle, onSelectFile, o
         <>
           <button onClick={() => onSelectFile(doc.title)} className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left">
             <FileIcon type={doc.file_type} />
-            <span className={`text-[12px] truncate flex-1 text-left ${checked ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
+            <span className={`text-[12px] truncate flex-1 text-left ${
+              doc.ingestion_status === 'FAILED' ? 'text-danger/70 line-through' :
+              checked ? 'text-text-primary font-medium' : 'text-text-secondary'
+            }`}>
               {doc.title}
             </span>
             <StatusDot status={doc.ingestion_status} />
@@ -128,6 +131,7 @@ const DocRow: React.FC<DocRowProps> = ({ doc, checked, onToggle, onSelectFile, o
             checked={checked}
             onChange={e => { e.stopPropagation(); onToggle(doc.id); }}
             accentColor={accentColor}
+            className={checked ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity duration-100'}
           />
         </>
       )}
@@ -177,7 +181,7 @@ const CategoryGroup: React.FC<CategoryGroupProps> = ({
   return (
     <div>
       {/* Category header */}
-      <div className="flex items-center gap-1.5 px-3 pr-2.5 py-1 hover:bg-hover/40 transition-colors">
+      <div className="group flex items-center gap-1.5 px-3 pr-2.5 py-1 hover:bg-hover/40 transition-colors">
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left">
           <ChevronRight className={`w-3 h-3 text-text-muted flex-shrink-0 transition-transform duration-150 ${open ? 'rotate-90' : ''}`} />
           <span className="text-[11px] font-semibold text-text-secondary truncate flex-1 text-left">
@@ -194,6 +198,7 @@ const CategoryGroup: React.FC<CategoryGroupProps> = ({
           indeterminate={isPartial}
           onChange={toggleAll}
           accentColor={accentColor}
+          className={isAll || isPartial ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity duration-100'}
         />
       </div>
 
@@ -231,7 +236,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
   dotColor, label, count, open, onToggle, checkedCount,
   isAllChecked, isIndeterminate, onToggleAll, accentColor,
 }) => (
-  <div className="flex items-center gap-1.5 px-3 pr-2.5 py-1.5 hover:bg-hover/50 transition-colors">
+  <div className="group flex items-center gap-1.5 px-3 pr-2.5 py-1.5 hover:bg-hover/50 transition-colors">
     <button onClick={onToggle} className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left">
       <span className={`w-2 h-2 rounded-full ${dotColor} flex-shrink-0`} />
       <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider flex-1 text-left">{label}</span>
@@ -248,6 +253,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
       indeterminate={isIndeterminate}
       onChange={onToggleAll}
       accentColor={accentColor}
+      className={isAllChecked || isIndeterminate ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity duration-100'}
     />
   </div>
 );

@@ -13,6 +13,7 @@ export interface Citation {
 
 export interface Message {
   id: string;
+  backendId?: number;
   role: 'user' | 'assistant';
   content: string;
   citations?: Citation[];
@@ -233,12 +234,21 @@ export function useChatState() {
               }));
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, citations, suggestions: data.suggestions || [], isStreaming: false }
+                  ? { ...m, citations, suggestions: data.suggestions || [], isStreaming: false, backendId: data.message_id }
                   : m
               ));
-              // Update session tracking
+              // Update session tracking + auto-name if first exchange
               if (data.session_id) {
-                setCurrentSessionId(data.session_id);
+                const sid = data.session_id;
+                setCurrentSessionId(sid);
+                // Auto-name: only on the first user message (currentSessionId was null before)
+                if (!currentSessionId) {
+                  const words = content.trim().split(/\s+/).slice(0, 8).join(' ');
+                  const autoTitle = words.length < content.trim().length ? words + '...' : words;
+                  fetch(`${API_BASE}/api/chat/sessions/${sid}?title=${encodeURIComponent(autoTitle)}`, {
+                    method: 'PATCH', credentials: 'include',
+                  }).catch(() => { /* ignore */ });
+                }
                 loadSessions();
               }
               setIsGenerating(false);
@@ -257,10 +267,19 @@ export function useChatState() {
     }
   }, [currentSessionId, loadSessions]);
 
-  const setFeedback = useCallback((msgId: string, feedback: 'like' | 'dislike') => {
-    setMessages(prev => prev.map(m =>
-      m.id === msgId ? { ...m, feedback: m.feedback === feedback ? null : feedback } : m
-    ));
+  const setFeedback = useCallback((msgId: string, reaction: 'like' | 'dislike') => {
+    setMessages(prev => {
+      const msg = prev.find(m => m.id === msgId);
+      const newReaction = msg?.feedback === reaction ? null : reaction;
+      // Fire-and-forget API call if we have a backend ID
+      if (msg?.backendId && newReaction) {
+        fetch(`${API_BASE}/api/chat/messages/${msg.backendId}/feedback?reaction=${newReaction}`, {
+          method: 'POST',
+          credentials: 'include',
+        }).catch(() => { /* ignore */ });
+      }
+      return prev.map(m => m.id === msgId ? { ...m, feedback: newReaction } : m);
+    });
   }, []);
 
   const deleteSession = useCallback(async (sessionId: number) => {
