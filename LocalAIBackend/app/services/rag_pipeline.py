@@ -2,35 +2,60 @@ import re
 import json
 from typing import Generator
 from sqlalchemy.orm import Session
-from .hybrid_retriever import hybrid_retrieve, get_reranker
+from .hybrid_retriever import hybrid_retrieve, get_reranker, hybrid_retrieve_multi, _retrieval_is_confident
 from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
+from .context_manager import (
+    format_history_block,
+    needs_rewrite, rewrite_query, expand_query,
+)
 from app.core.config import settings
 from langchain_core.prompts import PromptTemplate
 
 
 # ---------------------------------------------------------------------------
-# Prompt QA — chỉ chứa hướng dẫn format và nội dung user
-# Phần ngôn ngữ (tiếng Việt 100%) đã được xử lý bởi SystemMessage trong llm_engine.py
+# Prompt QA — cấu trúc 3 bước bắt buộc để AI suy luận rõ ràng hơn
+# {history_block} = "" khi không có history (không ảnh hưởng prompt)
 # ---------------------------------------------------------------------------
 
 QA_PROMPT = PromptTemplate(
-    input_variables=["context", "question"],
-    template="""Bạn là trợ lý AI phân tích tài liệu nội bộ. Chỉ sử dụng thông tin từ NGỮ CẢNH bên dưới. Tuyệt đối không tự bịa thêm thông tin.
+    input_variables=["context", "history_block", "question"],
+    template="""Bạn là chuyên gia phân tích tài liệu nội bộ. Chỉ dùng thông tin từ NGỮ CẢNH bên dưới. Không bịa thêm bất kỳ thông tin nào.
 
 --- NGỮ CẢNH ---
 {context}
 -----------------
 
+{history_block}
 Câu hỏi: {question}
 
-HƯỚNG DẪN TRẢ LỜI:
-- Trả lời trực tiếp, tự nhiên. Dùng đoạn văn cho câu trả lời đơn giản; dùng danh sách (-) khi liệt kê nhiều mục rõ ràng.
-- Bôi đậm (**...**) các số liệu, tên điều khoản, mốc thời gian quan trọng.
-- Sau mỗi câu hoặc ý có thông tin cụ thể từ tài liệu, chèn nhãn nguồn tương ứng [A], [B], [C]... khớp với [TÀI LIỆU X] ở trên. Ví dụ: "Hạn mức tối đa là 10 triệu. [B]"
-- Nếu không tìm thấy thông tin trong ngữ cảnh, nói rõ: "Tôi không tìm thấy thông tin này trong tài liệu."
+HƯỚNG DẪN ĐỊNH DẠNG (áp dụng ngay, không viết các nhãn bước ra):
+1. Nếu ngữ cảnh KHÔNG có thông tin liên quan → chỉ viết đúng một câu: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." Không thêm gì khác.
+2. Nếu có thông tin → tổng hợp và trình bày trực tiếp theo định dạng sau:
+   - Dùng danh sách (-) khi liệt kê nhiều mục; mỗi mục con (a, b, c...) xuống dòng riêng với thụt lề "  -"
+   - Bôi đậm (**...**) số tiền, ngưỡng, tên điều khoản, mốc thời gian
+   - Đặt nhãn nguồn [A]/[B]/[C] ngay CUỐI câu chứa thông tin đó (trước dấu chấm)
+   - KHÔNG viết câu "Tôi không tìm thấy..." nếu đã có thông tin trả lời
+   - Nếu chỉ một phần câu hỏi có thông tin: trả lời phần đó, bỏ qua phần không có
+
+VÍ DỤ ĐỊNH DẠNG ĐÚNG:
+Q: "Quy trình phê duyệt chi tiêu gồm những mức nào?"
+A: Quy trình phê duyệt chi tiêu được chia theo giá trị:
+- Chi tiêu thường xuyên:
+  - Dưới **5.000.000 đồng**: Trưởng phòng phê duyệt [A]
+  - Từ **5.000.000 đến 20.000.000 đồng**: Giám đốc bộ phận phê duyệt [A]
+  - Trên **100.000.000 đồng**: Tổng Giám đốc (CEO) phê duyệt [A]
+- Chi tiêu khẩn cấp: hạn mức tối đa **10.000.000 đồng/lần**, cần bổ sung chứng từ trong **3 ngày làm việc**. [B]
 
 Trả lời:"""
 )
+
+# Directive cấu trúc hóa chain-of-thought cho thinking model
+_THINKING_DIRECTIVE = """Trước khi trả lời, hãy suy nghĩ theo cấu trúc sau trong phần suy nghĩ nội tâm:
+[PHÂN TÍCH CÂU HỎI]: Câu hỏi yêu cầu thông tin gì? Từ khóa chính là gì?
+[XEM XÉT TÀI LIỆU]: Tài liệu nào ([A],[B],[C]...) có thông tin liên quan? Độ tin cậy?
+[KẾT LUẬN]: Thông tin có đủ để trả lời không? Cần đặt điều kiện/giới hạn gì?
+
+"""
 
 
 
@@ -165,9 +190,11 @@ def _process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
     return '\n'.join(result_lines), citation_source_lines
 
 
-def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: list = None):
+def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
+              conversation_history: list = None):
     """
     Luồng RAG nâng cấp dùng Hybrid Retriever.
+    conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
     """
     lower_query = query.lower()
     intent_keywords = [
@@ -187,8 +214,17 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
             "suggestions": []
         }
 
+    history = conversation_history or []
+
+    # 0. Query rewriting: viết lại câu hỏi mơ hồ trước khi retrieval
+    retrieval_query = query
+    if history and needs_rewrite(query, history):
+        retrieval_query = rewrite_query(query, history, safe_llm_invoke)
+        if retrieval_query != query:
+            print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
+
     # 1. Hybrid Retrieval (Semantic + FTS5 + Page Expansion)
-    chunks = hybrid_retrieve(db=db, query=query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+    chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         return {
@@ -206,15 +242,16 @@ def query_rag(query: str, db: Session, session_id: int = None, allowed_doc_ids: 
     merged_context = "\n\n".join(context_parts)
 
     # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM
-    if check_hallucination(merged_context, query):
+    if check_hallucination(merged_context, retrieval_query):
         return {
             "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
             "citations": [],
             "suggestions": []
         }
 
-    # 4. Gọi LLM
-    prompt = QA_PROMPT.format(context=merged_context, question=query)
+    # 4. Gọi LLM với history block
+    history_block = format_history_block(history)
+    prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
     raw_response = safe_llm_invoke(prompt)
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
@@ -268,21 +305,46 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> Generator[str, None, None]:
+def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
+                     conversation_history: list = None) -> Generator[str, None, None]:
     """
     Streaming version của query_rag — yield SSE events:
       {"type":"thinking","step":"..."}   — bước xử lý pipeline
       {"type":"token","content":"..."}   — từng token LLM sinh ra
       {"type":"done","citations":[...],"suggestions":[...]}
+    conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
     """
+    history = conversation_history or []
+
+    # 0. Query rewriting nếu câu hỏi mơ hồ
+    retrieval_query = query
+    if history and needs_rewrite(query, history):
+        yield _sse({"type": "thinking", "step": "💬 Đang phân tích ngữ cảnh hội thoại..."})
+        retrieval_query = rewrite_query(query, history, safe_llm_invoke)
+        if retrieval_query != query:
+            print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
+            yield _sse({"type": "thinking", "step": f"🔄 Đã làm rõ câu hỏi: {retrieval_query[:60]}..."})
+
     yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
 
-    chunks = hybrid_retrieve(db=db, query=query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+    chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
+
+    # Adaptive retrieval: nếu confidence thấp, mở rộng tìm kiếm với query variants
+    if not _retrieval_is_confident(chunks):
+        yield _sse({"type": "thinking", "step": "⚡ Đang mở rộng tìm kiếm để cải thiện kết quả..."})
+        query_variants = expand_query(retrieval_query, safe_llm_invoke)
+        if len(query_variants) > 1:
+            expanded_chunks = hybrid_retrieve_multi(
+                db=db, queries=query_variants, top_k=7,
+                neighbor_window=1, allowed_doc_ids=allowed_doc_ids,
+            )
+            if expanded_chunks:
+                chunks = expanded_chunks
 
     doc_ids = {c.document_id for c in chunks}
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
@@ -291,30 +353,35 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None) -> G
     context_parts = [f"[TÀI LIỆU {chr(65 + i % 26)}]\n{chunk.content}" for i, chunk in enumerate(chunks)]
     merged_context = "\n\n".join(context_parts)
 
-    if check_hallucination(merged_context, query):
+    if check_hallucination(merged_context, retrieval_query):
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    prompt = QA_PROMPT.format(context=merged_context, question=query)
+    history_block = format_history_block(history)
+    qa_prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
 
     full_response = ""
     if settings.THINKING_ENABLED:
+        # Thêm directive cấu trúc hóa suy nghĩ vào đầu prompt
+        thinking_prompt = _THINKING_DIRECTIVE + qa_prompt
+        yield _sse({"type": "thinking", "step": "🧠 Đang phân tích câu hỏi..."})
         yield _sse({"type": "reasoning_start"})
         reasoning_done_sent = False
-        for kind, token in stream_llm_invoke_with_thinking(prompt):
+        for kind, token in stream_llm_invoke_with_thinking(thinking_prompt):
             if kind == "thinking":
                 yield _sse({"type": "reasoning", "content": token})
             else:
                 # Gửi reasoning_done ngay trước token trả lời đầu tiên
                 if not reasoning_done_sent:
                     yield _sse({"type": "reasoning_done"})
+                    yield _sse({"type": "thinking", "step": "📖 Đang đọc tài liệu liên quan..."})
                     reasoning_done_sent = True
                 full_response += token
                 yield _sse({"type": "token", "content": token})
         if not reasoning_done_sent:
             yield _sse({"type": "reasoning_done"})
     else:
-        for token in stream_llm_invoke(prompt):
+        for token in stream_llm_invoke(qa_prompt):
             full_response += token
             yield _sse({"type": "token", "content": token})
 

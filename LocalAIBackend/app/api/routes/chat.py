@@ -11,6 +11,7 @@ from app.models.chat_model import ChatSession, Message
 from app.models.user_model import User
 from app.schemas.chat_schema import ChatRequest
 from app.services.rag_pipeline import query_rag, query_rag_stream
+from app.services.context_manager import load_conversation_history
 
 router = APIRouter()
 
@@ -38,9 +39,13 @@ async def chat_message(
 ):
     session = _get_or_create_session(db, current_user.id, request.session_id)
 
+    # Load history TRƯỚC khi lưu user message mới
+    history = load_conversation_history(db, session.id, max_turns=5)
+
     result = query_rag(
         query=request.content, db=db,
-        session_id=session.id, allowed_doc_ids=request.selected_doc_ids,
+        allowed_doc_ids=request.selected_doc_ids,
+        conversation_history=history,
     )
 
     # Save messages
@@ -67,6 +72,9 @@ async def chat_message_stream(
 ):
     session = _get_or_create_session(db, current_user.id, request.session_id)
 
+    # Load history TRƯỚC khi lưu user message mới
+    history = load_conversation_history(db, session.id, max_turns=5)
+
     # Save user message immediately
     db.add(Message(session_id=session.id, sender_type="user", content=request.content))
     if not session.session_title:
@@ -75,6 +83,7 @@ async def chat_message_stream(
 
     raw_gen = query_rag_stream(
         query=request.content, db=db, allowed_doc_ids=request.selected_doc_ids,
+        conversation_history=history,
     )
     session_id = session.id
 
