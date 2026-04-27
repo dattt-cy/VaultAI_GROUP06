@@ -113,8 +113,8 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
         />
       </div>
 
-      {/* ── Upload section — collapsed by default ── */}
-      {(scope === 'PERSONAL' || canUploadCompany) && (
+      {/* ── Upload section — chỉ cho phép upload vào kho cá nhân ── */}
+      {scope === 'PERSONAL' && (
         <div className="border-t border-border flex-shrink-0">
           {uploadOpen && (
             <div className="p-2.5 border-b border-border/50 bg-elevated/30">
