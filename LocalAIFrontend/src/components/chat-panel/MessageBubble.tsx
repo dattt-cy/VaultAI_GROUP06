@@ -196,7 +196,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 </div>
               ) : null
             ) : (
-              <div className="[&>p]:mb-2 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-2 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-2 [&_strong]:font-bold [&_strong]:text-accent [&_strong]:bg-accent/15 [&_strong]:px-1.5 [&_strong]:py-0.5 [&_strong]:rounded-md [&_em]:italic">
+              <div className="[&>p]:mb-3 last:[&>p]:mb-0 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:mb-3 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:mb-3 [&>ol]:space-y-1 [&_ul_ul]:mt-1 [&_ul_ul]:ml-4 [&_ul_ul]:space-y-0.5 [&_ul_ul]:mb-0 [&_ol_ol]:mt-1 [&_ol_ol]:ml-4 [&_ol_ol]:space-y-0.5 [&_ol_ol]:mb-0 [&_li]:leading-relaxed [&_strong]:font-semibold [&_strong]:text-text-primary [&_em]:italic [&_em]:text-text-secondary [&>h2]:text-[15px] [&>h2]:font-semibold [&>h2]:text-text-primary [&>h2]:mt-3 [&>h2]:mb-1.5 [&>h3]:text-[14px] [&>h3]:font-semibold [&>h3]:text-text-secondary [&>h3]:mt-2 [&>h3]:mb-1 [&>hr]:border-border [&>hr]:my-3 [&_code]:bg-elevated [&_code]:font-mono [&_code]:text-[13px] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:border [&_code]:border-border [&>blockquote]:border-l-2 [&>blockquote]:border-accent/40 [&>blockquote]:pl-3 [&>blockquote]:text-text-secondary [&>blockquote]:italic [&>blockquote]:mb-2">
                 <ReactMarkdown
                   components={{
                     a: ({ node, ...props }) => {
