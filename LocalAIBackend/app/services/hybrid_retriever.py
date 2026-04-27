@@ -314,3 +314,99 @@ def hybrid_retrieve(
         ))
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Adaptive Retrieval — multi-query expansion + confidence check
+# ---------------------------------------------------------------------------
+
+def _retrieval_is_confident(chunks: list) -> bool:
+    """
+    Kiểm tra độ tin cậy retrieval dựa trên top rerank score của CrossEncoder.
+    ms-marco-MiniLM-L-6-v2: score > -3.0 nghĩa là chunk có liên quan hợp lý.
+    Ngưỡng conservative — chỉ trigger re-retrieval khi kết quả thực sự kém.
+    """
+    if not chunks:
+        return False
+    top_score = max(c.rerank_score for c in chunks if c.source_type != "neighbor_expand")
+    return top_score > -3.0
+
+
+def hybrid_retrieve_multi(
+    db: Session,
+    queries: list[str],
+    top_k: int = 7,
+    neighbor_window: int = MAX_NEIGHBOR_EXPAND,
+    allowed_doc_ids: list[int] = None,
+) -> list[RetrievedChunk]:
+    """
+    Chạy hybrid_retrieve cho nhiều query variants, dedup, re-rank với original query.
+    Dùng khi query expansion được kích hoạt (confidence thấp).
+
+    Args:
+        queries: [original_query, variant_1, variant_2, ...]
+                 queries[0] luôn là câu hỏi gốc (dùng để re-rank cuối)
+        top_k:   Số chunks trả về sau khi merge & re-rank
+    """
+    if not queries:
+        return []
+
+    original_query = queries[0]
+    seen_vector_ids: set[str] = set()
+    merged_pages: list = []  # (DocumentPage, highest_rerank_score)
+
+    # Chạy retrieval cho từng query variant, collect unique pages
+    for q in queries:
+        chunks = hybrid_retrieve(db=db, query=q, top_k=top_k,
+                                  neighbor_window=0,  # Không expand ở đây; expand sau
+                                  allowed_doc_ids=allowed_doc_ids)
+        for chunk in chunks:
+            if chunk.vector_id not in seen_vector_ids:
+                seen_vector_ids.add(chunk.vector_id)
+                # Tìm lại DocumentPage để re-rank
+                page = (
+                    db.query(DocumentPage)
+                    .filter(DocumentPage.vector_id == chunk.vector_id)
+                    .first()
+                )
+                if page:
+                    merged_pages.append(page)
+
+    if not merged_pages:
+        return []
+
+    # Re-rank merged pool với original query
+    reranker = get_reranker()
+    pairs = [(original_query, page.raw_content) for page in merged_pages]
+    scores = reranker.predict(pairs)
+
+    for idx, page in enumerate(merged_pages):
+        page._temp_rerank_score = float(scores[idx])
+
+    merged_pages.sort(key=lambda p: p._temp_rerank_score, reverse=True)
+    top_pages = merged_pages[:top_k]
+    score_map = {p.vector_id: p._temp_rerank_score for p in top_pages}
+
+    # Page Index Expansion trên kết quả cuối
+    expanded_pages = _expand_with_neighbors(db, top_pages, window=neighbor_window)
+
+    result: list[RetrievedChunk] = []
+    for page in expanded_pages:
+        is_core = page.vector_id in score_map
+        meta = {}
+        try:
+            meta = json.loads(page.page_metadata or "{}")
+        except (ValueError, TypeError):
+            pass
+        result.append(RetrievedChunk(
+            vector_id=page.vector_id,
+            document_id=page.document_id,
+            chunk_index=page.chunk_index,
+            content=page.raw_content,
+            token_count=page.token_count,
+            rerank_score=score_map.get(page.vector_id, 0.0),
+            source_type="hybrid_multi" if is_core else "neighbor_expand",
+            page_metadata=meta,
+        ))
+
+    return result
