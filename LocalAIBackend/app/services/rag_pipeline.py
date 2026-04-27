@@ -31,20 +31,22 @@ Câu hỏi: {question}
 HƯỚNG DẪN ĐỊNH DẠNG (áp dụng ngay, không viết các nhãn bước ra):
 1. Nếu ngữ cảnh KHÔNG có thông tin liên quan → chỉ viết đúng một câu: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." Không thêm gì khác.
 2. Nếu có thông tin → tổng hợp và trình bày trực tiếp theo định dạng sau:
-   - Dùng danh sách (-) khi liệt kê nhiều mục; mỗi mục con (a, b, c...) xuống dòng riêng với thụt lề "  -"
+   - Khi liệt kê các bước/mục có nội dung con: dùng bullet cha (**Tiêu đề bước**), nội dung con thụt vào 2 dấu cách "  -" (KHÔNG để nội dung con cùng cấp với tiêu đề)
    - Bôi đậm (**...**) số tiền, ngưỡng, tên điều khoản, mốc thời gian
-   - Đặt nhãn nguồn [A]/[B]/[C] ngay CUỐI câu chứa thông tin đó (trước dấu chấm)
+   - Nhãn nguồn [A]/[B]/[C]: chỉ đặt MỘT LẦN ở cuối nhóm bullet, KHÔNG đặt sau mỗi dòng riêng lẻ
    - KHÔNG viết câu "Tôi không tìm thấy..." nếu đã có thông tin trả lời
    - Nếu chỉ một phần câu hỏi có thông tin: trả lời phần đó, bỏ qua phần không có
 
-VÍ DỤ ĐỊNH DẠNG ĐÚNG:
-Q: "Quy trình phê duyệt chi tiêu gồm những mức nào?"
-A: Quy trình phê duyệt chi tiêu được chia theo giá trị:
-- Chi tiêu thường xuyên:
-  - Dưới **5.000.000 đồng**: Trưởng phòng phê duyệt [A]
-  - Từ **5.000.000 đến 20.000.000 đồng**: Giám đốc bộ phận phê duyệt [A]
-  - Trên **100.000.000 đồng**: Tổng Giám đốc (CEO) phê duyệt [A]
-- Chi tiêu khẩn cấp: hạn mức tối đa **10.000.000 đồng/lần**, cần bổ sung chứng từ trong **3 ngày làm việc**. [B]
+VÍ DỤ ĐỊNH DẠNG ĐÚNG (nested bullet — nội dung con thụt vào trong):
+Q: "Quy trình thanh toán gồm các bước nào?"
+A: Quy trình thanh toán gồm các bước sau:
+- **Bước 1: Lập đề nghị thanh toán**
+  - Điền phiếu đề nghị trên hệ thống ERP
+  - Đính kèm hóa đơn VAT hợp lệ, hợp đồng liên quan [A]
+- **Bước 2: Kiểm tra chứng từ**
+  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020
+  - Đối chiếu với đơn đặt hàng đã ký [A]
+- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, cần bổ sung chứng từ trong **3 ngày làm việc**. [B]
 
 Trả lời:"""
 )
