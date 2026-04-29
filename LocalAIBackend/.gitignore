@@ -26,3 +26,7 @@ chroma_db/
 
 # Docs (generated)
 docs/
+
+# Runtime uploads — không track file người dùng upload lúc chạy
+uploads/*
+!uploads/.gitkeep

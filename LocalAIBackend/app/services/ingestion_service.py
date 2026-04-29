@@ -13,6 +13,7 @@ Luồng xử lý trọn gói từ file → vector store + SQLite:
 import os
 import json
 import uuid
+from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.crud.crud_document import create_document, update_document_status, create_document_page
@@ -24,6 +25,7 @@ from app.services.document_parser import (
     chunk_text_with_pages,
 )
 from app.services.vector_store import add_documents_to_store
+from app.services.hybrid_retriever import sync_page_to_fts
 
 
 def _extract_text(file_path: str, file_type: str) -> str:
@@ -77,6 +79,8 @@ def ingest_file(
     file_type: str,
     category_id: int,
     uploaded_by: int,
+    scope: str = "PERSONAL",
+    session_id: Optional[int] = None,
 ) -> object:
     """
     Hàm chính: nhận file đã được lưu disk, trích xuất text, chunk,
@@ -98,6 +102,12 @@ def ingest_file(
     )
     db_doc = create_document(db, doc_in)
     update_document_status(db, db_doc, "PROCESSING")
+
+    # Set scope/session_id ngay lập tức để frontend thấy file trong lúc chunk
+    db_doc.document_scope = scope.upper()
+    if scope.upper() == "PERSONAL" and session_id:
+        db_doc.session_id = session_id
+    db.commit()
 
     try:
         # ── Phân nhánh xử lý theo định dạng ──
@@ -163,7 +173,8 @@ def ingest_file(
                     page_metadata=json.dumps(metadatas_for_vector[i]),
                     vector_id=v_id,
                 )
-                create_document_page(db, page_in)
+                db_page = create_document_page(db, page_in)
+                sync_page_to_fts(db, db_page.id, chunk_info["text"])
 
         # 7. Đánh dấu SUCCESS
         update_document_status(db, db_doc, "SUCCESS", total_tokens=total_tokens)

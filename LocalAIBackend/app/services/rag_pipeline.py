@@ -2,7 +2,7 @@ import re
 import json
 from typing import Generator
 from sqlalchemy.orm import Session
-from .hybrid_retriever import hybrid_retrieve, get_reranker, hybrid_retrieve_multi, _retrieval_is_confident
+from .hybrid_retriever import hybrid_retrieve, get_reranker, hybrid_retrieve_multi, _retrieval_is_confident, retrieve_for_summary
 from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
 from .context_manager import (
     format_history_block,
@@ -16,6 +16,39 @@ from langchain_core.prompts import PromptTemplate
 # Prompt QA — cấu trúc 3 bước bắt buộc để AI suy luận rõ ràng hơn
 # {history_block} = "" khi không có history (không ảnh hưởng prompt)
 # ---------------------------------------------------------------------------
+
+_SUMMARY_KEYWORDS = [
+    "tóm tắt", "tổng hợp", "tổng quan", "tóm lược", "tóm gọn",
+    "nội dung chính", "ý chính", "điểm chính", "khái quát",
+    "summarize", "summary", "overview",
+]
+
+
+def _is_summary_intent(query: str) -> bool:
+    lower = query.lower()
+    return any(k in lower for k in _SUMMARY_KEYWORDS)
+
+
+SUMMARY_PROMPT = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""Bạn là chuyên gia phân tích tài liệu. Dưới đây là nội dung các đoạn trích từ tài liệu.
+
+--- NỘI DUNG TÀI LIỆU ---
+{context}
+--------------------------
+
+Nhiệm vụ: {question}
+
+Hãy tóm tắt nội dung tài liệu dựa trên các đoạn trích trên. Trình bày theo cấu trúc:
+- **Chủ đề / Mục đích chính** của tài liệu
+- **Các nội dung/điểm chính** (dùng bullet, bôi đậm tiêu đề từng mục)
+- **Kết luận / Ý nghĩa** (nếu có)
+
+Chỉ dùng thông tin từ các đoạn trích. Không bịa thêm. Viết hoàn toàn bằng tiếng Việt.
+
+Tóm tắt:"""
+)
+
 
 QA_PROMPT = PromptTemplate(
     input_variables=["context", "history_block", "question"],
@@ -33,7 +66,7 @@ HƯỚNG DẪN ĐỊNH DẠNG (áp dụng ngay, không viết các nhãn bước
 2. Nếu có thông tin → tổng hợp và trình bày trực tiếp theo định dạng sau:
    - Khi liệt kê các bước/mục có nội dung con: dùng bullet cha (**Tiêu đề bước**), nội dung con thụt vào 2 dấu cách "  -" (KHÔNG để nội dung con cùng cấp với tiêu đề)
    - Bôi đậm (**...**) số tiền, ngưỡng, tên điều khoản, mốc thời gian
-   - Nhãn nguồn [A]/[B]/[C]: chỉ đặt MỘT LẦN ở cuối nhóm bullet, KHÔNG đặt sau mỗi dòng riêng lẻ
+   - Nhãn nguồn [A]/[B]/[C]: chỉ đặt ĐÚNG MỘT nhãn duy nhất ở cuối dòng bullet cha, KHÔNG xếp chồng nhiều nhãn như [A][B][C], KHÔNG đặt nhãn trên dòng riêng lẻ không có nội dung
    - KHÔNG viết câu "Tôi không tìm thấy..." nếu đã có thông tin trả lời
    - Nếu chỉ một phần câu hỏi có thông tin: trả lời phần đó, bỏ qua phần không có
 
@@ -177,19 +210,61 @@ def _process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
         clean = re.sub(r'\s*\[([A-Z])\]\s*', ' ', line)
         clean = re.sub(r'\s+', ' ', clean).strip()
 
-        if markers and clean:
-            # Chọn marker xuất hiện nhiều nhất (hoặc đầu tiên nếu bằng nhau)
-            best_letter = max(set(markers), key=markers.count)
-            chunk_idx = ord(best_letter) - 65  # A→0, B→1, C→2 ...
-            if 0 <= chunk_idx < num_chunks:
-                result_lines.append(f"{clean} [{chunk_idx + 1}]")
-                citation_source_lines.setdefault(chunk_idx, []).append(clean)
-                continue
+        if markers:
+            if clean:
+                # Chọn marker xuất hiện nhiều nhất (hoặc đầu tiên nếu bằng nhau)
+                best_letter = max(set(markers), key=markers.count)
+                chunk_idx = ord(best_letter) - 65  # A→0, B→1, C→2 ...
+                if 0 <= chunk_idx < num_chunks:
+                    result_lines.append(f"{clean} [{chunk_idx + 1}]")
+                    citation_source_lines.setdefault(chunk_idx, []).append(clean)
+                else:
+                    result_lines.append(clean)  # chunk index ngoài range → giữ text, bỏ marker
+            # Dòng chỉ có markers (clean rỗng) → bỏ hoàn toàn
+            continue
 
-        # Dòng trống hoặc không có citation → giữ nguyên
+        # Dòng không có citation marker → giữ nguyên
         result_lines.append(line)
 
     return '\n'.join(result_lines), citation_source_lines
+
+
+def _fix_bullet_indentation(text: str) -> str:
+    """
+    Post-processing: tự động thụt lề sub-bullet dưới header bold.
+
+    Chuyển đổi:
+      - **Bước 1: Header**
+      - Nội dung con [1]
+      - **Bước 2: Header**
+
+    Thành:
+      - **Bước 1: Header**
+        - Nội dung con [1]
+      - **Bước 2: Header**
+    """
+    lines = text.split('\n')
+    result = []
+    under_bold = False
+
+    for line in lines:
+        is_root_bullet = bool(re.match(r'^[-*] ', line))
+        is_bold_bullet = is_root_bullet and bool(re.match(r'^[-*] \*\*', line))
+
+        if is_bold_bullet:
+            under_bold = True
+            result.append(line)
+        elif under_bold and is_root_bullet:
+            # Plain root bullet ngay sau bold header → thụt vào làm sub-item
+            result.append('  ' + line)
+            # Không reset under_bold: nhiều sub-items liên tiếp vẫn thụt
+        else:
+            # Blank line hoặc dòng text thường (không phải bullet) → reset
+            if line.strip() == '' or not is_root_bullet:
+                under_bold = False
+            result.append(line)
+
+    return '\n'.join(result)
 
 
 def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
@@ -225,8 +300,11 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
         if retrieval_query != query:
             print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
 
-    # 1. Hybrid Retrieval (Semantic + FTS5 + Page Expansion)
-    chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+    # 1. Retrieval — dùng summary scan nếu user yêu cầu tóm tắt, ngược lại dùng hybrid
+    if _is_summary_intent(query):
+        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
+    else:
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         return {
@@ -243,17 +321,20 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
 
     merged_context = "\n\n".join(context_parts)
 
-    # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM
-    if check_hallucination(merged_context, retrieval_query):
+    # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM (bỏ qua khi tóm tắt vì context luôn có nội dung)
+    if not _is_summary_intent(query) and check_hallucination(merged_context, retrieval_query):
         return {
             "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
             "citations": [],
             "suggestions": []
         }
 
-    # 4. Gọi LLM với history block
-    history_block = format_history_block(history)
-    prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
+    # 4. Gọi LLM — dùng SUMMARY_PROMPT cho yêu cầu tóm tắt để tránh LLM trigger "không tìm thấy"
+    if _is_summary_intent(query):
+        prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
+    else:
+        history_block = format_history_block(history)
+        prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
     raw_response = safe_llm_invoke(prompt)
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
@@ -262,8 +343,9 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = re.sub(r'\[\d+\]', '', safe_response)
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
 
-    # 6. Xử lý LLM citations: gom [A][B] về cuối dòng, map sang [1][2]
+    # 6. Xử lý LLM citations + căn chỉnh thụt lề bullet
     safe_response, citation_source_lines = _process_llm_citations(safe_response, len(chunks))
+    safe_response = _fix_bullet_indentation(safe_response)
 
     # 7. Build chunk_queries cho relevant spans
     chunk_queries = [query] * len(chunks)
@@ -327,9 +409,12 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
             yield _sse({"type": "thinking", "step": f"🔄 Đã làm rõ câu hỏi: {retrieval_query[:60]}..."})
 
-    yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
-
-    chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+    if _is_summary_intent(query):
+        yield _sse({"type": "thinking", "step": "📄 Đang đọc toàn bộ nội dung tài liệu để tóm tắt..."})
+        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
+    else:
+        yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
@@ -337,7 +422,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         return
 
     # Adaptive retrieval: nếu confidence thấp, mở rộng tìm kiếm với query variants
-    if not _retrieval_is_confident(chunks):
+    # (chỉ áp dụng khi không phải summarization intent)
+    if not _is_summary_intent(query) and not _retrieval_is_confident(chunks):
         yield _sse({"type": "thinking", "step": "⚡ Đang mở rộng tìm kiếm để cải thiện kết quả..."})
         query_variants = expand_query(retrieval_query, safe_llm_invoke)
         if len(query_variants) > 1:
@@ -355,12 +441,15 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     context_parts = [f"[TÀI LIỆU {chr(65 + i % 26)}]\n{chunk.content}" for i, chunk in enumerate(chunks)]
     merged_context = "\n\n".join(context_parts)
 
-    if check_hallucination(merged_context, retrieval_query):
+    if not _is_summary_intent(query) and check_hallucination(merged_context, retrieval_query):
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    history_block = format_history_block(history)
-    qa_prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
+    if _is_summary_intent(query):
+        qa_prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
+    else:
+        history_block = format_history_block(history)
+        qa_prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
 
     full_response = ""
     if settings.THINKING_ENABLED:
@@ -393,8 +482,9 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
     log_english_leakage(safe_response)
 
-    # Xử lý LLM citations: gom [A][B] về cuối dòng, map sang [1][2]
+    # Xử lý LLM citations + căn chỉnh thụt lề bullet
     safe_response, citation_source_lines = _process_llm_citations(safe_response, len(chunks))
+    safe_response = _fix_bullet_indentation(safe_response)
 
     # Gửi corrected_text để frontend thay thế text đã stream bằng bản có citation
     yield _sse({"type": "corrected_text", "content": safe_response})

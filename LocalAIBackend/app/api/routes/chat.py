@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.chat_model import ChatSession, Message
+from app.models.doc_model import Document
 from app.models.user_model import User
 from app.schemas.chat_schema import ChatRequest
 from app.services.rag_pipeline import query_rag, query_rag_stream
@@ -28,6 +29,13 @@ def _get_or_create_session(db: Session, user_id: int, session_id: Optional[int])
     db.add(session)
     db.commit()
     db.refresh(session)
+    # Adopt personal docs uploaded before session was created (session_id=None)
+    db.query(Document).filter(
+        Document.uploaded_by == user_id,
+        Document.document_scope == "PERSONAL",
+        Document.session_id == None,  # noqa: E711
+    ).update({"session_id": session.id})
+    db.commit()
     return session
 
 

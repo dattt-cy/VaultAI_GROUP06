@@ -1,0 +1,70 @@
+GHI CHÚ KỸ THUẬT – DỰ ÁN TÍCH HỢP AI VÀO ERP
+Tác giả: Nguyễn Minh Khoa | Cập nhật: 15/03/2024 | Phân loại: Cá nhân – Nội bộ nhóm
+
+1. TỔNG QUAN DỰ ÁN
+
+Dự án tích hợp module AI vào hệ thống ERP hiện có. Mục tiêu: tự động phân tích dị thường trong chi tiêu, dự báo dòng tiền 30 ngày, và đề xuất tối ưu hóa ngân sách.
+
+Tech stack quyết định:
+- Backend AI: Python FastAPI + LangChain
+- Model: Fine-tuned LLM (bắt đầu với GPT-4o API, sau chuyển sang mô hình local)
+- Vector DB: ChromaDB (self-hosted)
+- Integration: REST API với ERP backend (Java Spring Boot)
+- Logging/Monitoring: ELK Stack
+
+2. TIẾN ĐỘ HIỆN TẠI (tuần 11/2024)
+
+Đã hoàn thành:
+- [x] Thiết kế kiến trúc tổng thể và được approve bởi Tech Lead
+- [x] Setup môi trường dev (Docker Compose với tất cả services)
+- [x] API endpoint nhận dữ liệu từ ERP (webhook + polling backup)
+- [x] Pipeline tiền xử lý dữ liệu chi tiêu (cleaning, normalization)
+- [x] Prototype phát hiện dị thường với Isolation Forest (accuracy: 87%)
+
+Đang làm:
+- [ ] Tích hợp LLM để giải thích dị thường bằng ngôn ngữ tự nhiên (dự kiến xong 22/03)
+- [ ] UI widget hiển thị alert trong ERP dashboard
+
+Còn lại:
+- [ ] Forecasting module (LSTM hoặc Prophet cho time series)
+- [ ] A/B test với 3 phòng ban pilot
+- [ ] Production deployment và monitoring setup
+
+3. VẤN ĐỀ KỸ THUẬT ĐÃ GẶP VÀ CÁCH GIẢI QUYẾT
+
+Vấn đề 1: Dữ liệu chi tiêu bị imbalanced (chi tiêu bất thường chỉ 2% tổng records)
+Giải pháp: SMOTE oversampling + điều chỉnh class weights trong model training.
+Kết quả: F1-score tăng từ 0.61 lên 0.82.
+
+Vấn đề 2: Latency cao khi gọi GPT-4o API (~3-5 giây/request)
+Giải pháp: Caching kết quả tương tự bằng Redis (semantic cache với cosine similarity > 0.92).
+Kết quả: 68% requests được serve từ cache, latency giảm xuống <200ms.
+
+Vấn đề 3: ERP API rate limiting (100 requests/phút)
+Giải pháp: Implement queue với Celery + Redis, batch processing theo giờ thay vì real-time.
+
+4. NOTES KỸ THUẬT QUAN TRỌNG
+
+- ChromaDB collection name: "erp_transactions_v2" (v1 deprecated, không xóa vội)
+- Model artifact lưu tại: /data/models/anomaly_detector_v3.pkl (phiên bản tốt nhất)
+- Threshold bất thường: score > 0.75 (calibrated trên 6 tháng data, có thể cần re-calibrate hàng quý)
+- Database connection: Dùng connection pooling, max 20 connections (ERP DB chỉ cho phép 25 total)
+- Secret keys: Lưu trong Vault, KHÔNG hardcode. Path: secret/erp-ai/prod/
+
+5. MEETING NOTES
+
+14/03/2024 – Review với CFO:
+- CFO muốn thêm tính năng alert qua email khi phát hiện chi tiêu lạ > 50 triệu.
+- Cần tuân thủ: Chỉ người có quyền xem mới nhận được alert (không gửi broadcast).
+- Deadline demo cho HĐQT: 15/04/2024.
+
+07/03/2024 – Technical review với team:
+- Quyết định dùng Prophet thay LSTM cho forecasting (dễ maintain, interpretable hơn).
+- Thêm unit test coverage lên 80% trước khi merge vào main.
+
+6. TODO TUẦN TỚI
+
+- [ ] Viết unit test cho anomaly detection pipeline (hiện: 45%, cần: 80%)
+- [ ] Document API endpoints mới (Swagger)
+- [ ] Setup Grafana dashboard cho model performance monitoring
+- [ ] Họp với team UX về thiết kế widget alert

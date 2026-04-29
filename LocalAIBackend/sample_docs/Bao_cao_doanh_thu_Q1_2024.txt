@@ -1,0 +1,84 @@
+BÁO CÁO KẾT QUẢ KINH DOANH QUÝ 1 NĂM 2024
+Ngày lập: 15/04/2024 | Phòng: Tài Chính – Kế Toán | Mật độ: NỘI BỘ
+
+PHẦN I – TÓM TẮT ĐIỀU HÀNH
+
+Quý 1/2024, công ty đạt tổng doanh thu 47,3 tỷ đồng, vượt kế hoạch đề ra 12,8%. Lợi nhuận trước thuế đạt 8,6 tỷ đồng, tăng 23% so với cùng kỳ năm 2023 (7,0 tỷ đồng). Biên lợi nhuận gộp cải thiện lên 41,2% nhờ tối ưu hóa chi phí vận hành và tăng tỷ trọng dịch vụ giá trị cao.
+
+PHẦN II – PHÂN TÍCH DOANH THU THEO MẢNG KINH DOANH
+
+2.1. Dịch vụ phần mềm (Software Services)
+- Doanh thu Q1/2024: 28,4 tỷ đồng (+18% so với Q1/2023).
+- Chiếm tỷ trọng 60% tổng doanh thu.
+- Tăng trưởng chủ yếu từ 3 hợp đồng lớn ký mới: Dự án ERP cho TechViet Corp (12 tỷ), Nâng cấp hệ thống MIS cho Vingroup subsidiary (8 tỷ), Dự án chuyển đổi số cho chuỗi bán lẻ PharmaHub (8,4 tỷ).
+- Mảng SaaS đăng ký (subscription) tăng mạnh: 42% YoY, hiện có 156 khách hàng SaaS trả phí hàng tháng.
+
+2.2. Tư vấn và triển khai (Consulting & Implementation)
+- Doanh thu Q1/2024: 11,2 tỷ đồng (+8% so với Q1/2023).
+- Chiếm tỷ trọng 23,7% tổng doanh thu.
+- Số lượng dự án triển khai: 14 dự án (7 dự án hoàn thành, 7 dự án đang triển khai).
+- Chỉ số hài lòng khách hàng (CSAT): 4,6/5 điểm, tăng so với Q4/2023 (4,3/5).
+
+2.3. Hỗ trợ và bảo trì (Support & Maintenance)
+- Doanh thu Q1/2024: 5,8 tỷ đồng (+5% so với Q1/2023).
+- Chiếm tỷ trọng 12,3% tổng doanh thu.
+- Tỷ lệ gia hạn hợp đồng bảo trì: 91,2% (mục tiêu năm: 90%).
+- Uptime hệ thống bình quân phục vụ khách hàng: 99,7%.
+
+2.4. Đào tạo và chuyển giao (Training & Knowledge Transfer)
+- Doanh thu Q1/2024: 1,9 tỷ đồng (+15% so với Q1/2023).
+- Chiếm tỷ trọng 4% tổng doanh thu.
+- Số lượng học viên đào tạo: 312 người từ 28 doanh nghiệp khác nhau.
+
+PHẦN III – CHI PHÍ VÀ LỢI NHUẬN
+
+3.1. Cơ cấu chi phí Q1/2024
+- Chi phí nhân sự (lương, BHXH, phúc lợi): 18,7 tỷ đồng (39,5% doanh thu).
+- Chi phí hạ tầng kỹ thuật (cloud, server, phần mềm bản quyền): 4,2 tỷ đồng (8,9%).
+- Chi phí marketing và bán hàng: 3,1 tỷ đồng (6,6%).
+- Chi phí quản lý chung (văn phòng, điện, nước, in ấn...): 2,8 tỷ đồng (5,9%).
+- Chi phí dự phòng và khác: 1,1 tỷ đồng (2,3%).
+- Tổng chi phí: 29,9 tỷ đồng.
+
+3.2. Lợi nhuận
+- Lợi nhuận gộp: 19,5 tỷ đồng (biên lợi nhuận gộp: 41,2%).
+- Lợi nhuận trước thuế (EBIT): 8,6 tỷ đồng (biên EBIT: 18,2%).
+- Thuế TNDN ước tính (20%): 1,72 tỷ đồng.
+- Lợi nhuận sau thuế: 6,88 tỷ đồng.
+
+PHẦN IV – TÌNH HÌNH DÒNG TIỀN
+
+4.1. Tiền mặt và tương đương tiền
+- Số dư đầu kỳ (01/01/2024): 12,4 tỷ đồng.
+- Tiền thu trong kỳ: 43,1 tỷ đồng (thu tiền khách hàng + lãi tiền gửi).
+- Tiền chi trong kỳ: 35,8 tỷ đồng (chi phí hoạt động + đầu tư + tài chính).
+- Số dư cuối kỳ (31/03/2024): 19,7 tỷ đồng.
+
+4.2. Công nợ phải thu
+- Tổng phải thu khách hàng: 22,5 tỷ đồng.
+- Trong hạn thanh toán (< 30 ngày): 14,3 tỷ (63,6%).
+- Quá hạn 30–60 ngày: 5,8 tỷ (25,8%) – đang đôn đốc.
+- Quá hạn trên 60 ngày: 2,4 tỷ (10,6%) – đang xử lý pháp lý với 3 khách hàng.
+- Trích lập dự phòng phải thu khó đòi: 0,5 tỷ đồng.
+
+PHẦN V – CHỈ TIÊU KẾ HOẠCH QUÝ 2/2024
+
+- Doanh thu mục tiêu: 52 tỷ đồng (+10% so với Q1/2024).
+- Lợi nhuận trước thuế mục tiêu: 10 tỷ đồng.
+- Ký mới hợp đồng: tối thiểu 5 hợp đồng trên 5 tỷ đồng.
+- Tăng số lượng khách hàng SaaS: thêm 20 khách hàng mới.
+- Giảm tỷ lệ công nợ quá hạn trên 60 ngày xuống dưới 8%.
+
+PHẦN VI – RỦI RO VÀ KHUYẾN NGHỊ
+
+6.1. Rủi ro chính
+- Cạnh tranh từ các công ty nước ngoài gia nhập thị trường Việt Nam (đặc biệt sau khi Việt Nam ký FTA mới).
+- Thiếu hụt nhân lực kỹ thuật cấp cao; tỷ lệ nghỉ việc Q1 là 8,3% (cao hơn mục tiêu 6%).
+- Rủi ro tỷ giá với các hợp đồng thanh toán bằng USD (~15% doanh thu).
+
+6.2. Khuyến nghị
+- Đẩy mạnh tuyển dụng và giữ chân nhân tài: Tăng ngân sách đào tạo nội bộ lên 5% doanh thu.
+- Đa dạng hóa nguồn khách hàng: Tập trung phát triển thị trường SME và doanh nghiệp tư nhân.
+- Nghiên cứu tích hợp AI vào sản phẩm hiện có để tăng giá trị và khác biệt hóa.
+
+Báo cáo được xem xét và phê duyệt bởi: Giám đốc Tài Chính (CFO).

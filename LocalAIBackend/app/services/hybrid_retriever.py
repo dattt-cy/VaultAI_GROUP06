@@ -40,6 +40,29 @@ def get_reranker():
     return _reranker
 
 
+def sync_page_to_fts(db: Session, page_id: int, raw_content: str) -> None:
+    """
+    Thêm một DocumentPage mới vào FTS5 index ngay sau khi insert vào document_pages.
+    Chỉ chạy nếu FTS đã được khởi tạo (tránh duplicate với rebuild lúc startup).
+    """
+    global _fts_initialized
+    if not _fts_initialized:
+        # FTS chưa build — lần rebuild tiếp theo sẽ tự include page này
+        return
+    try:
+        db.execute(
+            text("INSERT INTO document_pages_fts(rowid, raw_content) VALUES (:rowid, :content)"),
+            {"rowid": page_id, "content": raw_content},
+        )
+        db.commit()
+    except Exception as e:
+        print(f"[FTS] Sync page {page_id} thất bại: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 # ---------------------------------------------------------------------------
 # Data class trả về từ retriever
 # ---------------------------------------------------------------------------
@@ -330,6 +353,52 @@ def _retrieval_is_confident(chunks: list) -> bool:
         return False
     top_score = max(c.rerank_score for c in chunks if c.source_type != "neighbor_expand")
     return top_score > -3.0
+
+
+def retrieve_for_summary(
+    db: Session,
+    allowed_doc_ids: list[int] = None,
+    max_chunks: int = 10,
+) -> list[RetrievedChunk]:
+    """
+    Lấy chunks phân bổ đều từ đầu/giữa/cuối tài liệu thay vì dùng similarity.
+    Dùng khi user yêu cầu tóm tắt toàn bộ tài liệu — query vague như "tóm tắt file này"
+    không khớp ngữ nghĩa tốt với content, nên cần scan trực tiếp qua SQLite.
+    """
+    query = db.query(DocumentPage)
+    if allowed_doc_ids:
+        query = query.filter(DocumentPage.document_id.in_(allowed_doc_ids))
+
+    all_pages: list[DocumentPage] = (
+        query.order_by(DocumentPage.document_id, DocumentPage.chunk_index).all()
+    )
+    if not all_pages:
+        return []
+
+    if len(all_pages) <= max_chunks:
+        selected = all_pages
+    else:
+        step = len(all_pages) / max_chunks
+        selected = [all_pages[int(i * step)] for i in range(max_chunks)]
+
+    result: list[RetrievedChunk] = []
+    for page in selected:
+        meta = {}
+        try:
+            meta = json.loads(page.page_metadata or "{}")
+        except (ValueError, TypeError):
+            pass
+        result.append(RetrievedChunk(
+            vector_id=page.vector_id,
+            document_id=page.document_id,
+            chunk_index=page.chunk_index,
+            content=page.raw_content,
+            token_count=page.token_count,
+            rerank_score=1.0,
+            source_type="summary_scan",
+            page_metadata=meta,
+        ))
+    return result
 
 
 def hybrid_retrieve_multi(

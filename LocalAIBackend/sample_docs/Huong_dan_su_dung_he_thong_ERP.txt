@@ -1,0 +1,90 @@
+HƯỚNG DẪN SỬ DỤNG HỆ THỐNG ERP NỘI BỘ
+Phiên bản: 4.2 | Cập nhật: 02/2024 | Bộ phận IT hỗ trợ
+
+1. TỔNG QUAN HỆ THỐNG ERP
+
+Hệ thống ERP (Enterprise Resource Planning) của công ty được xây dựng trên nền tảng SAP S/4HANA, tích hợp các module: Tài chính (FI), Nhân sự (HR), Quản lý dự án (PM), Mua hàng (MM), và CRM.
+
+Địa chỉ truy cập:
+- Trong văn phòng: http://erp.internal/
+- Ngoài văn phòng (qua VPN): https://erp.company.vn/
+- Ứng dụng mobile: "CompanyERP" trên App Store / Google Play
+
+2. ĐĂNG NHẬP VÀ BẢO MẬT
+
+2.1. Tài khoản ERP
+- Tài khoản được cấp phát khi nhân viên onboarding, định dạng: [firstname].[lastname]@erp
+- Mật khẩu mặc định gửi qua email công ty, bắt buộc đổi ngay lần đăng nhập đầu tiên.
+- Bắt buộc bật xác thực 2 bước (MFA) cho tài khoản cấp Trưởng nhóm trở lên.
+
+2.2. Phân quyền hệ thống
+- Nhân viên: Xem và tạo yêu cầu trong phạm vi phòng ban mình.
+- Trưởng nhóm: Phê duyệt yêu cầu cấp nhóm, xem báo cáo nhóm.
+- Trưởng phòng: Phê duyệt các yêu cầu trong phòng, truy cập báo cáo phòng ban.
+- Giám đốc và CFO: Xem toàn bộ dữ liệu, phê duyệt theo hạn mức.
+
+3. MODULE TÀI CHÍNH (FI)
+
+3.1. Lập đề nghị thanh toán
+Bước 1: Vào Menu → Tài chính → Đề nghị thanh toán → Tạo mới
+Bước 2: Điền thông tin:
+  - Loại chi tiêu (Operating / CapEx / Emergency)
+  - Số tiền và đơn vị tiền tệ
+  - Nhà cung cấp/người thụ hưởng
+  - Mô tả mục đích chi tiêu (tối thiểu 50 ký tự)
+  - Trung tâm chi phí (Cost Center)
+Bước 3: Đính kèm chứng từ (PDF, JPG – tối đa 10MB mỗi file)
+Bước 4: Submit → Hệ thống tự động định tuyến đến người phê duyệt
+
+3.2. Tra cứu trạng thái thanh toán
+- Vào: Tài chính → Lịch sử thanh toán → Tìm kiếm theo số phiếu / ngày / trạng thái
+- Trạng thái: Chờ phê duyệt / Đã phê duyệt / Từ chối / Đã thanh toán
+
+3.3. Quyết toán tạm ứng
+- Vào: Tài chính → Tạm ứng → Quyết toán
+- Nhập số phiếu tạm ứng → Điền chi tiết chi tiêu thực tế → Đính kèm hóa đơn → Submit
+
+4. MODULE NHÂN SỰ (HR)
+
+4.1. Đăng ký nghỉ phép
+Bước 1: Vào Menu → Nhân sự → Nghỉ phép → Đăng ký mới
+Bước 2: Chọn loại phép (Phép năm / Nghỉ bệnh / Nghỉ cưới / Nghỉ tang)
+Bước 3: Chọn ngày bắt đầu và kết thúc → Ghi chú lý do
+Bước 4: Submit → Quản lý trực tiếp nhận thông báo qua email và Teams để phê duyệt
+
+Lưu ý: Phép từ 3 ngày trở lên phải đăng ký trước ít nhất 3 ngày làm việc.
+
+4.2. Đăng ký làm thêm giờ (OT)
+- Vào: Nhân sự → Chấm công → Đăng ký OT
+- Điền: Ngày OT, giờ bắt đầu/kết thúc, lý do OT
+- Gửi trước ít nhất 24 giờ để quản lý phê duyệt
+
+4.3. Xem bảng lương
+- Vào: Nhân sự → Lương → Phiếu lương tháng
+- Chọn tháng cần xem → Tải PDF hoặc xem online
+- Phiếu lương cập nhật vào ngày 8–9 hàng tháng (trước ngày trả lương 10)
+
+5. MODULE QUẢN LÝ DỰ ÁN (PM)
+
+5.1. Tạo dự án mới
+- Chỉ Trưởng phòng trở lên mới có quyền tạo dự án.
+- Điền: Tên dự án, mã dự án, khách hàng, ngày bắt đầu/kết thúc dự kiến, ngân sách.
+- Phân công nhân sự: Thêm thành viên và vai trò trong dự án.
+
+5.2. Cập nhật tiến độ
+- Nhân viên cập nhật tiến độ task hàng ngày (trước 17h30).
+- % hoàn thành, thời gian thực tế, ghi chú vấn đề phát sinh.
+- Trưởng dự án tổng hợp báo cáo tuần vào thứ Sáu.
+
+5.3. Ghi nhận doanh thu dự án
+- Khi milestone hoàn thành → Trưởng dự án tạo biên bản nghiệm thu trên ERP.
+- Kế toán đối chiếu với hợp đồng và xử lý ghi nhận doanh thu.
+
+6. HỖ TRỢ VÀ XỬ LÝ SỰ CỐ
+
+- Lỗi hệ thống hoặc không đăng nhập được: Tạo ticket tại helpdesk.company.vn hoặc gọi IT Ext 101.
+- Quên mật khẩu: Nhấp "Quên mật khẩu" trên trang đăng nhập → Xác thực qua email/SMS.
+- Yêu cầu phân quyền mới: Email IT kèm phê duyệt từ Trưởng phòng.
+- Thời gian hỗ trợ: Thứ Hai–Thứ Sáu, 08:00–18:00.
+
+Liên hệ: it-support@company.vn | Hotline nội bộ: Ext 101 | Ngoài giờ: 0901-XXX-XXX

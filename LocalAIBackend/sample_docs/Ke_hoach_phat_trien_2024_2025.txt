@@ -1,0 +1,94 @@
+KẾ HOẠCH PHÁT TRIỂN CHIẾN LƯỢC CÔNG TY 2024–2025
+Tài liệu: Nội bộ – Không phát tán | Phê duyệt: CEO | Ngày: 15/01/2024
+
+PHẦN I – TỔNG KẾT NĂM 2023
+
+1.1. Kết quả đạt được
+- Tổng doanh thu 2023: 168 tỷ đồng, đạt 105% kế hoạch.
+- Lợi nhuận sau thuế: 24,3 tỷ đồng, tăng 31% so với 2022.
+- Số lượng khách hàng mới: 47 doanh nghiệp (mục tiêu: 40).
+- Tỷ lệ gia hạn hợp đồng khách hàng cũ: 88% (mục tiêu: 85%).
+- Nhân sự cuối năm: 312 người, tuyển mới 68 người.
+
+1.2. Điểm chưa đạt
+- Tỷ lệ nghỉ việc: 12,1% (mục tiêu: 8%) — cần cải thiện chính sách giữ chân nhân tài.
+- Chi phí hạ tầng cloud vượt ngân sách 18% do tăng trưởng nhanh hơn dự kiến.
+- Dự án ERP nội bộ triển khai chậm 2 tháng so với kế hoạch ban đầu.
+
+PHẦN II – MỤC TIÊU NĂM 2024
+
+2.1. Mục tiêu tài chính
+- Doanh thu: 210 tỷ đồng (+25% YoY).
+- Lợi nhuận trước thuế: 38 tỷ đồng (biên EBIT: 18%).
+- Doanh thu từ SaaS/subscription: Tăng lên 35% tổng doanh thu (hiện tại: 22%).
+- Doanh thu từ thị trường quốc tế: Đạt 15 tỷ đồng (thị trường Singapore, Thái Lan).
+
+2.2. Mục tiêu khách hàng
+- Thêm 55 khách hàng doanh nghiệp mới.
+- Net Promoter Score (NPS): Đạt 45+ (hiện tại: 38).
+- Tỷ lệ gia hạn hợp đồng: 91%.
+- 3 case study lớn để làm tài liệu marketing.
+
+2.3. Mục tiêu nhân sự
+- Tuyển thêm 80 người, đạt tổng 390 nhân sự cuối năm.
+- Giảm tỷ lệ nghỉ việc xuống dưới 9%.
+- 100% nhân viên hoàn thành ít nhất 40 giờ đào tạo trong năm.
+- Xây dựng chương trình leadership pipeline cho 20 nhân viên tiềm năng.
+
+PHẦN III – CHIẾN LƯỢC PHÁT TRIỂN SẢN PHẨM
+
+3.1. Lộ trình sản phẩm 2024
+Q1/2024:
+- Ra mắt module AI tích hợp trong sản phẩm ERP (dự báo, phân tích dị thường).
+- Nâng cấp giao diện mobile app lên phiên bản 3.0.
+
+Q2/2024:
+- Phát hành sản phẩm SaaS HR mới dành cho SME (< 100 nhân viên), giá từ 2 triệu/tháng.
+- Tích hợp eSigning (chữ ký số) vào quy trình hợp đồng.
+
+Q3/2024:
+- Mở rộng sang thị trường Singapore: Bản quốc tế hóa (i18n) sản phẩm.
+- Ra mắt marketplace tích hợp (third-party app ecosystem).
+
+Q4/2024:
+- Tích hợp AI Chatbot hỗ trợ người dùng cuối.
+- Nâng cấp dashboard BI (Business Intelligence) với real-time analytics.
+
+3.2. Đầu tư R&D
+- Ngân sách R&D 2024: 18 tỷ đồng (8,6% doanh thu).
+- Tuyển 15 kỹ sư AI/ML chuyên biệt.
+- Hợp tác nghiên cứu với 2 trường đại học kỹ thuật.
+
+PHẦN IV – CHIẾN LƯỢC THỊ TRƯỜNG
+
+4.1. Phân khúc mục tiêu 2024
+- Enterprise (>500 nhân viên): Tiếp tục đẩy mạnh, tập trung ngành tài chính và sản xuất.
+- Mid-market (50–500 nhân viên): Mở rộng đội ngũ kinh doanh, phát triển gói SaaS trung cấp.
+- SME (<50 nhân viên): Sản phẩm tự phục vụ (self-serve), bán qua kênh online.
+
+4.2. Chiến lược kênh phân phối
+- Direct sales: 60% doanh thu (giữ nguyên).
+- Partner/Reseller: Phát triển 20 đối tác mới, mục tiêu 25% doanh thu.
+- Self-serve/PLG (Product-led Growth): 15% doanh thu vào cuối 2024.
+
+4.3. Marketing và thương hiệu
+- Ngân sách marketing: 12 tỷ đồng (tăng 30% so với 2023).
+- Tổ chức 2 sự kiện industry conference lớn tại Hà Nội và TP.HCM.
+- Tăng cường content marketing: 3 bài blog/tuần, 2 webinar/tháng.
+
+PHẦN V – KẾ HOẠCH NĂM 2025 (ĐỊNH HƯỚNG)
+
+- Doanh thu 2025: 285 tỷ đồng (+35% từ 2024).
+- Mở văn phòng quốc tế: Singapore (Q1/2025), Thailand (Q3/2025).
+- IPO preparation: Bắt đầu chuẩn bị hồ sơ niêm yết (mục tiêu 2026–2027).
+- Sản phẩm AI-first: 100% sản phẩm tích hợp AI capabilities.
+- Nhân sự: 550 người toàn cầu.
+
+PHẦN VI – RỦI RO CHIẾN LƯỢC
+
+- Cạnh tranh từ các tập đoàn công nghệ lớn (Microsoft, SAP, Oracle) mở rộng gói SME.
+- Biến động kinh tế vĩ mô ảnh hưởng đến ngân sách IT của khách hàng.
+- Rủi ro nhân lực: Thiếu kỹ sư chất lượng cao do cạnh tranh gay gắt từ các công ty nước ngoài.
+- Rủi ro công nghệ: Tốc độ phát triển AI nhanh có thể làm lỗi thời một số tính năng hiện tại.
+
+Văn bản này được phân loại NỘI BỘ – TỐI MẬT. Chỉ Ban Giám đốc và Trưởng phòng trở lên được phép đọc.

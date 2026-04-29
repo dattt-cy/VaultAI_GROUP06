@@ -14,10 +14,12 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
+from sqlalchemy import text
 from app.api.dependencies import get_db, get_current_user
 from app.models.doc_model import Document, Category, CategoryPermission
 from app.models.user_model import User
 from app.services.ingestion_service import ingest_file
+from app.services.vector_store import delete_documents_from_store
 
 router = APIRouter()
 
@@ -34,22 +36,22 @@ def _get_extension(filename: str) -> str:
 
 
 def _run_ingestion(file_path: str, filename: str, file_type: str,
-                   category_id: int, uploaded_by: int, scope: str):
+                   category_id: int, uploaded_by: int, scope: str,
+                   session_id: Optional[int] = None):
     """Chạy ingestion trong background thread (không block response)."""
     from app.db.session import SessionLocal
     db = SessionLocal()
     try:
-        doc = ingest_file(
+        ingest_file(
             db=db,
             file_path=file_path,
             filename=filename,
             file_type=file_type,
             category_id=category_id,
             uploaded_by=uploaded_by,
+            scope=scope,
+            session_id=session_id,
         )
-        # Cập nhật scope sau khi tạo
-        doc.document_scope = scope.upper()
-        db.commit()
     except Exception as e:
         print(f"[Ingestion ERROR] {filename}: {e}")
     finally:
@@ -65,6 +67,7 @@ async def upload_document(
     file: UploadFile = File(...),
     category_id: int = Form(1),
     scope: str = Form("COMPANY"),
+    session_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -122,6 +125,7 @@ async def upload_document(
         category_id=category_id,
         uploaded_by=current_user.id,
         scope=scope,
+        session_id=session_id if scope.upper() == "PERSONAL" else None,
     )
 
     return {
@@ -140,6 +144,7 @@ async def upload_document(
 async def list_documents(
     scope: Optional[str] = Query(None, description="'PERSONAL' | 'COMPANY' | None = all"),
     category_id: Optional[int] = Query(None),
+    session_id: Optional[int] = Query(None, description="Filter personal docs by session"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -169,9 +174,12 @@ async def list_documents(
 
     result = []
     for d in docs:
-        # Kho cá nhân → chỉ hiện với đúng user upload
-        if d.document_scope == "PERSONAL" and d.uploaded_by != current_user.id:
-            continue
+        # Kho cá nhân → chỉ hiện với đúng user upload, filter theo session_id nếu có
+        if d.document_scope == "PERSONAL":
+            if d.uploaded_by != current_user.id:
+                continue
+            if session_id is not None and d.session_id != session_id:
+                continue
         # Kho chung → chỉ hiện category được phân quyền can_view
         if d.document_scope == "COMPANY" and allowed_cat_ids is not None:
             if d.category_id not in allowed_cat_ids:
@@ -218,13 +226,29 @@ async def delete_document(
     if doc.uploaded_by != current_user.id and current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Không có quyền xóa tài liệu này")
 
-    # Xoá file trên disk nếu còn
+    # Thu thập vector_ids và page rowids TRƯỚC khi cascade xóa pages
+    vector_ids = [p.vector_id for p in doc.pages if p.vector_id]
+    page_ids   = [p.id        for p in doc.pages]
+
+    # 1. Xóa vectors khỏi ChromaDB
+    delete_documents_from_store(vector_ids)
+
+    # 2. Xóa FTS index entries (content table sẽ bị xóa theo cascade, FTS phải xóa thủ công)
+    if page_ids:
+        placeholders = ",".join(str(i) for i in page_ids)
+        try:
+            db.execute(text(f"DELETE FROM document_pages_fts WHERE rowid IN ({placeholders})"))
+        except Exception:
+            pass  # FTS table có thể chưa tồn tại nếu chưa có search nào
+
+    # 3. Xóa file trên disk
     if doc.file_path and os.path.exists(doc.file_path):
         try:
             os.remove(doc.file_path)
         except OSError:
             pass
 
+    # 4. Xóa document (cascade → document_pages)
     db.delete(doc)
     db.commit()
     return {"success": True, "message": f"Đã xoá tài liệu id={doc_id}"}

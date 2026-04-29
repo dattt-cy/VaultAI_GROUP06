@@ -1,0 +1,96 @@
+QUY TRÌNH THANH TOÁN VÀ KIỂM SOÁT TÀI CHÍNH NỘI BỘ
+Mã tài liệu: TC-QT-001 | Phiên bản: 2.0 | Ngày hiệu lực: 01/03/2024
+
+1. MỤC ĐÍCH
+Quy trình này nhằm đảm bảo kiểm soát chặt chẽ các khoản chi tiêu, thanh toán trong công ty; ngăn ngừa rủi ro tài chính, gian lận và sai sót trong xử lý chứng từ.
+
+2. ĐỐI TƯỢNG ÁP DỤNG
+Áp dụng cho tất cả nhân viên thực hiện chi tiêu từ ngân sách công ty, bao gồm các phòng ban và dự án.
+
+3. CÁC LOẠI CHI TIÊU VÀ HẠN MỨC PHÊ DUYỆT
+
+3.1. Chi tiêu thường xuyên (Operating Expenses)
+a) Dưới 5.000.000 đồng: Trưởng phòng phê duyệt.
+b) Từ 5.000.000 đến 20.000.000 đồng: Giám đốc bộ phận phê duyệt.
+c) Từ 20.000.000 đến 100.000.000 đồng: Giám đốc Tài Chính (CFO) phê duyệt.
+d) Trên 100.000.000 đồng: Tổng Giám đốc (CEO) phê duyệt.
+
+3.2. Chi tiêu đầu tư (Capital Expenditure – CapEx)
+a) Dưới 50.000.000 đồng: CFO phê duyệt.
+b) Từ 50.000.000 đến 500.000.000 đồng: CEO phê duyệt.
+c) Trên 500.000.000 đồng: Hội đồng quản trị (HĐQT) phê duyệt.
+
+3.3. Chi tiêu khẩn cấp (Emergency Spending)
+- Hạn mức tối đa: 10.000.000 đồng/lần, do Trưởng phòng phê duyệt.
+- Bắt buộc bổ sung đầy đủ chứng từ trong vòng 3 ngày làm việc sau khi chi.
+- Quá 2 lần/tháng, phải báo cáo với CFO.
+
+4. QUY TRÌNH THANH TOÁN THEO TỪNG BƯỚC
+
+Bước 1: Lập đề nghị thanh toán
+- Điền đầy đủ phiếu đề nghị thanh toán trên hệ thống ERP (module Finance).
+- Đính kèm: Hóa đơn VAT hợp lệ, hợp đồng/biên bản nghiệm thu (nếu có), báo giá so sánh (cho khoản trên 10 triệu – cần ít nhất 3 báo giá).
+
+Bước 2: Kiểm tra chứng từ
+- Kế toán kiểm tra tính hợp lệ của hóa đơn VAT (theo Nghị định 123/2020/NĐ-CP).
+- Kiểm tra đối chiếu với hợp đồng hoặc đơn đặt hàng đã ký.
+- Xác nhận hàng hóa/dịch vụ đã thực sự được nhận/cung cấp.
+
+Bước 3: Phê duyệt theo hạn mức
+- Hệ thống ERP tự định tuyến phê duyệt theo hạn mức đã cài đặt.
+- Thời gian phê duyệt tối đa: 2 ngày làm việc cho mỗi cấp.
+- Quá hạn phê duyệt: hệ thống tự gửi nhắc nhở cho người phê duyệt và cấp trên.
+
+Bước 4: Thực hiện thanh toán
+- Kế toán thực hiện chuyển khoản qua hệ thống Internet Banking doanh nghiệp.
+- Giao dịch trên 20 triệu đồng yêu cầu 2 người ký duyệt trên hệ thống ngân hàng (4-eyes principle).
+- Thanh toán bằng tiền mặt bị hạn chế, tối đa 2.000.000 đồng/lần và phải có lý do đặc biệt.
+
+Bước 5: Lưu trữ và đối chiếu
+- Chứng từ gốc lưu trữ tại phòng kế toán tối thiểu 10 năm theo quy định.
+- Bản scan lưu trữ trên hệ thống tối thiểu 5 năm.
+- Đối chiếu sao kê ngân hàng với sổ kế toán vào ngày 1–3 hàng tháng.
+
+5. QUY ĐỊNH VỀ TẠM ỨNG
+
+5.1. Điều kiện tạm ứng
+- Nhân viên chính thức (không áp dụng cho thử việc).
+- Có mục đích chi tiêu cụ thể, được phê duyệt trước.
+- Không còn khoản tạm ứng chưa quyết toán từ lần trước.
+
+5.2. Mức tạm ứng tối đa
+- Nhân viên: 5.000.000 đồng.
+- Trưởng nhóm/Chuyên viên cao cấp: 15.000.000 đồng.
+- Trưởng phòng và trên: 30.000.000 đồng.
+
+5.3. Thời hạn quyết toán
+- Tạm ứng cho công tác trong nước: quyết toán trong vòng 7 ngày kể từ ngày kết thúc công tác.
+- Tạm ứng cho công tác nước ngoài: quyết toán trong vòng 15 ngày.
+- Tạm ứng cho mua sắm: quyết toán trong vòng 5 ngày làm việc kể từ ngày nhận hàng.
+- Quá hạn quyết toán: Bị khấu trừ vào lương tháng tiếp theo.
+
+6. CÔNG TÁC PHÍ VÀ ĐI LẠI
+
+6.1. Tiêu chuẩn di chuyển trong nước
+- Nhân viên và chuyên viên: Hạng phổ thông (economy) máy bay, taxi/grab theo thực tế.
+- Trưởng phòng: Có thể đặt vé thương gia (business class) nếu chuyến bay trên 3 giờ.
+- Giám đốc trở lên: Business class cho tất cả chuyến bay.
+
+6.2. Phụ cấp lưu trú
+- Công tác trong nước: 400.000 đồng/ngày (hỗ trợ ăn uống và di chuyển nhỏ).
+- Công tác Hà Nội/TP.HCM: 500.000 đồng/ngày.
+- Khách sạn: Tối đa 1.000.000 đồng/đêm (trong nước), thanh toán theo hóa đơn thực tế.
+
+6.3. Công tác nước ngoài
+- Phụ cấp ngày công tác nước ngoài: Theo bảng phụ cấp từng quốc gia (xem phụ lục).
+- Khách sạn: Tối đa tương đương 100 USD/đêm tại quốc gia phát triển, 70 USD tại các nước Đông Nam Á.
+- Bắt buộc mua bảo hiểm du lịch quốc tế trước khi xuất cảnh.
+
+7. KIỂM SOÁT NỘI BỘ VÀ KIỂM TOÁN
+
+- Phòng Kiểm Soát Nội Bộ thực hiện kiểm tra đột xuất các khoản chi tiêu hàng quý.
+- Báo cáo kiểm toán nội bộ nộp cho CEO và HĐQT mỗi 6 tháng.
+- Các bất thường vượt 10% ngân sách phê duyệt phải báo cáo ngay CFO.
+- Công ty thuê kiểm toán độc lập (Big 4) kiểm tra báo cáo tài chính năm.
+
+Liên hệ: Phòng Tài Chính – Kế Toán | finance@company.vn | Ext: 302

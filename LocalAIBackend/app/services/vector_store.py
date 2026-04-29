@@ -42,6 +42,17 @@ def add_documents_to_store(texts: list[str], metadatas: list[dict], ids: list[st
     return returned_ids
 
 
+def delete_documents_from_store(vector_ids: list[str]) -> None:
+    """Xóa các vector khỏi ChromaDB theo danh sách vector_id."""
+    if not vector_ids:
+        return
+    vector_store = get_vector_store()
+    try:
+        vector_store.delete(ids=vector_ids)
+    except Exception as e:
+        print(f"[ChromaDB] Lỗi xóa vectors: {e}")
+
+
 def search_documents(query: str, k: int = 3, filter_dict: dict = None):
     vector_store = get_vector_store()
     results = vector_store.similarity_search_with_relevance_scores(query, k=k, filter=filter_dict)
