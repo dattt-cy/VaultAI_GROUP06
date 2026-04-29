@@ -15,13 +15,21 @@ export interface UploadItem {
 interface UseDocumentUploadOptions {
   categoryId?: number;
   scope?: 'COMPANY' | 'PERSONAL';
+  sessionId?: number | null;
+  onUploadStart?: () => void;
   onSuccess?: () => void;
+  onFileQueued?: (filename: string, fileType: string) => void;
+  onFileUploaded?: (filename: string) => void;
 }
 
 export function useDocumentUpload({
   categoryId = 1,
   scope = 'COMPANY',
+  sessionId,
+  onUploadStart,
   onSuccess,
+  onFileQueued,
+  onFileUploaded,
 }: UseDocumentUploadOptions = {}) {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
 
@@ -31,6 +39,8 @@ export function useDocumentUpload({
   const uploadFile = useCallback(async (file: File) => {
     const id = `${Date.now()}-${file.name}`;
     setUploads(prev => [...prev, { id, filename: file.name, progress: 0, status: 'uploading' }]);
+    const ext = file.name.includes('.') ? file.name.split('.').pop()! : '';
+    onFileQueued?.(file.name, ext);
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -39,6 +49,9 @@ export function useDocumentUpload({
         formData.append('file', file);
         formData.append('category_id', String(categoryId));
         formData.append('scope', scope);
+        if (scope === 'PERSONAL' && sessionId) {
+          formData.append('session_id', String(sessionId));
+        }
 
         xhr.withCredentials = true;  // send cookie for auth
 
@@ -66,7 +79,14 @@ export function useDocumentUpload({
 
       update(id, { progress: 100, status: 'processing' });
 
+      // Xóa optimistic doc ngay khi upload xong (trước khi backend rename)
+      onFileUploaded?.(file.name);
+
+      // Delay 400ms để backend kịp tạo document record trước khi refetch
+      setTimeout(() => onUploadStart?.(), 400);
+
       // Poll ingestion status every 2s, max 60s
+      // Mỗi tick cũng gọi onUploadStart để tree luôn cập nhật trong quá trình chunking
       const deadline = Date.now() + 60_000;
       const poll = setInterval(async () => {
         try {
@@ -83,18 +103,22 @@ export function useDocumentUpload({
           } else if (match && match.ingestion_status === 'FAILED') {
             clearInterval(poll);
             update(id, { status: 'error', error: 'Ingestion thất bại' });
+            onUploadStart?.();
           } else if (Date.now() > deadline) {
             clearInterval(poll);
             update(id, { status: 'done' });
             onSuccess?.();
             setTimeout(() => setUploads(prev => prev.filter(u => u.id !== id)), 2000);
+          } else {
+            // Còn đang PROCESSING — sync tree để spinner hiện đúng
+            onUploadStart?.();
           }
         } catch { /* ignore poll errors */ }
       }, 2000);
     } catch (err: any) {
       update(id, { status: 'error', error: err.message });
     }
-  }, [categoryId, scope, onSuccess]);
+  }, [categoryId, scope, sessionId, onUploadStart, onSuccess, onFileQueued, onFileUploaded]);
 
   const uploadFiles = useCallback((files: File[]) => {
     files.forEach(uploadFile);

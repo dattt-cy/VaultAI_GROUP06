@@ -27,38 +27,71 @@ export interface DocumentTreeState {
   error: string | null;
   refetch: () => void;
   deleteDocument: (id: number) => Promise<void>;
+  addOptimisticDoc: (filename: string, fileType: string) => void;
+  removeOptimisticDoc: (filename: string) => void;
 }
 
-export function useDocumentTree(): DocumentTreeState {
+export function useDocumentTree(sessionId?: number | null): DocumentTreeState {
   const [sharedDocs, setSharedDocs] = useState<RealDocument[]>([]);
   const [privateDocs, setPrivateDocs] = useState<RealDocument[]>([]);
+  const [optimisticDocs, setOptimisticDocs] = useState<RealDocument[]>([]);
   const [categories, setCategories] = useState<RealCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
-      const [docsRes, catsRes] = await Promise.all([
-        fetch(`${API_BASE}/api/documents/list`, { credentials: 'include' }),
+      const personalParams = sessionId != null ? `?scope=PERSONAL&session_id=${sessionId}` : `?scope=PERSONAL`;
+      const [sharedRes, personalRes, catsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/documents/list?scope=COMPANY`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/documents/list${personalParams}`, { credentials: 'include' }),
         fetch(`${API_BASE}/api/documents/categories`, { credentials: 'include' }),
       ]);
 
-      if (!docsRes.ok) throw new Error(`HTTP ${docsRes.status}`);
+      if (!sharedRes.ok) throw new Error(`HTTP ${sharedRes.status}`);
 
-      const docsData = await docsRes.json();
+      const sharedData = await sharedRes.json();
+      const personalData = personalRes.ok ? await personalRes.json() : { documents: [] };
       const catsData = catsRes.ok ? await catsRes.json() : { categories: [] };
-      const allDocs: RealDocument[] = docsData.documents ?? [];
 
-      setSharedDocs(allDocs.filter(d => d.scope === 'COMPANY'));
-      setPrivateDocs(allDocs.filter(d => d.scope === 'PERSONAL'));
+      const realPersonal: RealDocument[] = personalData.documents ?? [];
+      const realTitles = new Set(realPersonal.map(d => d.title));
+      setOptimisticDocs(prev => prev.filter(d => !realTitles.has(d.title)));
+
+      setSharedDocs(sharedData.documents ?? []);
+      setPrivateDocs(realPersonal);
       setCategories(catsData.categories ?? []);
     } catch (err: any) {
       setError(err.message ?? 'Lỗi kết nối backend');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+  }, [sessionId]);
+
+  const addOptimisticDoc = useCallback((filename: string, fileType: string) => {
+    const title = filename.replace(/ /g, '_');
+    setOptimisticDocs(prev => {
+      if (prev.some(d => d.title === title)) return prev;
+      const fake: RealDocument = {
+        id: -(Date.now()),
+        title,
+        file_type: fileType,
+        scope: 'PERSONAL',
+        category_id: null,
+        category_name: null,
+        ingestion_status: 'PROCESSING',
+        total_tokens: 0,
+        uploaded_by: 0,
+      };
+      return [fake, ...prev];
+    });
+  }, []);
+
+  const removeOptimisticDoc = useCallback((filename: string) => {
+    const title = filename.replace(/ /g, '_');
+    setOptimisticDocs(prev => prev.filter(d => d.title !== title));
   }, []);
 
   const deleteDocument = useCallback(async (id: number) => {
@@ -71,5 +104,19 @@ export function useDocumentTree(): DocumentTreeState {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  return { sharedDocs, privateDocs, categories, loading, error, refetch: fetchAll, deleteDocument };
+  // Auto-poll mỗi 2.5s khi có doc đang PROCESSING/PENDING — dừng khi tất cả xong
+  useEffect(() => {
+    const hasProcessing =
+      optimisticDocs.length > 0 ||
+      [...privateDocs, ...sharedDocs].some(
+        d => d.ingestion_status === 'PROCESSING' || d.ingestion_status === 'PENDING'
+      );
+    if (!hasProcessing) return;
+    const timer = setInterval(() => fetchAll(true), 2500);
+    return () => clearInterval(timer);
+  }, [optimisticDocs, privateDocs, sharedDocs, fetchAll]);
+
+  const mergedPrivateDocs = [...optimisticDocs, ...privateDocs];
+
+  return { sharedDocs, privateDocs: mergedPrivateDocs, categories, loading, error, refetch: () => fetchAll(true), deleteDocument, addOptimisticDoc, removeOptimisticDoc };
 }

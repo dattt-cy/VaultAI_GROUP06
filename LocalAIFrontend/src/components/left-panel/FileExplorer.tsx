@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ChevronRight, FileText, FileSpreadsheet, FileImage, Minus, Loader2, AlertCircle, RefreshCw, Trash2, X, Check } from 'lucide-react';
 import type { RealDocument, RealCategory } from '../../hooks/useDocumentTree';
 
@@ -80,6 +80,20 @@ const DocRow: React.FC<DocRowProps> = ({ doc, checked, onToggle, onSelectFile, o
     setDeleting(false);
     setConfirming(false);
   };
+
+  const isProcessing = doc.ingestion_status === 'PROCESSING' || doc.ingestion_status === 'PENDING';
+
+  if (isProcessing) {
+    return (
+      <div className="flex items-center gap-2 w-full py-1.5 pl-9 pr-2 opacity-60">
+        <FileIcon type={doc.file_type} />
+        <span className="text-[12px] truncate flex-1 text-text-muted italic">
+          {doc.title}
+        </span>
+        <Loader2 className="w-3.5 h-3.5 text-warning animate-spin flex-shrink-0" />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -298,6 +312,25 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     onSelectionChange(next);
   }, [onSelectionChange]);
 
+  // Auto-select personal docs khi ingestion hoàn thành
+  const knownReadyIdsRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    const readyDocs = privateDocs.filter(
+      d => d.ingestion_status === 'SUCCESS' || d.ingestion_status === 'COMPLETED'
+    );
+    const newIds = readyDocs
+      .map(d => d.id)
+      .filter(id => !knownReadyIdsRef.current.has(id));
+    if (newIds.length > 0) {
+      newIds.forEach(id => knownReadyIdsRef.current.add(id));
+      setCheckedIds(prev => {
+        const next = new Set([...prev, ...newIds]);
+        onSelectionChange(next);
+        return next;
+      });
+    }
+  }, [privateDocs, onSelectionChange]);
+
   const toggleIds = (ids: number[]) => {
     const next = new Set(checkedIds);
     const allChecked = ids.every(id => next.has(id));
@@ -357,12 +390,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   }
 
   if (activeScope === 'PERSONAL') {
+    const filteredPrivate = search
+      ? privateDocs.filter(d => d.title.toLowerCase().includes(search.toLowerCase()))
+      : privateDocs;
     return (
       <div className="py-1">
         <SectionHeader
           dotColor="bg-warning"
           label="Kho cá nhân"
-          count={privateDocs.length}
+          count={filteredPrivate.length}
           open={privateOpen}
           onToggle={() => setPrivateOpen(o => !o)}
           checkedCount={privateChecked.length}
@@ -372,22 +408,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           accentColor="bg-warning"
         />
         <Collapsible open={privateOpen}>
-          {Array.from(privateCatMap.entries()).map(([catId, docs]) => {
-            const category = categories.find(c => c.id === catId) ?? null;
-            return (
-              <CategoryGroup
-                key={catId ?? 'uncategorized'}
-                category={category}
-                docs={docs}
-                checkedIds={checkedIds}
-                onToggleIds={toggleIds}
-                onSelectFile={onSelectFile}
-                onDelete={onDelete}
-                search={search}
-                accentColor="bg-warning"
-              />
-            );
-          })}
+          {filteredPrivate.map(doc => (
+            <DocRow
+              key={doc.id}
+              doc={doc}
+              checked={checkedIds.has(doc.id)}
+              onToggle={id => toggleIds([id])}
+              onSelectFile={onSelectFile}
+              onDelete={onDelete}
+              accentColor="bg-warning"
+            />
+          ))}
         </Collapsible>
       </div>
     );

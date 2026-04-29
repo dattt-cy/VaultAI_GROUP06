@@ -6,10 +6,14 @@ import type { RealCategory } from '../../hooks/useDocumentTree';
 interface DropZoneProps {
   categories: RealCategory[];
   onSuccess?: () => void;
+  onUploadStart?: () => void;
+  onFileQueued?: (filename: string, fileType: string) => void;
+  onFileUploaded?: (filename: string) => void;
   scope?: 'PERSONAL' | 'COMPANY';
+  sessionId?: number | null;
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess, scope = 'COMPANY' }) => {
+export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess, onUploadStart, onFileQueued, onFileUploaded, scope = 'COMPANY', sessionId }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [categoryId, setCategoryId] = useState<number>(
     categories.find(c => c.name === 'Chung')?.id ?? categories[0]?.id ?? 1
@@ -17,9 +21,12 @@ export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess, scope
 
   const { uploads, uploadFiles, clearDone } = useDocumentUpload({
     categoryId,
-    userId: 1,
     scope,
+    sessionId,
+    onUploadStart,
     onSuccess,
+    onFileQueued,
+    onFileUploaded,
   });
 
   const handleDrop = useCallback((e: React.DragEvent) => {

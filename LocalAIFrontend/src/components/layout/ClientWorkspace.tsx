@@ -23,7 +23,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const [rightOpen, setRightOpen] = useState(true);
 
   const {
-    messages, isGenerating, cancelledQuestion,
+    messages, isGenerating, cancelledQuestion, currentSessionId,
     sendMessage, cancelMessage, setFeedback, loadSession,
   } = useChatState();
 
@@ -67,6 +67,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
               onSelectionChange={handleSelectionChange}
               onBackToDashboard={() => navigate('/dashboard')}
               onCollapse={() => setLeftOpen(false)}
+              currentSessionId={currentSessionId}
             />
           </div>
 

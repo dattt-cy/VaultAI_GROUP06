@@ -10,12 +10,13 @@ interface LeftPanelProps {
   onSelectionChange: (ids: Set<number>, names: string[]) => void;
   onBackToDashboard: () => void;
   onCollapse?: () => void;
+  currentSessionId?: number | null;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
-  onSelectFile, onSelectionChange, onBackToDashboard, onCollapse,
+  onSelectFile, onSelectionChange, onBackToDashboard, onCollapse, currentSessionId,
 }) => {
-  const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree();
+  const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument, addOptimisticDoc, removeOptimisticDoc } = useDocumentTree(currentSessionId);
 
   const handleSelectionChange = useCallback((ids: Set<number>) => {
     const allDocs = [...sharedDocs, ...privateDocs];
@@ -120,8 +121,12 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
             <div className="p-2.5 border-b border-border/50 bg-elevated/30">
               <DropZone
                 categories={categories}
+                onUploadStart={refetch}
                 onSuccess={() => { refetch(); setUploadOpen(false); }}
+                onFileQueued={addOptimisticDoc}
+                onFileUploaded={removeOptimisticDoc}
                 scope={scope}
+                sessionId={currentSessionId}
               />
             </div>
           )}
