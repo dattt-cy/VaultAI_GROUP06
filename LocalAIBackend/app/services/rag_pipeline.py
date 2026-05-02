@@ -61,27 +61,24 @@ QA_PROMPT = PromptTemplate(
 {history_block}
 Câu hỏi: {question}
 
-HƯỚNG DẪN ĐỊNH DẠNG (áp dụng ngay, không viết các nhãn bước ra):
-1. Nếu ngữ cảnh KHÔNG có thông tin liên quan → chỉ viết đúng một câu: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." Không thêm gì khác.
-2. Nếu có thông tin → tổng hợp và trình bày trực tiếp theo định dạng sau:
-   - Khi liệt kê các bước/mục có nội dung con: dùng bullet cha (**Tiêu đề bước**), nội dung con thụt vào 2 dấu cách "  -" (KHÔNG để nội dung con cùng cấp với tiêu đề)
-   - Bôi đậm (**...**) số tiền, ngưỡng, tên điều khoản, mốc thời gian
-   - Nhãn nguồn [A]/[B]/[C]: chỉ đặt ĐÚNG MỘT nhãn duy nhất ở cuối dòng bullet cha, KHÔNG xếp chồng nhiều nhãn như [A][B][C], KHÔNG đặt nhãn trên dòng riêng lẻ không có nội dung
-   - KHÔNG viết câu "Tôi không tìm thấy..." nếu đã có thông tin trả lời
-   - Nếu chỉ một phần câu hỏi có thông tin: trả lời phần đó, bỏ qua phần không có
+QUY TẮC:
+- TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
+- Nếu ngữ cảnh KHÔNG có thông tin → chỉ viết: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+- Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
+  - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
+  - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
+- Nhãn nguồn [A]/[B]/[C]: đặt DUY NHẤT một nhãn ở cuối câu hoặc cuối dòng bullet, không xếp chồng [A][B][C]
 
-VÍ DỤ ĐỊNH DẠNG ĐÚNG (nested bullet — nội dung con thụt vào trong):
-Q: "Quy trình thanh toán gồm các bước nào?"
-A: Quy trình thanh toán gồm các bước sau:
+VÍ DỤ — câu trả lời nhiều ý:
+Quy trình thanh toán gồm các bước sau:
 - **Bước 1: Lập đề nghị thanh toán**
   - Điền phiếu đề nghị trên hệ thống ERP
   - Đính kèm hóa đơn VAT hợp lệ, hợp đồng liên quan [A]
 - **Bước 2: Kiểm tra chứng từ**
-  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020
-  - Đối chiếu với đơn đặt hàng đã ký [A]
-- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, cần bổ sung chứng từ trong **3 ngày làm việc**. [B]
+  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020 [A]
+- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, bổ sung chứng từ trong **3 ngày làm việc**. [B]
 
-Trả lời:"""
+"""
 )
 
 # Directive cấu trúc hóa chain-of-thought cho thinking model
@@ -304,7 +301,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     if _is_summary_intent(query):
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=5, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         return {
@@ -414,7 +411,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
         yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=7, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=5, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
@@ -428,7 +425,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         query_variants = expand_query(retrieval_query, safe_llm_invoke)
         if len(query_variants) > 1:
             expanded_chunks = hybrid_retrieve_multi(
-                db=db, queries=query_variants, top_k=7,
+                db=db, queries=query_variants, top_k=5,
                 neighbor_window=1, allowed_doc_ids=allowed_doc_ids,
             )
             if expanded_chunks:

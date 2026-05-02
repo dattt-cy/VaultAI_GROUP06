@@ -2,13 +2,10 @@ import re
 import json
 import requests
 from typing import Generator, Tuple
-from langchain_ollama import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage
 from app.core.config import settings
 
 # ---------------------------------------------------------------------------
 # System prompt cố định — gửi qua system role của Chat API
-# Đây là tầng bảo vệ ngôn ngữ chính, độc lập với nội dung prompt user
 # ---------------------------------------------------------------------------
 VIETNAMESE_SYSTEM_PROMPT = (
     "Bạn là trợ lý AI nội bộ chuyên phân tích tài liệu. "
@@ -21,114 +18,88 @@ VIETNAMESE_SYSTEM_PROMPT = (
     "hoặc 'Nhân viên được hưởng...' — KHÔNG được viết 'Tôi là nhân viên...'."
 )
 
-# Singleton — tránh tạo mới object mỗi request
-_llm_instance = None
+_OLLAMA_CHAT_URL = None
 
+def _chat_url() -> str:
+    global _OLLAMA_CHAT_URL
+    if _OLLAMA_CHAT_URL is None:
+        _OLLAMA_CHAT_URL = f"{settings.OLLAMA_BASE_URL}/api/chat"
+    return _OLLAMA_CHAT_URL
 
-def get_llm() -> ChatOllama:
-    """
-    Trả về singleton ChatOllama.
-    Tự reset nếu phát hiện Ollama bị restart (ConnectionError).
-    """
-    global _llm_instance
-    if _llm_instance is None:
-        _llm_instance = _create_llm()
-    return _llm_instance
+def _base_options() -> dict:
+    return {
+        "temperature": settings.LLM_TEMPERATURE,
+        "num_predict": settings.LLM_NUM_PREDICT,
+        "num_ctx": settings.LLM_NUM_CTX,
+    }
 
-
-def _create_llm() -> ChatOllama:
-    return ChatOllama(
-        base_url=settings.OLLAMA_BASE_URL,
-        model=settings.LLM_MODEL_NAME,
-        temperature=settings.LLM_TEMPERATURE,   # 0.3 — bám sát context
-        top_p=0.9,
-        num_predict=settings.LLM_NUM_PREDICT,   # 1024 — đủ dài
-        num_ctx=settings.LLM_NUM_CTX,           # 4096 — đủ chứa 5 chunks
-    )
-
-
-def reset_llm_instance():
-    """Gọi khi phát hiện Ollama bị restart. Lần invoke tiếp sẽ tạo lại connection."""
-    global _llm_instance
-    _llm_instance = None
-
-
-def safe_llm_invoke(user_content: str) -> str:
-    """
-    Gọi ChatOllama với system role tiếng Việt + sandwich pattern trong user message.
-    Sandwich pattern: nhắc tiếng Việt ở ĐẦU và CUỐI user message để llama3:8b không bỏ qua.
-    Interface giữ nguyên: nhận str, trả str.
-    Tự động retry 1 lần nếu gặp ConnectionError (Ollama restart).
-    """
-    # Sandwich pattern — bắt buộc với llama3:8b vì model này bỏ qua system role
+def _messages(user_content: str) -> list:
     wrapped = (
         "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
         + user_content
         + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
     )
-    messages = [
-        SystemMessage(content=VIETNAMESE_SYSTEM_PROMPT),
-        HumanMessage(content=wrapped),
+    return [
+        {"role": "system", "content": VIETNAMESE_SYSTEM_PROMPT},
+        {"role": "user", "content": wrapped},
     ]
+
+
+def safe_llm_invoke(user_content: str) -> str:
+    """Gọi Ollama HTTP API (non-stream). Trả về toàn bộ câu trả lời dạng string."""
+    payload = {
+        "model": settings.LLM_MODEL_NAME,
+        "messages": _messages(user_content),
+        "stream": False,
+        "options": _base_options(),
+    }
     try:
-        response = get_llm().invoke(messages)
-        content = response.content if response.content is not None else ""
+        resp = requests.post(_chat_url(), json=payload, timeout=120)
+        resp.raise_for_status()
+        content = resp.json().get("message", {}).get("content", "")
         if not content:
             print("[LLM WARNING] response.content rỗng hoặc None.")
         return content
     except Exception as e:
-        err_str = str(e).lower()
-        if "connection" in err_str or "refused" in err_str or "timeout" in err_str:
-            print(f"[LLM] Connection lỗi, reset singleton và thử lại: {e}")
-            reset_llm_instance()
-            try:
-                response = get_llm().invoke(messages)
-                return response.content if response.content is not None else ""
-            except Exception as retry_err:
-                print(f"[LLM ERROR] Retry cũng thất bại: {retry_err}")
-                raise
+        print(f"[LLM ERROR] safe_llm_invoke thất bại: {e}")
         raise
 
 
-
 def stream_llm_invoke(user_content: str) -> Generator[str, None, None]:
-    """
-    Gọi ChatOllama với streaming — yield từng token khi LLM sinh ra.
-    Interface: nhận str, yield str (từng token).
-    """
-    wrapped = (
-        "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
-        + user_content
-        + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
-    )
-    messages = [
-        SystemMessage(content=VIETNAMESE_SYSTEM_PROMPT),
-        HumanMessage(content=wrapped),
-    ]
+    """Gọi Ollama HTTP API (stream=True). Yield từng token khi LLM sinh ra."""
+    payload = {
+        "model": settings.LLM_MODEL_NAME,
+        "messages": _messages(user_content),
+        "stream": True,
+        "options": _base_options(),
+    }
     try:
-        for chunk in get_llm().stream(messages):
-            if chunk.content:
-                yield chunk.content
+        with requests.post(_chat_url(), json=payload, stream=True, timeout=120) as resp:
+            resp.raise_for_status()
+            for raw_line in resp.iter_lines():
+                if not raw_line:
+                    continue
+                try:
+                    chunk = json.loads(raw_line)
+                except json.JSONDecodeError:
+                    continue
+                token = chunk.get("message", {}).get("content", "")
+                if token:
+                    yield token
     except Exception as e:
-        err_str = str(e).lower()
-        if "connection" in err_str or "refused" in err_str or "timeout" in err_str:
-            reset_llm_instance()
+        print(f"[LLM ERROR] stream_llm_invoke thất bại: {e}")
         raise
 
 
 def apply_pii_masking(text: str) -> str:
     """Che số điện thoại và email trong output trước khi trả về user."""
-    # Số điện thoại Việt Nam 10 chữ số
     masked = re.sub(r'\b\d{10}\b', '[SỐ ĐIỆN THOẠI ĐÃ ẨN]', text)
-    # Email
     masked = re.sub(r'[\w\.-]+@[\w\.-]+', '[EMAIL ĐÃ ẨN]', masked)
     return masked
 
 
-def check_hallucination(context: str, query: str) -> bool:
-    """
-    Anti-hallucination: trả về True nếu context rỗng.
-    """
+def check_hallucination(context: str, query: str = "") -> bool:  # noqa: ARG001
+    """Anti-hallucination: trả về True nếu context rỗng."""
     if not context or context.strip() == "":
         return True
     return False
@@ -136,38 +107,19 @@ def check_hallucination(context: str, query: str) -> bool:
 
 def stream_llm_invoke_with_thinking(user_content: str) -> Generator[Tuple[str, str], None, None]:
     """
-    Gọi thinking model (qwen3:8b) qua Ollama HTTP API với think=true.
-    Yield tuple (kind, token):
-      ("thinking", token) — token thuộc phần suy luận nội tâm
-      ("answer", token)   — token thuộc phần câu trả lời thực sự
+    Gọi thinking model qua Ollama HTTP API với think=true.
+    Yield tuple (kind, token): ("thinking", token) hoặc ("answer", token).
     Fallback về stream_llm_invoke nếu thinking model không available.
     """
-    wrapped = (
-        "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
-        + user_content
-        + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
-    )
     payload = {
         "model": settings.THINKING_MODEL_NAME,
-        "messages": [
-            {"role": "system", "content": VIETNAMESE_SYSTEM_PROMPT},
-            {"role": "user", "content": wrapped},
-        ],
+        "messages": _messages(user_content),
         "stream": True,
         "think": True,
-        "options": {
-            "temperature": settings.LLM_TEMPERATURE,
-            "num_predict": settings.LLM_NUM_PREDICT,
-            "num_ctx": settings.LLM_NUM_CTX,
-        },
+        "options": _base_options(),
     }
     try:
-        with requests.post(
-            f"{settings.OLLAMA_BASE_URL}/api/chat",
-            json=payload,
-            stream=True,
-            timeout=120,
-        ) as resp:
+        with requests.post(_chat_url(), json=payload, stream=True, timeout=120) as resp:
             resp.raise_for_status()
             for raw_line in resp.iter_lines():
                 if not raw_line:
@@ -184,7 +136,6 @@ def stream_llm_invoke_with_thinking(user_content: str) -> Generator[Tuple[str, s
                 if answer_token:
                     yield ("answer", answer_token)
     except requests.exceptions.ConnectionError:
-        # Ollama không chạy hoặc model chưa pull — fallback sang model thường
         print(f"[Thinking] Không kết nối được {settings.THINKING_MODEL_NAME}, fallback về {settings.LLM_MODEL_NAME}")
         for token in stream_llm_invoke(user_content):
             yield ("answer", token)
@@ -195,10 +146,7 @@ def stream_llm_invoke_with_thinking(user_content: str) -> Generator[Tuple[str, s
 
 
 def log_english_leakage(response: str) -> None:
-    """
-    Log warning nếu phát hiện tiếng Anh rò rỉ trong câu trả lời.
-    Không sửa output — chỉ để monitor.
-    """
+    """Log warning nếu phát hiện tiếng Anh rò rỉ trong câu trả lời."""
     english_patterns = [
         r'\bTherefore\b', r'\bIn conclusion\b', r'\bBased on\b',
         r'\bHowever\b', r'\bFurthermore\b', r'\bIn summary\b',

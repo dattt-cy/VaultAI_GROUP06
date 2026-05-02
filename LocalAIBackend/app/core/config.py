@@ -18,12 +18,12 @@ class Settings(BaseSettings):
     # LLM Settings
     LLM_MODEL_NAME: str = "qwen2.5:7b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    LLM_TEMPERATURE: float = 0.3       # Thấp hơn → ít hallucinate, bám sát context hơn
-    LLM_NUM_PREDICT: int = 2048        # Cho phép câu trả lời dài và chi tiết hơn
-    LLM_NUM_CTX: int = 8192            # 7 chunks × ~800 chars ≈ 2000 tokens + prompt 1500 = cần ít nhất 6000
+    LLM_TEMPERATURE: float = 0.1       # Thấp → qwen2.5:7b bám sát tài liệu, ít bịa hơn
+    LLM_NUM_PREDICT: int = 2048        # Đủ cho cả câu trả lời dài và tóm tắt tài liệu
+    LLM_NUM_CTX: int = 4096            # 5 chunks × ~250t + prompt ~600t + history ~200t + answer 2048t
 
     # Thinking / Reasoning Settings
-    THINKING_ENABLED: bool = True
+    THINKING_ENABLED: bool = False     # Tắt thinking để giảm latency từ 3-5 phút xuống ~20-35 giây
     THINKING_MODEL_NAME: str = "qwen3:8b"  # Model hỗ trợ native thinking qua Ollama think=true
     
     # Embedding Model Settings

@@ -272,7 +272,7 @@ def hybrid_retrieve(
         Danh sách RetrievedChunk sắp xếp theo document_id, chunk_index.
     """
     # 1. Candidate Retrieval (Lấy số lượng lớn)
-    fetch_k = top_k * 4
+    fetch_k = top_k * 3
     semantic_hits = _semantic_search(query, k=fetch_k, allowed_doc_ids=allowed_doc_ids)
     keyword_hits = _keyword_search(db, query, k=fetch_k, allowed_doc_ids=allowed_doc_ids)
 
