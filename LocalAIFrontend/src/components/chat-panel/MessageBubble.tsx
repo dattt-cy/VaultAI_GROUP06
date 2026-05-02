@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ExternalLink, ChevronRight } from 'lucide-react';
+import { ExternalLink, ChevronDown, Brain, Loader2, Sparkles, Search, BookOpen, Cpu } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message, Citation } from '../../hooks/useChatState';
 import { CitationTag } from './CitationTag';
@@ -96,6 +96,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   }, [message.reasoningContent, message.isReasoning]);
 
+  // Strip leading emoji/special chars từ backend step text
+  const stripEmoji = (text: string) => text.replace(/^[\p{Emoji}\s✓✔⚡📄🔍🧠💬📝⚠️]+/u, '').trim();
+
+  const getStepIcon = (text: string) => {
+    if (/tìm kiếm|search/i.test(text)) return Search;
+    if (/tài liệu|đoạn|đọc|phân tích ngữ cảnh/i.test(text)) return BookOpen;
+    if (/tổng hợp|suy luận|suy nghĩ/i.test(text)) return Brain;
+    return Cpu;
+  };
+
   return (
     <>
     <div className="flex gap-2.5 mb-5 animate-fade-in">
@@ -107,74 +117,96 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           Trợ lý AI · {message.timestamp.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
         </div>
 
-        {/* Panel Gemini-style — 1 thanh duy nhất */}
+        {/* Thinking panel */}
         {showPanel && (
-          <div className="mb-2">
-            {/* Header bar — luôn hiển thị, click để expand/collapse */}
+          <div className="mb-3">
             <button
               onClick={() => setPanelOpen(o => !o)}
               disabled={message.isStreaming && message.content !== ''}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border bg-elevated hover:bg-hover transition-colors disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:bg-elevated"
+              className="group w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border border-border/60 bg-elevated hover:bg-hover hover:border-border transition-all duration-200 disabled:cursor-not-allowed disabled:hover:bg-elevated disabled:hover:border-border/60"
             >
-              {/* Gradient spinner như Gemini */}
-              <div className="w-4 h-4 flex-shrink-0 relative">
-                <div
-                  className={`absolute inset-0 rounded-full ${message.isStreaming ? 'animate-spin' : ''}`}
-                  style={{ background: 'conic-gradient(from 0deg, #3b82f6 0%, #f59e0b 40%, #10b981 70%, #3b82f6 100%)' }}
-                />
-                <div className="absolute inset-[2.5px] rounded-full bg-elevated" />
+              {/* Icon trạng thái */}
+              <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                {message.isStreaming ? (
+                  <Loader2 className="w-4 h-4 text-accent animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4 text-accent/70" />
+                )}
               </div>
 
-              {/* Text trạng thái hiện tại */}
-              <span className="text-[13px] text-text-primary flex-1 text-left truncate">
+              {/* Label */}
+              <span className="text-[13px] font-medium text-text-secondary flex-1 text-left truncate">
                 {message.isStreaming
                   ? (message.isReasoning
                       ? 'Đang suy luận...'
-                      : (steps.length > 0 ? steps[steps.length - 1] : 'Đang xử lý...'))
+                      : (steps.length > 0 ? stripEmoji(steps[steps.length - 1]) : 'Đang xử lý...'))
                   : (hasReasoning
                       ? `Đã suy luận · ${message.reasoningTime ?? 0}s`
                       : `Đã xử lý · ${steps.length} bước`)}
               </span>
 
-              <ChevronRight className={`w-4 h-4 text-text-muted flex-shrink-0 transition-transform duration-200 ${panelOpen ? 'rotate-90' : ''}`} />
+              {/* Badge số bước */}
+              {!message.isStreaming && steps.length > 0 && (
+                <span className="flex-shrink-0 text-[11px] text-text-muted bg-border/40 px-1.5 py-0.5 rounded-full">
+                  {steps.length}
+                </span>
+              )}
+
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-text-muted flex-shrink-0 transition-transform duration-300 group-hover:text-text-secondary ${panelOpen ? 'rotate-180' : ''}`}
+              />
             </button>
 
-            {/* Nội dung mở rộng — chỉ hiện khi có steps hoặc reasoning */}
+            {/* Expanded content */}
             {panelOpen && (steps.length > 0 || message.isReasoning || hasReasoning) && (
-              <div className="mt-1 rounded-xl border border-border bg-elevated px-3 py-2.5 space-y-2">
+              <div className="mt-1.5 rounded-2xl border border-border/60 bg-elevated overflow-hidden">
                 {/* Pipeline steps */}
                 {steps.length > 0 && (
-                  <div className="space-y-1">
-                    {steps.map((step, i) => (
-                      <div key={i} className="flex items-center gap-2 text-[11px] text-text-muted">
-                        <span className="text-[9px] text-accent/70 flex-shrink-0">✓</span>
-                        <span>{step}</span>
-                      </div>
-                    ))}
+                  <div className="px-3.5 py-3 space-y-2.5">
+                    {steps.map((step, i) => {
+                      const isLast = i === steps.length - 1;
+                      const isActive = message.isStreaming && isLast;
+                      const StepIcon = getStepIcon(step);
+                      const label = stripEmoji(step);
+                      return (
+                        <div key={i} className="flex items-center gap-2.5">
+                          <div className="flex-shrink-0">
+                            {isActive
+                              ? <Loader2 className="w-3 h-3 text-accent animate-spin" />
+                              : <StepIcon className="w-3 h-3 text-text-muted/50" />
+                            }
+                          </div>
+                          <span className={`text-[12px] leading-relaxed transition-colors duration-200 ${isActive ? 'text-text-secondary' : 'text-text-muted'}`}>
+                            {label}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
                 {/* Reasoning text stream */}
                 {(message.isReasoning || hasReasoning) && (
                   <>
-                    {steps.length > 0 && <div className="border-t border-border/40" />}
-                    {message.isReasoning && !hasReasoning ? (
-                      /* Chờ token đầu tiên từ model */
-                      <div className="flex items-center gap-2 text-[11px] text-accent/70 italic">
-                        <span className="w-2.5 h-2.5 border border-accent/50 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                        <span>Mô hình đang suy nghĩ...</span>
-                      </div>
-                    ) : (
-                      <div
-                        ref={reasoningScrollRef}
-                        className="text-[12px] text-text-muted leading-relaxed italic max-h-52 overflow-y-auto whitespace-pre-wrap"
-                      >
-                        {message.reasoningContent}
-                        {message.isReasoning && (
-                          <span className="inline-block w-0.5 h-3 bg-accent ml-0.5 align-middle animate-blink" />
-                        )}
-                      </div>
-                    )}
+                    {steps.length > 0 && <div className="mx-3.5 border-t border-border/40" />}
+                    <div className="px-3.5 py-3">
+                      {message.isReasoning && !hasReasoning ? (
+                        <div className="flex items-center gap-2.5 text-[12px] text-accent/70 italic">
+                          <Brain className="w-3.5 h-3.5 flex-shrink-0 animate-pulse" />
+                          <span>Mô hình đang suy nghĩ...</span>
+                        </div>
+                      ) : (
+                        <div
+                          ref={reasoningScrollRef}
+                          className="text-[12px] text-text-muted leading-relaxed italic max-h-52 overflow-y-auto whitespace-pre-wrap"
+                        >
+                          {message.reasoningContent}
+                          {message.isReasoning && (
+                            <span className="inline-block w-0.5 h-3 bg-accent ml-0.5 align-middle animate-blink" />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

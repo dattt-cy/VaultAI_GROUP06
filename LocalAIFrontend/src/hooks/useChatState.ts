@@ -222,6 +222,16 @@ export function useChatState() {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, content: data.content } : m
               ));
+            } else if (data.type === 'relevant_spans') {
+              const spans: string[][] = data.spans || [];
+              setMessages(prev => prev.map(m => {
+                if (m.id !== assistantId) return m;
+                const updated = m.citations.map((c, i) => ({
+                  ...c,
+                  relevant_spans: spans[i] || [],
+                }));
+                return { ...m, citations: updated };
+              }));
             } else if (data.type === 'done') {
               const citations: Citation[] = (data.citations || []).map((c: any, index: number) => ({
                 id: `c-${c.document_id}-${c.chunk_index}-${index}`,
