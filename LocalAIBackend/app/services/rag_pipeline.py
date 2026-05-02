@@ -2,11 +2,11 @@ import re
 import json
 from typing import Generator
 from sqlalchemy.orm import Session
-from .hybrid_retriever import hybrid_retrieve, get_reranker, hybrid_retrieve_multi, _retrieval_is_confident, retrieve_for_summary
+from .hybrid_retriever import hybrid_retrieve, get_reranker, retrieve_for_summary
 from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
 from .context_manager import (
     format_history_block,
-    needs_rewrite, rewrite_query, expand_query,
+    needs_rewrite, rewrite_query,
 )
 from app.core.config import settings
 from langchain_core.prompts import PromptTemplate
@@ -418,18 +418,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    # Adaptive retrieval: nếu confidence thấp, mở rộng tìm kiếm với query variants
-    # (chỉ áp dụng khi không phải summarization intent)
-    if not _is_summary_intent(query) and not _retrieval_is_confident(chunks):
-        yield _sse({"type": "thinking", "step": "⚡ Đang mở rộng tìm kiếm để cải thiện kết quả..."})
-        query_variants = expand_query(retrieval_query, safe_llm_invoke)
-        if len(query_variants) > 1:
-            expanded_chunks = hybrid_retrieve_multi(
-                db=db, queries=query_variants, top_k=5,
-                neighbor_window=1, allowed_doc_ids=allowed_doc_ids,
-            )
-            if expanded_chunks:
-                chunks = expanded_chunks
+    # Adaptive retrieval tắt: expand_query gọi thêm 1 LLM call trước khi trả lời
+    # → quá chậm trên máy CPU-only, lợi ích không bù được latency thêm
 
     doc_ids = {c.document_id for c in chunks}
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
@@ -491,8 +481,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         if 0 <= chunk_idx < len(chunks):
             chunk_queries[chunk_idx] = " ".join(src_lines)
 
-    all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
-
+    # Build citations ngay — không có relevant_spans để tránh block reranker
     citations = []
     for i, chunk in enumerate(chunks):
         citations.append({
@@ -503,13 +492,19 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
             "rerank_score": round(chunk.rerank_score, 4),
             "source_type": chunk.source_type,
-            "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
+            "relevant_spans": [],
             "source_lines": citation_source_lines.get(i, []),
         })
 
-    # Yield done immediately — không đợi suggestions để tránh delay 4-5s
+    # Yield done ngay — frontend không phải đợi reranker và suggestions
     yield _sse({"type": "done", "citations": citations, "suggestions": []})
-    # Sinh suggestions sau, gửi qua event riêng
-    suggestions = _generate_suggestions(merged_context, safe_response)
-    if suggestions:
-        yield _sse({"type": "suggestions", "suggestions": suggestions})
+
+    # Compute relevant_spans sau done — gửi qua event riêng để frontend patch vào citations
+    all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
+    spans_payload = [
+        all_relevant_spans[i] if i < len(all_relevant_spans) else []
+        for i in range(len(chunks))
+    ]
+    yield _sse({"type": "relevant_spans", "spans": spans_payload})
+
+    # _generate_suggestions tắt: thêm 1 LLM call sau done → Ollama bận, request tiếp bị queue

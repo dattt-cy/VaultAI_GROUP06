@@ -96,56 +96,59 @@ async def chat_message_stream(
     session_id = session.id
 
     def saving_generator():
+        import sqlalchemy
         full_content = ""
         corrected_content = ""
-        saved_citations = []
-        done_data = None
+
         for chunk in raw_gen:
-            if chunk.startswith("data: "):
-                try:
-                    data = json.loads(chunk[6:])
-                    if data.get("type") == "token":
-                        full_content += data.get("content", "")
-                        yield chunk
-                    elif data.get("type") == "corrected_text":
-                        corrected_content = data.get("content", "")
-                        yield chunk
-                    elif data.get("type") == "done":
-                        saved_citations = data.get("citations", [])
-                        done_data = data
-                    else:
-                        yield chunk
-                except Exception:
-                    yield chunk
-            else:
+            if not chunk.startswith("data: "):
+                yield chunk
+                continue
+            try:
+                data = json.loads(chunk[6:])
+            except Exception:
+                yield chunk
+                continue
+
+            event_type = data.get("type")
+
+            if event_type == "token":
+                full_content += data.get("content", "")
                 yield chunk
 
-        # Persist assistant message before yielding done so we can include message_id
-        save_content = corrected_content or full_content
-        message_id = None
-        if save_content:
-            import sqlalchemy
-            msg = Message(
-                session_id=session_id,
-                sender_type="assistant",
-                content=save_content,
-                citations_json=json.dumps(saved_citations, ensure_ascii=False) if saved_citations else None,
-            )
-            db.add(msg)
-            db.execute(
-                sqlalchemy.text("UPDATE chat_sessions SET updated_at = :now WHERE id = :id"),
-                {"now": datetime.utcnow(), "id": session_id},
-            )
-            db.commit()
-            db.refresh(msg)
-            message_id = msg.id
+            elif event_type == "corrected_text":
+                corrected_content = data.get("content", "")
+                yield chunk
 
-        # Yield done event with session_id and message_id
-        if done_data is not None:
-            done_data["session_id"] = session_id
-            if message_id:
-                done_data["message_id"] = message_id
-            yield f"data: {json.dumps(done_data, ensure_ascii=False)}\n\n"
+            elif event_type == "done":
+                # Save to DB ngay khi nhận done — không chờ relevant_spans/suggestions
+                save_content = corrected_content or full_content
+                message_id = None
+                if save_content:
+                    citations_json = json.dumps(data.get("citations", []), ensure_ascii=False)
+                    msg = Message(
+                        session_id=session_id,
+                        sender_type="assistant",
+                        content=save_content,
+                        citations_json=citations_json or None,
+                    )
+                    db.add(msg)
+                    db.execute(
+                        sqlalchemy.text("UPDATE chat_sessions SET updated_at = :now WHERE id = :id"),
+                        {"now": datetime.utcnow(), "id": session_id},
+                    )
+                    db.commit()
+                    db.refresh(msg)
+                    message_id = msg.id
+
+                data["session_id"] = session_id
+                if message_id:
+                    data["message_id"] = message_id
+                yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+            else:
+                # relevant_spans, suggestions, thinking, reasoning, ...
+                yield chunk
 
     return StreamingResponse(
         saving_generator(),
