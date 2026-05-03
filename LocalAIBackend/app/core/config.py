@@ -30,9 +30,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
     
     # Reranker Model Settings (Cross-Encoder)
-    # Defaulting to ms-marco-MiniLM-L-6-v2 for speed.
-    # For better Vietnamese support, consider: "BAAI/bge-reranker-v2-m3" (Note: ~2.2GB download)
-    RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    # mmarco-mMiniLMv2-L12-H384-v1: ~400MB, trained on mMARCO (multilingual incl. Vietnamese)
+    # Alternative higher quality: "BAAI/bge-reranker-v2-m3" (~2.2GB)
+    RERANKER_MODEL_NAME: str = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
 
     # Chunking Settings — Parent-Child strategy
     PARENT_CHUNK_SIZE: int = 800    # Đưa vào LLM context (ngữ cảnh đầy đủ)

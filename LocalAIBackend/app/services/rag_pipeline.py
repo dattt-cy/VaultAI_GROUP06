@@ -2,11 +2,18 @@ import re
 import json
 from typing import Generator
 from sqlalchemy.orm import Session
-from .hybrid_retriever import hybrid_retrieve, get_reranker, retrieve_for_summary
+from .hybrid_retriever import (
+    hybrid_retrieve,
+    hybrid_retrieve_multi,
+    _retrieval_is_confident,
+    get_reranker,
+    retrieve_for_summary,
+)
 from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
 from .context_manager import (
     format_history_block,
     needs_rewrite, rewrite_query,
+    expand_query,
 )
 from app.core.config import settings
 from langchain_core.prompts import PromptTemplate
@@ -50,7 +57,7 @@ Tóm tắt:"""
 
 QA_PROMPT = PromptTemplate(
     input_variables=["context", "history_block", "question"],
-    template="""Bạn là chuyên gia phân tích tài liệu nội bộ. Chỉ dùng thông tin từ NGỮ CẢNH bên dưới. Không bịa thêm bất kỳ thông tin nào.
+    template="""Bạn là chuyên gia phân tích tài liệu nội bộ. Đọc KỸ LƯỠNG tất cả các đoạn tài liệu trong NGỮ CẢNH trước khi trả lời. Chỉ dùng thông tin từ NGỮ CẢNH bên dưới. Không bịa thêm bất kỳ thông tin nào.
 
 --- NGỮ CẢNH ---
 {context}
@@ -61,7 +68,8 @@ Câu hỏi: {question}
 
 QUY TẮC:
 - TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
-- ƯU TIÊN SỬ DỤNG suy luận logic: Nếu câu hỏi dùng từ đồng nghĩa, hoặc bạn có thể chắc chắn suy luận ra đáp án từ NGỮ CẢNH, hãy trả lời bình thường thay vì từ chối.
+- ƯU TIÊN SỬ DỤNG suy luận logic: Nếu NGỮ CẢNH đề cập đến chủ đề liên quan (dù dùng từ ngữ khác nhau), hãy suy luận và trả lời. Ví dụ: tài liệu nói "IT thực hiện backup" → có thể trả lời "IT chịu trách nhiệm khôi phục". Tài liệu nói "bộ phận X thực hiện Y" → X chịu trách nhiệm về Y.
+- Chỉ từ chối khi NGỮ CẢNH HOÀN TOÀN KHÔNG ĐỀ CẬP đến chủ đề câu hỏi (ví dụ hỏi về lương nhưng context chỉ nói về kỹ thuật). Nếu có thông tin liên quan dù gián tiếp, hãy trả lời và giải thích suy luận.
 - Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
 - Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
@@ -300,7 +308,14 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     if _is_summary_intent(query):
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=10, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=6, allowed_doc_ids=allowed_doc_ids)
+        if not _retrieval_is_confident(chunks):
+            print(f"[AdaptiveRAG] Confidence thấp, thử expand query...")
+            expanded = expand_query(retrieval_query, safe_llm_invoke)
+            if len(expanded) > 1:
+                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=6, allowed_doc_ids=allowed_doc_ids)
+                if multi_chunks:
+                    chunks = multi_chunks
 
     if not chunks:
         return {
@@ -410,15 +425,19 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
         yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=10, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=6, allowed_doc_ids=allowed_doc_ids)
+        if not _retrieval_is_confident(chunks):
+            yield _sse({"type": "thinking", "step": "🔄 Đang mở rộng câu hỏi để tìm kiếm sâu hơn..."})
+            expanded = expand_query(retrieval_query, safe_llm_invoke)
+            if len(expanded) > 1:
+                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=6, allowed_doc_ids=allowed_doc_ids)
+                if multi_chunks:
+                    chunks = multi_chunks
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
-
-    # Adaptive retrieval tắt: expand_query gọi thêm 1 LLM call trước khi trả lời
-    # → quá chậm trên máy CPU-only, lợi ích không bù được latency thêm
 
     doc_ids = {c.document_id for c in chunks}
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})

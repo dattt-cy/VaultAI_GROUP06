@@ -137,8 +137,9 @@ def _keyword_search(db: Session, query: str, k: int, allowed_doc_ids: list[int] 
         ORDER BY score
         LIMIT :k
     """)
-    clean_query = query.replace('"', '""')
-    fts_query = f'"{clean_query}"'
+    # Tách thành các token, bỏ token quá ngắn (stop words), dùng OR để BM25 rank theo relevance
+    tokens = [t.replace('"', '""') for t in query.split() if len(t) > 2]
+    fts_query = " OR ".join(f'"{t}"' for t in tokens) if tokens else f'"{query.replace(chr(34), chr(34)*2)}"'
     try:
         rows = db.execute(sql, {"query": fts_query, "k": k}).fetchall()
     except Exception as e:
@@ -338,18 +339,23 @@ def hybrid_retrieve(
     if not core_pages:
         return []
 
-    # 4. Re-ranking bằng Cross-Encoder
-    # Chỉ đánh giá Cốt lõi (top_k chunks)
+    # 4. Re-ranking bằng Cross-Encoder + RRF tiebreaker
+    # Build RRF rank map để dùng làm tiebreaker (RRF đáng tin hơn CE cho tiếng Việt)
+    fused = _reciprocal_rank_fusion(semantic_hits, keyword_hits)
+    rrf_rank_map = {vid: rank for rank, (vid, _) in enumerate(fused)}  # rank 0 = best
+
     pairs = [(query, page.raw_content) for page in core_pages]
-    
-    # Lazy load model
     reranker = get_reranker()
     scores = reranker.predict(pairs)
-    
-    # Gắn điểm vào page
+
+    n = len(fused) or 1
     for idx, page in enumerate(core_pages):
-        page._temp_rerank_score = float(scores[idx])
-        
+        ce_score = float(scores[idx])
+        # Normalize RRF rank thành bonus [0, 0.5]: chunk đứng đầu RRF được +0.5
+        rrf_rank = rrf_rank_map.get(page.vector_id, n)
+        rrf_bonus = (n - rrf_rank) / n * 0.5
+        page._temp_rerank_score = ce_score + rrf_bonus
+
     # Sắp xếp giảm dần theo điểm và lấy Top K
     core_pages.sort(key=lambda p: p._temp_rerank_score, reverse=True)
     top_core_pages = core_pages[:top_k]
@@ -359,6 +365,8 @@ def hybrid_retrieve(
 
     # 5. Swap children → parents để LLM có ngữ cảnh đầy đủ
     context_pages = _swap_children_for_parents(db, top_core_pages)
+    # Re-sort sau parent swap vì _swap_children_for_parents không bảo toàn thứ tự điểm
+    context_pages.sort(key=lambda p: score_map.get(p.vector_id, getattr(p, "_temp_rerank_score", 0.0)), reverse=True)
 
     # 6. Build kết quả trả về
     result: list[RetrievedChunk] = []
@@ -390,14 +398,14 @@ def hybrid_retrieve(
 
 def _retrieval_is_confident(chunks: list) -> bool:
     """
-    Kiểm tra độ tin cậy retrieval dựa trên top rerank score của CrossEncoder.
-    ms-marco-MiniLM-L-6-v2: score > -3.0 nghĩa là chunk có liên quan hợp lý.
-    Ngưỡng conservative — chỉ trigger re-retrieval khi kết quả thực sự kém.
+    mmarco-mMiniLMv2 scores Vietnamese text typically in [-7, -2] range.
+    Relevant chunks score around -2 to -4; irrelevant around -4 to -7.
+    Threshold -5.0: chỉ trigger adaptive khi top chunk thực sự kém (score < -5).
     """
     if not chunks:
         return False
     top_score = max(c.rerank_score for c in chunks if c.source_type != "neighbor_expand")
-    return top_score > -3.0
+    return top_score > -5.0
 
 
 def retrieve_for_summary(
