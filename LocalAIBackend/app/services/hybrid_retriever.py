@@ -85,7 +85,7 @@ class RetrievedChunk:
 # ---------------------------------------------------------------------------
 
 RRF_K = 60                  # Hằng số RRF để làm mượt điểm (paper gốc dùng 60)
-MAX_NEIGHBOR_EXPAND = 1     # Lấy thêm N chunk trước/sau (Page Index Expansion)
+MAX_NEIGHBOR_EXPAND = 0     # Parent-child chunking thay thế neighbor expand
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +208,53 @@ def _reciprocal_rank_fusion(
 
 
 # ---------------------------------------------------------------------------
-# Bước 4 – Page Index Expansion (lấy chunk liền kề)
+# Bước 4 – Parent Swap (child → parent để LLM có ngữ cảnh đầy đủ)
+# ---------------------------------------------------------------------------
+
+def _swap_children_for_parents(
+    db: Session,
+    pages: list[DocumentPage],
+) -> list[DocumentPage]:
+    """
+    Với mỗi child chunk đã tìm được, lấy parent từ SQLite và thay thế.
+    Flat/parent chunks giữ nguyên.
+    Dedup: nhiều children cùng parent → chỉ trả 1 parent row.
+    Rerank score của parent = score tốt nhất trong các children của nó.
+    """
+    result_map: dict[int, DocumentPage] = {}
+    best_score: dict[int, float] = {}
+
+    parent_ids: list[int] = []
+    direct: list[DocumentPage] = []
+
+    for page in pages:
+        if getattr(page, "chunk_type", "flat") == "child" and page.parent_chunk_id is not None:
+            parent_ids.append(page.parent_chunk_id)
+            score = getattr(page, "_temp_rerank_score", 0.0)
+            best_score[page.parent_chunk_id] = max(best_score.get(page.parent_chunk_id, float("-inf")), score)
+        else:
+            direct.append(page)
+
+    if parent_ids:
+        parent_pages = (
+            db.query(DocumentPage)
+            .filter(DocumentPage.id.in_(parent_ids))
+            .all()
+        )
+        for p in parent_pages:
+            if p.id not in result_map:
+                p._temp_rerank_score = best_score.get(p.id, 0.0)
+                result_map[p.id] = p
+
+    for page in direct:
+        if page.id not in result_map:
+            result_map[page.id] = page
+
+    return list(result_map.values())
+
+
+# ---------------------------------------------------------------------------
+# Bước 4b – Page Index Expansion (giữ lại cho hybrid_retrieve_multi)
 # ---------------------------------------------------------------------------
 
 def _expand_with_neighbors(
@@ -255,9 +301,8 @@ def hybrid_retrieve(
     db: Session,
     query: str,
     top_k: int = 5,
-    neighbor_window: int = MAX_NEIGHBOR_EXPAND,
-    semantic_weight: float = 0.6,   # dự phòng; hiện tại RRF tự cân bằng
-    allowed_doc_ids: list[int] = None
+    allowed_doc_ids: list[int] = None,
+    **_kwargs,  # bỏ qua neighbor_window/semantic_weight nếu caller cũ vẫn truyền vào
 ) -> list[RetrievedChunk]:
     """
     Hàm chính: Thực hiện Hybrid RAG Retrieval và trả về danh sách RetrievedChunk.
@@ -312,12 +357,12 @@ def hybrid_retrieve(
     # Lưu điểm lại cho output
     score_map = {p.vector_id: p._temp_rerank_score for p in top_core_pages}
 
-    # 5. Page Index Expansion
-    expanded_pages = _expand_with_neighbors(db, top_core_pages, window=neighbor_window)
+    # 5. Swap children → parents để LLM có ngữ cảnh đầy đủ
+    context_pages = _swap_children_for_parents(db, top_core_pages)
 
     # 6. Build kết quả trả về
     result: list[RetrievedChunk] = []
-    for page in expanded_pages:
+    for page in context_pages:
         is_core = page.vector_id in score_map
         meta = {}
         try:
@@ -331,8 +376,8 @@ def hybrid_retrieve(
             chunk_index=page.chunk_index,
             content=page.raw_content,
             token_count=page.token_count,
-            rerank_score=score_map.get(page.vector_id, 0.0),
-            source_type="hybrid" if is_core else "neighbor_expand",
+            rerank_score=score_map.get(page.vector_id, getattr(page, "_temp_rerank_score", 0.0)),
+            source_type="hybrid" if is_core else "parent_swap",
             page_metadata=meta,
         ))
 
@@ -365,7 +410,9 @@ def retrieve_for_summary(
     Dùng khi user yêu cầu tóm tắt toàn bộ tài liệu — query vague như "tóm tắt file này"
     không khớp ngữ nghĩa tốt với content, nên cần scan trực tiếp qua SQLite.
     """
-    query = db.query(DocumentPage)
+    query = db.query(DocumentPage).filter(
+        DocumentPage.chunk_type.in_(["parent", "flat"])
+    )
     if allowed_doc_ids:
         query = query.filter(DocumentPage.document_id.in_(allowed_doc_ids))
 
@@ -405,8 +452,8 @@ def hybrid_retrieve_multi(
     db: Session,
     queries: list[str],
     top_k: int = 7,
-    neighbor_window: int = MAX_NEIGHBOR_EXPAND,
     allowed_doc_ids: list[int] = None,
+    **_kwargs,
 ) -> list[RetrievedChunk]:
     """
     Chạy hybrid_retrieve cho nhiều query variants, dedup, re-rank với original query.
@@ -456,11 +503,10 @@ def hybrid_retrieve_multi(
     top_pages = merged_pages[:top_k]
     score_map = {p.vector_id: p._temp_rerank_score for p in top_pages}
 
-    # Page Index Expansion trên kết quả cuối
-    expanded_pages = _expand_with_neighbors(db, top_pages, window=neighbor_window)
+    context_pages = _swap_children_for_parents(db, top_pages)
 
     result: list[RetrievedChunk] = []
-    for page in expanded_pages:
+    for page in context_pages:
         is_core = page.vector_id in score_map
         meta = {}
         try:

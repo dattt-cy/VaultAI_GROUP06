@@ -39,10 +39,8 @@ SUMMARY_PROMPT = PromptTemplate(
 
 Nhiệm vụ: {question}
 
-Hãy tóm tắt nội dung tài liệu dựa trên các đoạn trích trên. Trình bày theo cấu trúc:
-- **Chủ đề / Mục đích chính** của tài liệu
-- **Các nội dung/điểm chính** (dùng bullet, bôi đậm tiêu đề từng mục)
-- **Kết luận / Ý nghĩa** (nếu có)
+Hãy trả lời câu hỏi và tổng hợp nội dung dựa trên các đoạn trích trên.
+Trình bày một cách tự nhiên, rõ ràng, vào thẳng vấn đề. Sử dụng dấu gạch đầu dòng (-) nếu cần liệt kê nhiều ý để dễ đọc.
 
 Chỉ dùng thông tin từ các đoạn trích. Không bịa thêm. Viết hoàn toàn bằng tiếng Việt.
 
@@ -63,7 +61,8 @@ Câu hỏi: {question}
 
 QUY TẮC:
 - TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
-- Nếu ngữ cảnh KHÔNG có thông tin → chỉ viết: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+- ƯU TIÊN SỬ DỤNG suy luận logic: Nếu câu hỏi dùng từ đồng nghĩa, hoặc bạn có thể chắc chắn suy luận ra đáp án từ NGỮ CẢNH, hãy trả lời bình thường thay vì từ chối.
+- Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
 - Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
   - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
@@ -301,7 +300,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     if _is_summary_intent(query):
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=5, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=10, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         return {
@@ -411,7 +410,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
         yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=5, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=10, neighbor_window=1, allowed_doc_ids=allowed_doc_ids)
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})

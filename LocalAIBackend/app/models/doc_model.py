@@ -58,7 +58,17 @@ class DocumentPage(Base):
     chunk_index = Column(Integer, nullable=False)
     raw_content = Column(Text, nullable=False)
     token_count = Column(Integer, nullable=False)
-    page_metadata = Column(Text, nullable=True) 
+    page_metadata = Column(Text, nullable=True)
     vector_id = Column(String(100), unique=True, nullable=False)
-    
+
+    # Parent-child chunking
+    chunk_type = Column(String(10), nullable=False, default="flat")
+    # "parent" — chunk lớn đưa vào LLM context
+    # "child"  — chunk nhỏ dùng để embed + retrieval
+    # "flat"   — legacy rows (hoạt động như parent trong retrieval)
+    parent_chunk_id = Column(Integer, ForeignKey("document_pages.id", ondelete="SET NULL"), nullable=True)
+    child_count = Column(Integer, nullable=True)  # chỉ set trên parent rows
+
     document = relationship("Document", back_populates="pages")
+    parent = relationship("DocumentPage", remote_side=[id], back_populates="children", foreign_keys=[parent_chunk_id])
+    children = relationship("DocumentPage", back_populates="parent")

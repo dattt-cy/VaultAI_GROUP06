@@ -118,6 +118,91 @@ def extract_pages_from_pdf_ocr(file_path: str) -> list[tuple[int, str]]:
     return pages
 
 
+def chunk_text_parent_child(text: str) -> list[dict]:
+    """
+    Parent-child chunking cho non-PDF.
+    Mỗi parent (~800 chars) được chia thành các child (~300 chars).
+    Child dùng để embed/retrieval; parent dùng làm LLM context.
+
+    Trả về list dicts: [{text, chunk_type, parent_index, page_number}]
+    """
+    from app.core.config import settings
+
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.PARENT_CHUNK_SIZE,
+        chunk_overlap=settings.PARENT_CHUNK_OVERLAP,
+        length_function=len,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+    child_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.CHILD_CHUNK_SIZE,
+        chunk_overlap=settings.CHILD_CHUNK_OVERLAP,
+        length_function=len,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+
+    result = []
+    parents = parent_splitter.split_text(text)
+    for p_idx, parent_text in enumerate(parents):
+        result.append({
+            "text": parent_text,
+            "chunk_type": "parent",
+            "parent_index": p_idx,
+            "page_number": 1,
+        })
+        for child_text in child_splitter.split_text(parent_text):
+            result.append({
+                "text": child_text,
+                "chunk_type": "child",
+                "parent_index": p_idx,
+                "page_number": 1,
+            })
+    return result
+
+
+def chunk_pages_parent_child(pages: list[tuple[int, str]]) -> list[dict]:
+    """
+    Parent-child chunking cho PDF (giữ page_number thật).
+    parent_index là global xuyên suốt tài liệu (không reset theo trang).
+
+    Trả về list dicts: [{text, chunk_type, parent_index, page_number}]
+    """
+    from app.core.config import settings
+
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.PARENT_CHUNK_SIZE,
+        chunk_overlap=settings.PARENT_CHUNK_OVERLAP,
+        length_function=len,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+    child_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=settings.CHILD_CHUNK_SIZE,
+        chunk_overlap=settings.CHILD_CHUNK_OVERLAP,
+        length_function=len,
+        separators=["\n\n", "\n", ".", " ", ""],
+    )
+
+    result = []
+    global_parent_idx = 0
+    for page_num, page_text in pages:
+        for parent_text in parent_splitter.split_text(page_text):
+            result.append({
+                "text": parent_text,
+                "chunk_type": "parent",
+                "parent_index": global_parent_idx,
+                "page_number": page_num,
+            })
+            for child_text in child_splitter.split_text(parent_text):
+                result.append({
+                    "text": child_text,
+                    "chunk_type": "child",
+                    "parent_index": global_parent_idx,
+                    "page_number": page_num,
+                })
+            global_parent_idx += 1
+    return result
+
+
 def chunk_text(text: str) -> list[str]:
     """Legacy: chunk text thuần (không kèm page info)."""
     text_splitter = RecursiveCharacterTextSplitter(

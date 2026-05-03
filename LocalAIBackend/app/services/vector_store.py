@@ -1,4 +1,6 @@
 import os
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 from langchain_chroma import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from app.core.config import settings
@@ -13,7 +15,7 @@ def get_embedding_model() -> HuggingFaceEmbeddings:
     if _embed_model is None:
         _embed_model = HuggingFaceEmbeddings(
             model_name=settings.EMBEDDING_MODEL_NAME,
-            model_kwargs={'device': 'cpu'},
+            model_kwargs={'device': 'cpu', 'local_files_only': True},
             encode_kwargs={'normalize_embeddings': True}
         )
     return _embed_model

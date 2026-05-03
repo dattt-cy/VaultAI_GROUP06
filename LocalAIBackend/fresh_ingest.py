@@ -2,7 +2,14 @@
 fresh_ingest.py
 ===============
 Xóa sạch toàn bộ dữ liệu cũ (Document, DocumentPage, ChromaDB, FTS)
-rồi nạp lại toàn bộ file trong thư mục sample_docs/.
+rồi nạp lại toàn bộ file từ các thư mục danh mục bên dưới BASE_DIR.
+
+Cấu trúc thư mục:
+  nhan_su/           — Quy chế lao động, chính sách lương, kế hoạch
+  tai_chinh/         — Báo cáo doanh thu, quy trình thanh toán
+  cong_nghe/         — Hướng dẫn CNTT, ERP, bảo mật
+  bao_cao_ky_thuat/  — Báo cáo kỹ thuật, tài liệu học thuật
+  ca_nhan/           — Tài liệu cá nhân (personal_*)
 
 Chạy: python fresh_ingest.py
 """
@@ -14,21 +21,29 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from sqlalchemy import text
 from app.db.session import SessionLocal
-from app.models import user_model, doc_model, chat_model, sys_model  # load all models để SQLAlchemy resolve FK
+from app.models import user_model, doc_model, chat_model, sys_model
 from app.models.doc_model import Document, DocumentPage
 from app.services.ingestion_service import ingest_file
 import app.services.vector_store as vs_module
 
-SAMPLE_DOCS_DIR = os.path.join(os.path.dirname(__file__), "sample_docs")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+DOC_FOLDERS = [
+    "nhan_su",
+    "tai_chinh",
+    "cong_nghe",
+    "bao_cao_ky_thuat",
+    "ca_nhan",
+]
+
 SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".docx", ".doc", ".xlsx", ".xls"}
-SYSTEM_USER_ID = 1   # user admin mặc định
+SYSTEM_USER_ID = 1
 CATEGORY_ID = 1
 
 
 def clear_all(db):
     print("── Xóa dữ liệu cũ ──")
 
-    # 1. Xóa ChromaDB collection
     try:
         vs = vs_module.get_vector_store()
         vs.delete_collection()
@@ -38,7 +53,6 @@ def clear_all(db):
     finally:
         vs_module._vector_store = None
 
-    # 2. Xóa FTS index
     try:
         db.execute(text("DELETE FROM document_pages_fts"))
         db.commit()
@@ -47,32 +61,33 @@ def clear_all(db):
         db.rollback()
         print(f"  [WARN] FTS5: {e}")
 
-    # 3. Xóa DocumentPage rồi Document (tránh FK constraint)
     page_count = db.query(DocumentPage).delete()
     doc_count = db.query(Document).delete()
     db.commit()
     print(f"  [OK] Đã xóa {doc_count} documents, {page_count} pages khỏi SQLite")
 
 
-def ingest_from_folder(db, folder):
-    print(f"\n── Nạp tài liệu từ {folder} ──")
+def ingest_folder(db, folder_name):
+    folder_path = os.path.join(BASE_DIR, folder_name)
+    if not os.path.isdir(folder_path):
+        print(f"\n  [SKIP] Thư mục không tồn tại: {folder_name}/")
+        return 0, 0
 
-    files = [
-        f for f in os.listdir(folder)
+    files = sorted(
+        f for f in os.listdir(folder_path)
         if os.path.splitext(f)[1].lower() in SUPPORTED_EXTENSIONS
-    ]
+    )
 
+    print(f"\n── [{folder_name}/] {len(files)} file ──")
     if not files:
-        print("  Không tìm thấy file nào để nạp.")
-        return
-
-    print(f"  Tìm thấy {len(files)} file: {', '.join(files)}\n")
+        print("  Không có file nào.")
+        return 0, 0
 
     success, failed = 0, 0
-    for filename in sorted(files):
-        file_path = os.path.join(folder, filename)
+    for filename in files:
+        file_path = os.path.join(folder_path, filename)
         ext = os.path.splitext(filename)[1].lower().lstrip(".")
-        print(f"  Đang nạp: {filename} ...", end=" ", flush=True)
+        print(f"  Nạp: {filename} ...", end=" ", flush=True)
         try:
             ingest_file(
                 db=db,
@@ -89,14 +104,22 @@ def ingest_from_folder(db, folder):
             print(f"FAIL — {e}")
             failed += 1
 
-    print(f"\n── Kết quả: {success} thành công, {failed} thất bại ──")
+    return success, failed
 
 
 if __name__ == "__main__":
     db = SessionLocal()
     try:
         clear_all(db)
-        ingest_from_folder(db, SAMPLE_DOCS_DIR)
+
+        total_ok, total_fail = 0, 0
+        for folder in DOC_FOLDERS:
+            ok, fail = ingest_folder(db, folder)
+            total_ok += ok
+            total_fail += fail
+
+        print(f"\n{'─'*40}")
+        print(f"Tổng kết: {total_ok} thành công, {total_fail} thất bại")
+        print("Hoàn tất. Restart backend để áp dụng.")
     finally:
         db.close()
-    print("\nHoàn tất. Restart backend để áp dụng.")

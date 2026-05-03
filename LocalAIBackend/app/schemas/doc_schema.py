@@ -51,6 +51,9 @@ class DocumentPageBase(BaseModel):
 
 class DocumentPageCreate(DocumentPageBase):
     vector_id: str
+    chunk_type: str = "flat"
+    parent_chunk_id: Optional[int] = None
+    child_count: Optional[int] = None
 
 class DocumentPage(DocumentPageBase):
     id: int

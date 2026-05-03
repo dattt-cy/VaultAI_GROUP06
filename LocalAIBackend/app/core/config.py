@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     LLM_TEMPERATURE: float = 0.1       # Thấp → qwen2.5:7b bám sát tài liệu, ít bịa hơn
     LLM_NUM_PREDICT: int = 2048        # Đủ cho cả câu trả lời dài và tóm tắt tài liệu
-    LLM_NUM_CTX: int = 4096            # 5 chunks × ~250t + prompt ~600t + history ~200t + answer 2048t
+    LLM_NUM_CTX: int = 8192            # Đã tăng lên để chứa thêm nhiều tài liệu (top_k=10 + neighbor=1)
 
     # Thinking / Reasoning Settings
     THINKING_ENABLED: bool = False     # Tắt thinking để giảm latency từ 3-5 phút xuống ~20-35 giây
@@ -30,9 +30,15 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
     
     # Reranker Model Settings (Cross-Encoder)
-    # Defaulting to ms-marco-MiniLM-L-6-v2 for speed. 
+    # Defaulting to ms-marco-MiniLM-L-6-v2 for speed.
     # For better Vietnamese support, consider: "BAAI/bge-reranker-v2-m3" (Note: ~2.2GB download)
     RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+    # Chunking Settings — Parent-Child strategy
+    PARENT_CHUNK_SIZE: int = 800    # Đưa vào LLM context (ngữ cảnh đầy đủ)
+    PARENT_CHUNK_OVERLAP: int = 100
+    CHILD_CHUNK_SIZE: int = 300     # Dùng để embed + retrieval (tìm kiếm chính xác)
+    CHILD_CHUNK_OVERLAP: int = 50
 
     class Config:
         case_sensitive = True

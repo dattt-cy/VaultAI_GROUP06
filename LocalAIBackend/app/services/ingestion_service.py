@@ -10,22 +10,23 @@ Luồng xử lý trọn gói từ file → vector store + SQLite:
 6. Cập nhật status SUCCESS / FAILED
 """
 
-import os
 import json
+import os
 import uuid
 from typing import Optional
+
 from sqlalchemy.orm import Session
 
-from app.crud.crud_document import create_document, update_document_status, create_document_page
+from app.crud.crud_document import create_document, create_document_page, update_document_status
 from app.schemas.doc_schema import DocumentCreate, DocumentPageCreate
 from app.services.document_parser import (
     generate_file_hash,
     extract_pages_from_pdf,
-    chunk_text,
-    chunk_text_with_pages,
+    chunk_text_parent_child,
+    chunk_pages_parent_child,
 )
-from app.services.vector_store import add_documents_to_store
 from app.services.hybrid_retriever import sync_page_to_fts
+from app.services.vector_store import add_documents_to_store
 
 
 def _extract_text(file_path: str, file_type: str) -> str:
@@ -114,71 +115,42 @@ def ingest_file(
         ft = file_type.lower()
 
         if ft == "pdf":
-            # ★ PDF: dùng luồng mới – giữ page_number thật ★
             chunks_with_pages = _ingest_pdf(file_path, filename)
         else:
-            # Non-PDF: trích text → chunk → gắn page_number = 1 (mặc định)
             text = _extract_text(file_path, file_type)
             if not text.strip():
                 raise ValueError("File không có nội dung văn bản để xử lý")
-            raw_chunks = chunk_text(text)
-            chunks_with_pages = [
-                {"text": c, "page_number": 1}
-                for c in raw_chunks
-            ]
+            chunks_with_pages = chunk_text_parent_child(text)
 
         if not chunks_with_pages:
             raise ValueError("File không có nội dung văn bản để xử lý")
 
-        # ── Chuẩn bị dữ liệu cho ChromaDB + SQLite ──
-        documents_for_vector = []
-        metadatas_for_vector = []
-        chroma_ids_input = []
-        total_tokens = 0
+        # ── Lưu parent-child vào SQLite + ChromaDB ──
+        documents_for_vector: list = []
+        metadatas_for_vector: list = []
+        chroma_ids_input: list = []
 
-        for i, chunk_info in enumerate(chunks_with_pages):
-            chunk_text_content = chunk_info["text"]
-            page_number = chunk_info["page_number"]
-            tokens = len(chunk_text_content) // 4
-            total_tokens += tokens
-            v_id = str(uuid.uuid4())
+        total_tokens = _save_parent_child_chunks(
+            db=db,
+            chunks=chunks_with_pages,
+            db_doc=db_doc,
+            filename=filename,
+            documents_for_vector=documents_for_vector,
+            metadatas_for_vector=metadatas_for_vector,
+            chroma_ids_input=chroma_ids_input,
+        )
 
-            metadata = {
-                "source": filename,
-                "document_id": db_doc.id,
-                "chunk_index": i,
-                "page_number": page_number,   # ★ SỐ TRANG THẬT ★
-                "vector_id": v_id,
-            }
-            documents_for_vector.append(chunk_text_content)
-            metadatas_for_vector.append(metadata)
-            chroma_ids_input.append(v_id)
-
-        # 5. Đẩy vào ChromaDB
         if documents_for_vector:
-            chroma_ids = add_documents_to_store(
+            add_documents_to_store(
                 texts=documents_for_vector,
                 metadatas=metadatas_for_vector,
                 ids=chroma_ids_input,
             )
 
-            # 6. Lưu cross-reference vào SQLite document_pages
-            for i, (chunk_info, v_id) in enumerate(zip(chunks_with_pages, chroma_ids)):
-                tokens = len(chunk_info["text"]) // 4
-                page_in = DocumentPageCreate(
-                    document_id=db_doc.id,
-                    chunk_index=i,
-                    raw_content=chunk_info["text"],
-                    token_count=tokens,
-                    page_metadata=json.dumps(metadatas_for_vector[i]),
-                    vector_id=v_id,
-                )
-                db_page = create_document_page(db, page_in)
-                sync_page_to_fts(db, db_page.id, chunk_info["text"])
-
-        # 7. Đánh dấu SUCCESS
+        n_parents = sum(1 for c in chunks_with_pages if c["chunk_type"] == "parent")
+        n_children = sum(1 for c in chunks_with_pages if c["chunk_type"] == "child")
         update_document_status(db, db_doc, "SUCCESS", total_tokens=total_tokens)
-        print(f"[Ingestion OK] {filename} → {len(chunks_with_pages)} chunks, {total_tokens} tokens")
+        print(f"[Ingestion OK] {filename} → {n_parents} parents, {n_children} children, {total_tokens} tokens")
 
     except Exception as e:
         update_document_status(db, db_doc, "FAILED", error=str(e))
@@ -189,13 +161,94 @@ def ingest_file(
 
 
 def _ingest_pdf(file_path: str, filename: str) -> list[dict]:
-    """
-    Luồng PDF chuyên biệt: trích text từng trang → chunk theo trang → giữ page_number.
-    """
+    """PDF: trích text từng trang → parent-child chunking, giữ page_number thật."""
     pages = extract_pages_from_pdf(file_path)
     if not pages:
         raise ValueError("PDF không có nội dung văn bản để xử lý")
+    chunks = chunk_pages_parent_child(pages)
+    n_parents = sum(1 for c in chunks if c["chunk_type"] == "parent")
+    print(f"[PDF Parse] {filename}: {len(pages)} trang → {n_parents} parents")
+    return chunks
 
-    chunks_with_pages = chunk_text_with_pages(pages)
-    print(f"[PDF Parse] {filename}: {len(pages)} trang → {len(chunks_with_pages)} chunks")
-    return chunks_with_pages
+
+def _save_parent_child_chunks(
+    db: Session,
+    chunks: list[dict],
+    db_doc,
+    filename: str,
+    documents_for_vector: list,
+    metadatas_for_vector: list,
+    chroma_ids_input: list,
+) -> int:
+    """
+    Lưu parent-child chunks vào SQLite.
+    Pass 1: lưu parent rows → lấy DB ids.
+    Pass 2: lưu child rows với parent_chunk_id → thêm vào ChromaDB batch.
+    Chỉ child rows được insert vào ChromaDB và FTS5.
+    Trả về tổng token count (tính từ child chunks).
+    """
+    parent_rows = [c for c in chunks if c["chunk_type"] == "parent"]
+    child_rows  = [c for c in chunks if c["chunk_type"] == "child"]
+
+    # Pass 1 — lưu parent rows
+    parent_index_to_db_id: dict[int, int] = {}
+    global_chunk_index = 0
+
+    for p in parent_rows:
+        v_id = str(uuid.uuid4())
+        child_count = sum(1 for c in child_rows if c["parent_index"] == p["parent_index"])
+        page_in = DocumentPageCreate(
+            document_id=db_doc.id,
+            chunk_index=global_chunk_index,
+            raw_content=p["text"],
+            token_count=len(p["text"]) // 4,
+            page_metadata=json.dumps({
+                "source": filename,
+                "document_id": db_doc.id,
+                "chunk_index": global_chunk_index,
+                "page_number": p["page_number"],
+                "vector_id": v_id,
+            }),
+            vector_id=v_id,
+            chunk_type="parent",
+            parent_chunk_id=None,
+            child_count=child_count,
+        )
+        db_page = create_document_page(db, page_in)
+        parent_index_to_db_id[p["parent_index"]] = db_page.id
+        global_chunk_index += 1
+
+    # Pass 2 — lưu child rows, build ChromaDB batch
+    total_tokens = 0
+    for c in child_rows:
+        parent_db_id = parent_index_to_db_id.get(c["parent_index"])
+        v_id = str(uuid.uuid4())
+        tokens = len(c["text"]) // 4
+        total_tokens += tokens
+        meta = {
+            "source": filename,
+            "document_id": db_doc.id,
+            "chunk_index": global_chunk_index,
+            "page_number": c["page_number"],
+            "vector_id": v_id,
+            "parent_chunk_db_id": parent_db_id,
+        }
+        page_in = DocumentPageCreate(
+            document_id=db_doc.id,
+            chunk_index=global_chunk_index,
+            raw_content=c["text"],
+            token_count=tokens,
+            page_metadata=json.dumps(meta),
+            vector_id=v_id,
+            chunk_type="child",
+            parent_chunk_id=parent_db_id,
+        )
+        db_page = create_document_page(db, page_in)
+        sync_page_to_fts(db, db_page.id, c["text"])
+
+        documents_for_vector.append(c["text"])
+        metadatas_for_vector.append(meta)
+        chroma_ids_input.append(v_id)
+        global_chunk_index += 1
+
+    return total_tokens
