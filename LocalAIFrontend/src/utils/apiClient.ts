@@ -24,4 +24,16 @@ export const apiPost = (url: string, body?: unknown) =>
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
+export const apiPatch = (url: string, body?: unknown) =>
+  apiFetch(url, {
+    method: 'PATCH',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+export const apiPut = (url: string, body?: unknown) =>
+  apiFetch(url, {
+    method: 'PUT',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
 export const apiDelete = (url: string) => apiFetch(url, { method: 'DELETE' });
