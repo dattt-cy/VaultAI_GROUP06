@@ -8,13 +8,62 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.chat_model import ChatSession, Message
-from app.models.doc_model import Document
+from app.models.doc_model import Document, CategoryPermission, UserDocPermission
 from app.models.user_model import User
 from app.schemas.chat_schema import ChatRequest
 from app.services.rag_pipeline import query_rag, query_rag_stream
 from app.services.context_manager import load_conversation_history
 
 router = APIRouter()
+
+
+def _resolve_allowed_doc_ids(db: Session, user: User, selected_doc_ids: list | None) -> list | None:
+    """Trả về danh sách doc_id được phép search.
+    - Admin: None (không giới hạn)
+    - User chọn tay: dùng selection đó
+    - User không chọn: tính từ UserDocPermission + CategoryPermission
+    """
+    if user.role.name == "admin":
+        return selected_doc_ids or None
+
+    if selected_doc_ids:
+        return selected_doc_ids
+
+    # Doc-level permissions
+    user_doc_ids = {
+        p.document_id for p in db.query(UserDocPermission)
+        .filter(UserDocPermission.user_id == user.id).all()
+    }
+    # Category-level permissions (role-based)
+    allowed_cat_ids = {
+        p.category_id for p in db.query(CategoryPermission)
+        .filter(CategoryPermission.role_id == user.role_id, CategoryPermission.can_view == True).all()
+    }
+    cat_doc_ids = {
+        d.id for d in db.query(Document)
+        .filter(Document.document_scope == "COMPANY", Document.category_id.in_(allowed_cat_ids)).all()
+    } if allowed_cat_ids else set()
+
+    # Department-level permissions
+    from app.models.doc_model import DepartmentDocPermission
+    dept_doc_ids = set()
+    if user.department_id:
+        dept_doc_ids = {
+            p.document_id for p in db.query(DepartmentDocPermission)
+            .filter(DepartmentDocPermission.department_id == user.department_id).all()
+        }
+
+    # Dept perms là giới hạn tối đa — user_doc_ids không được vượt qua giới hạn này
+    if dept_doc_ids:
+        combined = list(dept_doc_ids)
+    else:
+        combined = list(user_doc_ids | cat_doc_ids)
+    print(f"DEBUG _resolve_allowed_doc_ids for User {user.username} (Role: {user.role.name}):")
+    print(f"  - user_doc_ids: {user_doc_ids}")
+    print(f"  - cat_doc_ids: {cat_doc_ids}")
+    print(f"  - dept_doc_ids: {dept_doc_ids}")
+    print(f"  - combined: {combined}")
+    return combined
 
 
 def _get_or_create_session(db: Session, user_id: int, session_id: Optional[int]) -> ChatSession:
@@ -52,7 +101,7 @@ async def chat_message(
 
     result = query_rag(
         query=request.content, db=db,
-        allowed_doc_ids=request.selected_doc_ids,
+        allowed_doc_ids=_resolve_allowed_doc_ids(db, current_user, request.selected_doc_ids),
         conversation_history=history,
     )
 
@@ -90,7 +139,8 @@ async def chat_message_stream(
     db.commit()
 
     raw_gen = query_rag_stream(
-        query=request.content, db=db, allowed_doc_ids=request.selected_doc_ids,
+        query=request.content, db=db,
+        allowed_doc_ids=_resolve_allowed_doc_ids(db, current_user, request.selected_doc_ids),
         conversation_history=history,
     )
     session_id = session.id
