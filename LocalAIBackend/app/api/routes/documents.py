@@ -16,10 +16,11 @@ from sqlalchemy.orm import Session, joinedload
 
 from sqlalchemy import text
 from app.api.dependencies import get_db, get_current_user
-from app.models.doc_model import Document, Category, CategoryPermission
+from app.models.doc_model import Document, Category, CategoryPermission, UserDocPermission
 from app.models.user_model import User
 from app.services.ingestion_service import ingest_file
 from app.services.vector_store import delete_documents_from_store
+from app.api.routes.admin import write_audit_log
 
 router = APIRouter()
 
@@ -128,6 +129,13 @@ async def upload_document(
         session_id=session_id if scope.upper() == "PERSONAL" else None,
     )
 
+    write_audit_log(
+        db, action="UPLOAD_DOC",
+        username=current_user.username, user_id=current_user.id,
+        entity_type="document", entity_id=safe_name,
+        details={"filename": file.filename, "size": file.size},
+    )
+
     return {
         "success": True,
         "filename": safe_name,
@@ -161,29 +169,54 @@ async def list_documents(
 
     docs = query.order_by(Document.created_at.desc()).all()
 
-    # Lấy danh sách category_id user được xem trong kho chung (admin thấy tất cả)
+    # Tính quyền xem COMPANY docs cho non-admin
     if current_user.role.name != "admin":
-        allowed_cat_ids = {
-            p.category_id for p in db.query(CategoryPermission).filter(
-                CategoryPermission.role_id == current_user.role_id,
-                CategoryPermission.can_view == True,
+        # 1. Doc-level permissions (user-specific)
+        user_doc_ids = {
+            p.document_id for p in db.query(UserDocPermission).filter(
+                UserDocPermission.user_id == current_user.id
             ).all()
         }
+        # 2. Department-level permissions
+        from app.models.doc_model import DepartmentDocPermission
+        dept_doc_ids = set()
+        if current_user.department_id:
+            dept_doc_ids = {
+                p.document_id for p in db.query(DepartmentDocPermission).filter(
+                    DepartmentDocPermission.department_id == current_user.department_id
+                ).all()
+            }
+        # 3. Category-level permissions (role-based fallback — chỉ dùng khi không có dept perms)
+        allowed_cat_ids = set()
+        if not dept_doc_ids:
+            allowed_cat_ids = {
+                p.category_id for p in db.query(CategoryPermission).filter(
+                    CategoryPermission.role_id == current_user.role_id,
+                    CategoryPermission.can_view == True,
+                ).all()
+            }
     else:
-        allowed_cat_ids = None  # None = không giới hạn
+        user_doc_ids = None
+        dept_doc_ids = None
+        allowed_cat_ids = None
+
+    print(f"[DOC PERM] user={current_user.username} role={current_user.role.name} dept_id={current_user.department_id} | user_doc_ids={user_doc_ids} dept_doc_ids={dept_doc_ids} allowed_cat_ids={allowed_cat_ids}")
 
     result = []
     for d in docs:
-        # Kho cá nhân → chỉ hiện với đúng user upload, filter theo session_id nếu có
         if d.document_scope == "PERSONAL":
             if d.uploaded_by != current_user.id:
                 continue
             if session_id is not None and d.session_id != session_id:
                 continue
-        # Kho chung → chỉ hiện category được phân quyền can_view
-        if d.document_scope == "COMPANY" and allowed_cat_ids is not None:
-            if d.category_id not in allowed_cat_ids:
-                continue
+        if d.document_scope == "COMPANY" and user_doc_ids is not None:
+            if dept_doc_ids:
+                # Dept perms là giới hạn tối đa — user_doc_ids không được vượt qua
+                if d.id not in dept_doc_ids:
+                    continue
+            else:
+                if d.id not in user_doc_ids and d.category_id not in allowed_cat_ids:
+                    continue
         result.append({
             "id": d.id,
             "title": d.title,
@@ -249,8 +282,17 @@ async def delete_document(
             pass
 
     # 4. Xóa document (cascade → document_pages)
+    doc_title = doc.title
     db.delete(doc)
     db.commit()
+
+    write_audit_log(
+        db, action="DELETE_DOC",
+        username=current_user.username, user_id=current_user.id,
+        entity_type="document", entity_id=str(doc_id),
+        details={"title": doc_title},
+    )
+
     return {"success": True, "message": f"Đã xoá tài liệu id={doc_id}"}
 
 
