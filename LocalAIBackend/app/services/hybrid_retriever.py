@@ -3,7 +3,7 @@ Hybrid RAG Retriever
 ====================
 Kết hợp 3 kỹ thuật nâng cao:
 1. Semantic Search      – ChromaDB (Embedding similarity)
-2. Keyword Search       – SQLite FTS5 (BM25 full-text matching)
+2. Keyword Search       – MySQL FULLTEXT (Boolean mode matching)
 3. Page Index Expansion – Lấy thêm chunk liền kề để bảo toàn ngữ cảnh
 
 Kết quả của (1) và (2) được gộp bằng Reciprocal Rank Fusion (RRF)
@@ -41,26 +41,8 @@ def get_reranker():
 
 
 def sync_page_to_fts(db: Session, page_id: int, raw_content: str) -> None:
-    """
-    Thêm một DocumentPage mới vào FTS5 index ngay sau khi insert vào document_pages.
-    Chỉ chạy nếu FTS đã được khởi tạo (tránh duplicate với rebuild lúc startup).
-    """
-    global _fts_initialized
-    if not _fts_initialized:
-        # FTS chưa build — lần rebuild tiếp theo sẽ tự include page này
-        return
-    try:
-        db.execute(
-            text("INSERT INTO document_pages_fts(rowid, raw_content) VALUES (:rowid, :content)"),
-            {"rowid": page_id, "content": raw_content},
-        )
-        db.commit()
-    except Exception as e:
-        print(f"[FTS] Sync page {page_id} thất bại: {e}")
-        try:
-            db.rollback()
-        except Exception:
-            pass
+    """MySQL FULLTEXT index tự động cập nhật khi insert vào document_pages — không cần sync thủ công."""
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -97,8 +79,11 @@ def _semantic_search(query: str, k: int, allowed_doc_ids: list[int] = None) -> l
     Trả về [(vector_id, relevance_score), ...] từ ChromaDB.
     Nếu metadata không có vector_id, fallback về page_content làm key tạm.
     """
+    if allowed_doc_ids is not None and len(allowed_doc_ids) == 0:
+        return []
+
     filter_dict = None
-    if allowed_doc_ids is not None and len(allowed_doc_ids) > 0:
+    if allowed_doc_ids is not None:
         filter_dict = {"document_id": {"$in": allowed_doc_ids}}
 
     results = search_documents(query, k=k, filter_dict=filter_dict)
@@ -110,73 +95,74 @@ def _semantic_search(query: str, k: int, allowed_doc_ids: list[int] = None) -> l
 
 
 # ---------------------------------------------------------------------------
-# Bước 2 – Keyword Search qua SQLite FTS5
+# Bước 2 – Keyword Search qua MySQL FULLTEXT
 # ---------------------------------------------------------------------------
 
 def _keyword_search(db: Session, query: str, k: int, allowed_doc_ids: list[int] = None) -> list[tuple[str, float]]:
     """
-    Tìm kiếm Full-Text trên bảng FTS ảo `document_pages_fts`.
-    Trả về [(vector_id, bm25_score), ...].
-    Nếu FTS chưa tồn tại, tự động tạo và đồng bộ dữ liệu.
+    Tìm kiếm Full-Text trên bảng document_pages bằng MySQL FULLTEXT BOOLEAN MODE.
+    Trả về [(vector_id, relevance_score), ...].
     """
-    _ensure_fts_table(db)
+    if allowed_doc_ids is not None and len(allowed_doc_ids) == 0:
+        return []
+
+    _ensure_fts_index(db)
 
     doc_filter_sql = ""
-    if allowed_doc_ids is not None and len(allowed_doc_ids) > 0:
-        # SQLite doesn't directly support array bindings easily, format safely
+    if allowed_doc_ids is not None:
         id_str = ",".join(str(int(did)) for did in allowed_doc_ids)
         doc_filter_sql = f"AND dp.document_id IN ({id_str})"
 
     sql = text(f"""
         SELECT dp.vector_id,
-               bm25(document_pages_fts) AS score
-        FROM document_pages_fts
-        JOIN document_pages dp ON dp.rowid = document_pages_fts.rowid
-        WHERE document_pages_fts MATCH :query
+               MATCH(dp.raw_content) AGAINST (:query IN BOOLEAN MODE) AS score
+        FROM document_pages dp
+        WHERE MATCH(dp.raw_content) AGAINST (:query IN BOOLEAN MODE) > 0
         {doc_filter_sql}
-        ORDER BY score
+        ORDER BY score DESC
         LIMIT :k
     """)
-    # Tách thành các token, bỏ token quá ngắn (stop words), dùng OR để BM25 rank theo relevance
-    tokens = [t.replace('"', '""') for t in query.split() if len(t) > 2]
-    fts_query = " OR ".join(f'"{t}"' for t in tokens) if tokens else f'"{query.replace(chr(34), chr(34)*2)}"'
+
+    # Tách token, bỏ token quá ngắn, dùng OR (+prefix optional) trong boolean mode
+    tokens = [t.replace('"', '') for t in query.split() if len(t) > 2]
+    fts_query = " ".join(tokens) if tokens else query
     try:
         rows = db.execute(sql, {"query": fts_query, "k": k}).fetchall()
     except Exception as e:
-        err_str = str(e).lower()
-        # Nếu FTS table bị corrupt hoặc schema lỗi → reset flag để rebuild lần tới
-        if "no such table" in err_str or "fts" in err_str or "malformed" in err_str:
-            global _fts_initialized
-            _fts_initialized = False
-            print(f"[FTS WARNING] FTS query thất bại, sẽ rebuild lần sau: {e}")
+        print(f"[FTS WARNING] FTS query thất bại: {e}")
         return []
 
-    # bm25() trả về số âm – giá trị nhỏ hơn = tốt hơn → đổi thành dương
-    max_score = max((abs(r.score) for r in rows), default=1.0) or 1.0
-    return [(r.vector_id, abs(r.score) / max_score) for r in rows]
+    max_score = max((r.score for r in rows), default=1.0) or 1.0
+    return [(r.vector_id, float(r.score) / max_score) for r in rows]
 
 
-def _ensure_fts_table(db: Session) -> None:
+def _ensure_fts_index(db: Session) -> None:
     """
-    Tạo bảng FTS5 ảo nếu chưa tồn tại và rebuild chỉ đúng 1 lần khi server start.
-    Các request tiếp theo skip hoàn toàn — tránh rebuild O(N) mỗi request.
+    Tạo FULLTEXT INDEX trên document_pages.raw_content nếu chưa có.
+    Chỉ chạy 1 lần khi server start.
     """
     global _fts_initialized
     if _fts_initialized:
         return
     try:
-        db.execute(text("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS document_pages_fts
-            USING fts5(raw_content, content='document_pages', content_rowid='id', tokenize='unicode61')
-        """))
-        # Rebuild toàn bộ index — chỉ chạy 1 lần duy nhất lúc server khởi động
-        db.execute(text("INSERT INTO document_pages_fts(document_pages_fts) VALUES('rebuild')"))
-        db.commit()
+        result = db.execute(text("""
+            SELECT COUNT(*) AS cnt
+            FROM information_schema.STATISTICS
+            WHERE table_schema = DATABASE()
+              AND table_name = 'document_pages'
+              AND index_name = 'idx_fulltext_raw_content'
+        """)).fetchone()
+        if result.cnt == 0:
+            db.execute(text(
+                "ALTER TABLE document_pages ADD FULLTEXT INDEX idx_fulltext_raw_content (raw_content)"
+            ))
+            db.commit()
+            print("[FTS] FULLTEXT index created thành công.")
+        else:
+            print("[FTS] FULLTEXT index đã tồn tại, skip.")
         _fts_initialized = True
-        print("[FTS] Index initialized thành công.")
     except Exception as e:
-        print(f"[FTS WARNING] Lỗi khởi tạo FTS index: {e}")
-        # Không set flag → lần sau sẽ thử lại
+        print(f"[FTS WARNING] Lỗi khởi tạo FULLTEXT index: {e}")
         try:
             db.rollback()
         except Exception:
@@ -193,17 +179,19 @@ def _reciprocal_rank_fusion(
     rrf_k: int = RRF_K,
 ) -> list[tuple[str, float]]:
     """
-    Gộp 2 danh sách xếp hạng bằng RRF.
-    Công thức: RRF(d) = Σ 1 / (k + rank(d))
-    Trả về danh sách đã sắp xếp giảm dần theo điểm RRF.
+    Gộp 2 danh sách xếp hạng bằng RRF với boost cho FTS exact match.
+    Khi FTS score >= 0.8 (exact keyword match), nhân trọng số x3 để
+    tránh bị semantic search lấn át (VD: "ảnh" bị nhầm sang "image").
     """
     scores: dict[str, float] = {}
 
     for rank, (vid, _) in enumerate(semantic_hits, start=1):
         scores[vid] = scores.get(vid, 0.0) + 1.0 / (rrf_k + rank)
 
-    for rank, (vid, _) in enumerate(keyword_hits, start=1):
-        scores[vid] = scores.get(vid, 0.0) + 1.0 / (rrf_k + rank)
+    for rank, (vid, raw_score) in enumerate(keyword_hits, start=1):
+        # Boost FTS khi exact match (score cao) để không bị semantic lấn át
+        weight = 3.0 if raw_score >= 0.8 else 1.0
+        scores[vid] = scores.get(vid, 0.0) + weight / (rrf_k + rank)
 
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
@@ -340,9 +328,11 @@ def hybrid_retrieve(
         return []
 
     # 4. Re-ranking bằng Cross-Encoder + RRF tiebreaker
-    # Build RRF rank map để dùng làm tiebreaker (RRF đáng tin hơn CE cho tiếng Việt)
     fused = _reciprocal_rank_fusion(semantic_hits, keyword_hits)
     rrf_rank_map = {vid: rank for rank, (vid, _) in enumerate(fused)}  # rank 0 = best
+
+    # Map raw FTS score để boost chunk có exact keyword match (tránh reranker ưu tiên tiếng Anh)
+    fts_score_map = {vid: score for vid, score in keyword_hits}
 
     pairs = [(query, page.raw_content) for page in core_pages]
     reranker = get_reranker()
@@ -351,10 +341,12 @@ def hybrid_retrieve(
     n = len(fused) or 1
     for idx, page in enumerate(core_pages):
         ce_score = float(scores[idx])
-        # Normalize RRF rank thành bonus [0, 0.5]: chunk đứng đầu RRF được +0.5
         rrf_rank = rrf_rank_map.get(page.vector_id, n)
         rrf_bonus = (n - rrf_rank) / n * 0.5
-        page._temp_rerank_score = ce_score + rrf_bonus
+        # Boost mạnh khi FTS exact match (score >= 0.8) để không bị CE tiếng Anh lấn át
+        raw_fts = fts_score_map.get(page.vector_id, 0.0)
+        fts_boost = raw_fts * 5.0 if raw_fts >= 0.8 else 0.0
+        page._temp_rerank_score = ce_score + rrf_bonus + fts_boost
 
     # Sắp xếp giảm dần theo điểm và lấy Top K
     core_pages.sort(key=lambda p: p._temp_rerank_score, reverse=True)
@@ -400,12 +392,12 @@ def _retrieval_is_confident(chunks: list) -> bool:
     """
     mmarco-mMiniLMv2 scores Vietnamese text typically in [-7, -2] range.
     Relevant chunks score around -2 to -4; irrelevant around -4 to -7.
-    Threshold -5.0: chỉ trigger adaptive khi top chunk thực sự kém (score < -5).
+    Threshold -4.0: trigger adaptive khi top chunk kém hoặc câu hỏi yes/no cần suy luận.
     """
     if not chunks:
         return False
     top_score = max(c.rerank_score for c in chunks if c.source_type != "neighbor_expand")
-    return top_score > -5.0
+    return top_score > -4.0
 
 
 def retrieve_for_summary(
@@ -418,10 +410,13 @@ def retrieve_for_summary(
     Dùng khi user yêu cầu tóm tắt toàn bộ tài liệu — query vague như "tóm tắt file này"
     không khớp ngữ nghĩa tốt với content, nên cần scan trực tiếp qua SQLite.
     """
+    if allowed_doc_ids is not None and len(allowed_doc_ids) == 0:
+        return []
+
     query = db.query(DocumentPage).filter(
         DocumentPage.chunk_type.in_(["parent", "flat"])
     )
-    if allowed_doc_ids:
+    if allowed_doc_ids is not None:
         query = query.filter(DocumentPage.document_id.in_(allowed_doc_ids))
 
     all_pages: list[DocumentPage] = (

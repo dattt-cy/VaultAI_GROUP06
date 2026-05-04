@@ -73,8 +73,11 @@ def stream_llm_invoke(user_content: str) -> Generator[str, None, None]:
         "stream": True,
         "options": _base_options(),
     }
+    print(f"[LLM DEBUG] prompt length: {len(user_content)} chars")
     try:
         with requests.post(_chat_url(), json=payload, stream=True, timeout=120) as resp:
+            if not resp.ok:
+                print(f"[LLM ERROR] HTTP {resp.status_code}: {resp.text[:500]}")
             resp.raise_for_status()
             for raw_line in resp.iter_lines():
                 if not raw_line:

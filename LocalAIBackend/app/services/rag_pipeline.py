@@ -13,7 +13,7 @@ from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_wi
 from .context_manager import (
     format_history_block,
     needs_rewrite, rewrite_query,
-    expand_query,
+    expand_query, is_yes_no_query, extract_yes_no_topic,
 )
 from app.core.config import settings
 from langchain_core.prompts import PromptTemplate
@@ -299,7 +299,11 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
 
     # 0. Query rewriting: viết lại câu hỏi mơ hồ trước khi retrieval
     retrieval_query = query
-    if history and needs_rewrite(query, history):
+    if is_yes_no_query(query):
+        # Trích topic từ câu hỏi Yes/No để retrieval match keyword tốt hơn
+        retrieval_query = extract_yes_no_topic(query)
+        print(f"[YesNoExtract] '{query}' → '{retrieval_query}'")
+    elif history and needs_rewrite(query, history):
         retrieval_query = rewrite_query(query, history, safe_llm_invoke)
         if retrieval_query != query:
             print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
@@ -309,13 +313,23 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
     else:
         chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=6, allowed_doc_ids=allowed_doc_ids)
-        if not _retrieval_is_confident(chunks):
+        # Câu hỏi Yes/No luôn expand để tìm quy định liên quan dù retrieval có vẻ confident
+        if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
             print(f"[AdaptiveRAG] Confidence thấp, thử expand query...")
             expanded = expand_query(retrieval_query, safe_llm_invoke)
             if len(expanded) > 1:
                 multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=6, allowed_doc_ids=allowed_doc_ids)
                 if multi_chunks:
-                    chunks = multi_chunks
+                    # Merge thay vì replace để không mất chunks tốt từ lần đầu
+                    seen = {c.vector_id for c in chunks}
+                    merged = chunks + [c for c in multi_chunks if c.vector_id not in seen]
+                    reranker = get_reranker()
+                    if reranker:
+                        for c in merged:
+                            if c.rerank_score is None:
+                                c.rerank_score = reranker.predict([(retrieval_query, c.content)])
+                        merged.sort(key=lambda c: c.rerank_score or 0, reverse=True)
+                    chunks = merged[:6]
 
     if not chunks:
         return {
@@ -413,7 +427,10 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     # 0. Query rewriting nếu câu hỏi mơ hồ
     retrieval_query = query
-    if history and needs_rewrite(query, history):
+    if is_yes_no_query(query):
+        retrieval_query = extract_yes_no_topic(query)
+        print(f"[YesNoExtract] '{query}' → '{retrieval_query}'")
+    elif history and needs_rewrite(query, history):
         yield _sse({"type": "thinking", "step": "💬 Đang phân tích ngữ cảnh hội thoại..."})
         retrieval_query = rewrite_query(query, history, safe_llm_invoke)
         if retrieval_query != query:
@@ -426,13 +443,21 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     else:
         yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
         chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=6, allowed_doc_ids=allowed_doc_ids)
-        if not _retrieval_is_confident(chunks):
+        if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
             yield _sse({"type": "thinking", "step": "🔄 Đang mở rộng câu hỏi để tìm kiếm sâu hơn..."})
             expanded = expand_query(retrieval_query, safe_llm_invoke)
             if len(expanded) > 1:
                 multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=6, allowed_doc_ids=allowed_doc_ids)
                 if multi_chunks:
-                    chunks = multi_chunks
+                    seen = {c.vector_id for c in chunks}
+                    merged = chunks + [c for c in multi_chunks if c.vector_id not in seen]
+                    reranker = get_reranker()
+                    if reranker:
+                        for c in merged:
+                            if c.rerank_score is None:
+                                c.rerank_score = reranker.predict([(retrieval_query, c.content)])
+                        merged.sort(key=lambda c: c.rerank_score or 0, reverse=True)
+                    chunks = merged[:6]
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
