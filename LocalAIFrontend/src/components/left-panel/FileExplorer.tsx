@@ -312,12 +312,20 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     onSelectionChange(next);
   }, [onSelectionChange]);
 
-  // Auto-select personal docs khi ingestion hoàn thành
+  // Auto-select personal docs khi ingestion hoàn thành (chỉ doc mới chuyển sang SUCCESS, không select doc cũ đã có sẵn)
   const knownReadyIdsRef = useRef<Set<number>>(new Set());
+  const seededRef = useRef(false);
   useEffect(() => {
+    if (privateDocs.length === 0) return;
     const readyDocs = privateDocs.filter(
       d => d.ingestion_status === 'SUCCESS' || d.ingestion_status === 'COMPLETED'
     );
+    if (!seededRef.current) {
+      // Lần đầu load: đánh dấu tất cả doc đã ready là "đã biết" nhưng không auto-select
+      seededRef.current = true;
+      readyDocs.forEach(d => knownReadyIdsRef.current.add(d.id));
+      return;
+    }
     const newIds = readyDocs
       .map(d => d.id)
       .filter(id => !knownReadyIdsRef.current.has(id));
