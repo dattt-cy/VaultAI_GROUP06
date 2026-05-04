@@ -1,23 +1,47 @@
-import React, { useState } from 'react';
-import { mockRoles, mockCategories, mockPermissions } from '../../mocks/adminMocks';
+import React, { useState, useEffect, useCallback } from 'react';
+import { apiGet, apiPut } from '../../utils/apiClient';
 
-type Perm = { can_view: boolean; can_upload: boolean; can_delete: boolean };
+interface Role { id: number; name: string; access_level: number }
+interface Category { id: number; name: string }
+interface Perm { can_view: boolean; can_upload: boolean; can_delete: boolean }
 type Matrix = Record<number, Record<number, Perm>>;
 
 const defaultPerm = (): Perm => ({ can_view: false, can_upload: false, can_delete: false });
 
 export const PermissionMatrix: React.FC = () => {
-  const [matrix, setMatrix] = useState<Matrix>(() => {
-    const m: Matrix = {};
-    mockRoles.forEach(r => {
-      m[r.id] = {};
-      mockCategories.forEach(c => {
-        m[r.id][c.id] = { ...(mockPermissions[r.id]?.[c.id] ?? defaultPerm()) };
-      });
-    });
-    return m;
-  });
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [matrix, setMatrix] = useState<Matrix>({});
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchData = useCallback(async () => {
+    const [rolesRes, catsRes, permsRes] = await Promise.all([
+      apiGet('/api/admin/roles'),
+      apiGet('/api/admin/categories'),
+      apiGet('/api/admin/permissions'),
+    ]);
+    const rolesData: Role[] = await rolesRes.json();
+    const catsData: Category[] = await catsRes.json();
+    const permsData: Array<{ role_id: number; category_id: number } & Perm> = await permsRes.json();
+
+    const m: Matrix = {};
+    rolesData.forEach(r => {
+      m[r.id] = {};
+      catsData.forEach(c => { m[r.id][c.id] = { ...defaultPerm() }; });
+    });
+    permsData.forEach(p => {
+      if (m[p.role_id]) {
+        m[p.role_id][p.category_id] = { can_view: p.can_view, can_upload: p.can_upload, can_delete: p.can_delete };
+      }
+    });
+
+    setRoles(rolesData);
+    setCategories(catsData);
+    setMatrix(m);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const toggle = (roleId: number, catId: number, field: keyof Perm) => {
     setMatrix(prev => ({
@@ -28,6 +52,20 @@ export const PermissionMatrix: React.FC = () => {
       },
     }));
     setSaved(false);
+  };
+
+  const savePermissions = async () => {
+    setSaving(true);
+    const items = roles.flatMap(r =>
+      categories.map(c => ({
+        role_id: r.id,
+        category_id: c.id,
+        ...(matrix[r.id]?.[c.id] ?? defaultPerm()),
+      }))
+    );
+    await apiPut('/api/admin/permissions', items);
+    setSaving(false);
+    setSaved(true);
   };
 
   const Checkbox: React.FC<{ checked: boolean; onChange: () => void; color: string }> = ({ checked, onChange, color }) => (
@@ -56,7 +94,7 @@ export const PermissionMatrix: React.FC = () => {
           <thead>
             <tr className="bg-surface">
               <th className="px-4 py-2.5 text-[11px] font-semibold text-text-secondary uppercase tracking-wide border-b border-border w-36">Vai trò</th>
-              {mockCategories.map(cat => (
+              {categories.map(cat => (
                 <th key={cat.id} className="px-4 py-2.5 text-[11px] font-semibold text-text-secondary uppercase tracking-wide border-b border-border text-center">
                   {cat.name}
                 </th>
@@ -64,7 +102,7 @@ export const PermissionMatrix: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {mockRoles.map(role => (
+            {roles.map(role => (
               <tr key={role.id} className="border-b border-border last:border-0 hover:bg-surface/50 transition-colors">
                 <td className="px-4 py-3">
                   <div>
@@ -72,7 +110,7 @@ export const PermissionMatrix: React.FC = () => {
                     <p className="text-[11px] text-text-muted">Lv.{role.access_level}</p>
                   </div>
                 </td>
-                {mockCategories.map(cat => {
+                {categories.map(cat => {
                   const p = matrix[role.id]?.[cat.id] ?? defaultPerm();
                   return (
                     <td key={cat.id} className="px-4 py-3">
@@ -91,13 +129,13 @@ export const PermissionMatrix: React.FC = () => {
       </div>
 
       <div className="flex items-center justify-between pt-1">
-        {saved && <span className="text-[12px] text-success">Đã lưu thay đổi</span>}
-        {!saved && <span />}
+        {saved ? <span className="text-[12px] text-success">Đã lưu thay đổi</span> : <span />}
         <button
-          onClick={() => setSaved(true)}
-          className="px-4 py-1.5 rounded-lg bg-accent text-white text-[13px] font-semibold hover:bg-accent-hover transition-colors"
+          onClick={savePermissions}
+          disabled={saving}
+          className="px-4 py-1.5 rounded-lg bg-accent text-white text-[13px] font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50"
         >
-          Lưu phân quyền
+          {saving ? 'Đang lưu...' : 'Lưu phân quyền'}
         </button>
       </div>
     </div>

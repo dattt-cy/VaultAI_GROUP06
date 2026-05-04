@@ -3,12 +3,13 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Shield, FileKey, FileText,
   FolderOpen, Settings2, MessageSquare, ThumbsUp,
-  ClipboardList, Activity,
+  ClipboardList, Activity, Building2,
 } from 'lucide-react';
 
 const navItems = [
   { label: 'Tổng quan', path: '/admin/overview', icon: LayoutDashboard },
   { label: 'Người dùng', path: '/admin/users', icon: Users },
+  { label: 'Phòng ban', path: '/admin/departments', icon: Building2 },
   { label: 'Vai trò & Quyền', path: '/admin/roles', icon: Shield },
   { label: 'Phân quyền Tài liệu', path: '/admin/doc-permissions', icon: FileKey },
   { label: 'Tài liệu', path: '/admin/documents', icon: FileText },
@@ -22,8 +23,8 @@ const navItems = [
 
 const sections = [
   { title: 'Tổng quan', items: navItems.slice(0, 1) },
-  { title: 'Quản lý', items: navItems.slice(1, 6) },
-  { title: 'Hệ thống', items: navItems.slice(6) },
+  { title: 'Quản lý', items: navItems.slice(1, 7) },
+  { title: 'Hệ thống', items: navItems.slice(7) },
 ];
 
 export const SidebarNav: React.FC = () => (
