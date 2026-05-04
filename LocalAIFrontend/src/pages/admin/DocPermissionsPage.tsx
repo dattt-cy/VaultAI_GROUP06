@@ -1,111 +1,159 @@
-import React, { useState, useMemo } from 'react';
-import { FileKey, User, FolderOpen, ChevronRight, Check, Minus, Search } from 'lucide-react';
-import { mockUsers, mockDocuments, mockCategories, mockDocPermissions } from '../../mocks/adminMocks';
-import { StatusBadge } from '../../components/admin/AdminTable';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Building2, FileText, FolderOpen, Check, Minus, Search,
+  Users, ChevronRight, Save, Loader2, FileX, Info,
+} from 'lucide-react';
+import { apiGet, apiPut } from '../../utils/apiClient';
 import { cn } from '../../lib/utils';
 
-type ViewMode = 'by-user' | 'by-doc';
-type ByDocTab = 'doc' | 'folder';
-
-const companyDocs = mockDocuments.filter(d => d.scope === 'COMPANY');
-const nonAdminUsers = mockUsers.filter(u => u.role !== 'admin');
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function docsInCategory(cat: string) {
-  return companyDocs.filter(d => d.category === cat);
+interface Department {
+  id: number; name: string; description: string | null;
+  user_count: number; doc_count: number;
 }
 
-// ── DocPermissionsPage ────────────────────────────────────────────────────────
+interface DocRow {
+  id: number; title: string;
+  category_id: number | null; category_name: string | null;
+  file_size_bytes: number; ingestion_status: string;
+}
 
+const STATUS_COLORS: Record<string, string> = {
+  COMPLETED: 'bg-success/20 text-success border-success/30',
+  PROCESSING: 'bg-blue-400/20 text-blue-400 border-blue-400/30',
+  PENDING: 'bg-warning/20 text-warning border-warning/30',
+  FAILED: 'bg-danger/20 text-danger border-danger/30',
+};
+
+function formatSize(bytes: number) {
+  if (bytes >= 1_000_000) return (bytes / 1_000_000).toFixed(1) + ' MB';
+  if (bytes >= 1_000) return (bytes / 1_000).toFixed(0) + ' KB';
+  return bytes + ' B';
+}
+
+// ── Tri-state folder checkbox ────────────────────────────────────────────
+const FolderCheckbox = ({ state, onClick }: { state: 'all' | 'some' | 'none'; onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all',
+      state === 'all' && 'bg-success border-success',
+      state === 'some' && 'bg-warning/80 border-warning',
+      state === 'none' && 'border-border bg-elevated hover:border-success/60',
+    )}
+  >
+    {state === 'all' && <Check className="w-3 h-3 text-white" />}
+    {state === 'some' && <Minus className="w-3 h-3 text-white" />}
+  </button>
+);
+
+const DocCheckbox = ({ allowed, onClick }: { allowed: boolean; onClick: () => void }) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all',
+      allowed ? 'bg-success border-success' : 'border-border bg-elevated hover:border-success/60',
+    )}
+  >
+    {allowed && <Check className="w-3 h-3 text-white" />}
+  </button>
+);
+
+// ── Main ─────────────────────────────────────────────────────────────────
 const DocPermissionsPage: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewMode>('by-user');
-  const [byDocTab, setByDocTab] = useState<ByDocTab>('doc');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [docs, setDocs] = useState<DocRow[]>([]);
+  const [selectedDept, setSelectedDept] = useState<Department | null>(null);
+  // permissions[deptId] = Set<docId>
+  const [permissions, setPermissions] = useState<Record<number, Set<number>>>({});
+  const [loadingPerms, setLoadingPerms] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedDept, setSavedDept] = useState<number | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [docSearch, setDocSearch] = useState('');
 
-  const [selectedUser, setSelectedUser] = useState(nonAdminUsers[0]?.id ?? 0);
-  const [selectedDoc, setSelectedDoc] = useState(companyDocs[0]?.id ?? 0);
-  const [selectedFolder, setSelectedFolder] = useState(mockCategories[0]?.name ?? '');
-
-  const [permissions, setPermissions] = useState<Record<number, number[]>>({ ...mockDocPermissions });
-  const [saved, setSaved] = useState(false);
-  const [userSearch, setUserSearch] = useState('');
-
-  const filteredUsers = useMemo(() => {
-    const q = userSearch.toLowerCase();
-    return nonAdminUsers.filter(u =>
-      !q || u.full_name.toLowerCase().includes(q) || u.department.toLowerCase().includes(q)
-    );
-  }, [userSearch]);
-
-  // Expanded folders in by-user view
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set(mockCategories.map(c => c.name))
-  );
-
-  // ── Permission helpers ─────────────────────────────────────────────────────
-
-  const userHasDoc = (userId: number, docId: number) =>
-    (permissions[userId] ?? []).includes(docId);
-
-  const toggleDoc = (userId: number, docId: number) => {
-    setPermissions(prev => {
-      const cur = prev[userId] ?? [];
-      const has = cur.includes(docId);
-      return { ...prev, [userId]: has ? cur.filter(id => id !== docId) : [...cur, docId] };
+  // Group docs by category
+  const categories = useMemo(() => {
+    const map = new Map<string, DocRow[]>();
+    docs.forEach(d => {
+      const key = d.category_name ?? '(Chưa phân loại)';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(d);
     });
-    setSaved(false);
-  };
+    return map;
+  }, [docs]);
 
-  // Folder-level helpers for a user
-  const folderDocIds = (cat: string) => docsInCategory(cat).map(d => d.id);
+  const filteredCategories = useMemo(() => {
+    const q = docSearch.toLowerCase();
+    if (!q) return categories;
+    const result = new Map<string, DocRow[]>();
+    categories.forEach((catDocs, cat) => {
+      const matched = catDocs.filter(d => d.title.toLowerCase().includes(q));
+      if (matched.length > 0 || cat.toLowerCase().includes(q)) {
+        result.set(cat, matched.length > 0 ? matched : catDocs);
+      }
+    });
+    return result;
+  }, [categories, docSearch]);
 
-  const folderState = (userId: number, cat: string): 'all' | 'some' | 'none' => {
-    const ids = folderDocIds(cat);
-    if (ids.length === 0) return 'none';
-    const allowed = ids.filter(id => userHasDoc(userId, id));
-    if (allowed.length === ids.length) return 'all';
-    if (allowed.length > 0) return 'some';
+  // Load departments + docs on mount
+  useEffect(() => {
+    Promise.all([
+      apiGet('/api/admin/dept-doc-permissions/departments').then(r => r.json()),
+      apiGet('/api/admin/dept-doc-permissions/documents').then(r => r.json()),
+    ]).then(([depts, docsData]: [Department[], DocRow[]]) => {
+      setDepartments(depts);
+      setDocs(docsData);
+      if (depts.length > 0) selectDeptById(depts[0]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectDeptById = useCallback(async (dept: Department) => {
+    setSelectedDept(dept);
+    setDocSearch('');
+    setSavedDept(null);
+    if (permissions[dept.id] !== undefined) return; // already loaded
+    setLoadingPerms(true);
+    try {
+      const res = await apiGet(`/api/admin/dept-doc-permissions?department_id=${dept.id}`);
+      const data: { department_id: number; doc_ids: number[] } = await res.json();
+      setPermissions(prev => ({ ...prev, [data.department_id]: new Set(data.doc_ids) }));
+    } finally {
+      setLoadingPerms(false);
+    }
+  }, [permissions]);
+
+  const deptPerm = (deptId: number) => permissions[deptId] ?? new Set<number>();
+
+  const folderState = (deptId: number, catDocs: DocRow[]): 'all' | 'some' | 'none' => {
+    const perm = deptPerm(deptId);
+    const allowed = catDocs.filter(d => perm.has(d.id)).length;
+    if (allowed === catDocs.length && catDocs.length > 0) return 'all';
+    if (allowed > 0) return 'some';
     return 'none';
   };
 
-  const toggleFolder = (userId: number, cat: string) => {
-    const ids = folderDocIds(cat);
-    const state = folderState(userId, cat);
+  const toggleDoc = (deptId: number, docId: number) => {
     setPermissions(prev => {
-      const cur = new Set(prev[userId] ?? []);
-      if (state === 'all') {
-        ids.forEach(id => cur.delete(id));
-      } else {
-        ids.forEach(id => cur.add(id));
-      }
-      return { ...prev, [userId]: Array.from(cur) };
+      const cur = new Set(prev[deptId] ?? []);
+      cur.has(docId) ? cur.delete(docId) : cur.add(docId);
+      return { ...prev, [deptId]: cur };
     });
-    setSaved(false);
+    setSavedDept(null);
   };
 
-  // How many docs a user can view in a folder
-  const folderAllowedCount = (userId: number, cat: string) =>
-    folderDocIds(cat).filter(id => userHasDoc(userId, id)).length;
-
-  // How many users have access to a doc
-  const docAllowedUsers = (docId: number) =>
-    nonAdminUsers.filter(u => userHasDoc(u.id, docId));
-
-  // How many users have access to ALL docs in a folder
-  const folderFullAccessUsers = (cat: string) => {
-    const ids = folderDocIds(cat);
-    if (ids.length === 0) return [];
-    return nonAdminUsers.filter(u => ids.every(id => userHasDoc(u.id, id)));
+  const toggleFolder = (deptId: number, catDocs: DocRow[]) => {
+    const state = folderState(deptId, catDocs);
+    setPermissions(prev => {
+      const cur = new Set(prev[deptId] ?? []);
+      if (state === 'all') catDocs.forEach(d => cur.delete(d.id));
+      else catDocs.forEach(d => cur.add(d.id));
+      return { ...prev, [deptId]: cur };
+    });
+    setSavedDept(null);
   };
 
-  const toggleFolderForUser = (userId: number, cat: string) => {
-    toggleFolder(userId, cat);
-  };
-
-  // Grant/revoke user access to entire folder (by-folder tab)
-  const userFolderState = (userId: number, cat: string) => folderState(userId, cat);
-
-  const toggleExpandFolder = (cat: string) => {
+  const toggleFolder2 = (cat: string) => {
     setExpandedFolders(prev => {
       const s = new Set(prev);
       s.has(cat) ? s.delete(cat) : s.add(cat);
@@ -113,352 +161,221 @@ const DocPermissionsPage: React.FC = () => {
     });
   };
 
-  const selectedUserObj = mockUsers.find(u => u.id === selectedUser);
-  const selectedDocObj = companyDocs.find(d => d.id === selectedDoc);
+  const savePermissions = async () => {
+    if (!selectedDept) return;
+    setSaving(true);
+    const doc_ids = Array.from(deptPerm(selectedDept.id));
+    await apiPut('/api/admin/dept-doc-permissions', { department_id: selectedDept.id, doc_ids });
+    setSaving(false);
+    setSavedDept(selectedDept.id);
+    // refresh dept list doc_count
+    setDepartments(prev =>
+      prev.map(d => d.id === selectedDept.id ? { ...d, doc_count: doc_ids.length } : d)
+    );
+  };
 
-  const userInitial = (fullName: string) => fullName.split(' ').slice(-1)[0][0];
-
-  // ── Folder Checkbox UI ─────────────────────────────────────────────────────
-
-  const FolderCheckbox = ({ state, onClick }: { state: 'all' | 'some' | 'none'; onClick: () => void }) => (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
-        state === 'all'  && 'bg-success border-success',
-        state === 'some' && 'bg-warning/80 border-warning',
-        state === 'none' && 'border-border bg-elevated hover:border-success/60'
-      )}
-    >
-      {state === 'all'  && <Check className="w-3 h-3 text-white" />}
-      {state === 'some' && <Minus className="w-3 h-3 text-white" />}
-    </button>
-  );
-
-  const DocCheckbox = ({ allowed, onClick }: { allowed: boolean; onClick: () => void }) => (
-    <button
-      onClick={onClick}
-      className={cn(
-        'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
-        allowed ? 'bg-success border-success' : 'border-border bg-elevated hover:border-success/60'
-      )}
-    >
-      {allowed && <Check className="w-3 h-3 text-white" />}
-    </button>
-  );
-
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const totalAllowed = selectedDept ? deptPerm(selectedDept.id).size : 0;
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="flex flex-col gap-4 animate-fade-in" style={{ height: 'calc(100vh - 7rem)' }}>
+      {/* Header */}
       <div>
         <h1 className="text-[20px] font-bold text-text-primary">Phân quyền Tài liệu</h1>
-        <p className="text-[13px] text-text-muted mt-0.5">Cấp quyền xem theo tài liệu cụ thể hoặc toàn bộ thư mục</p>
+        <p className="text-[13px] text-text-muted mt-0.5">
+          Cấp quyền truy cập tài liệu theo phòng ban — nhân viên thuộc phòng ban sẽ tự động có quyền
+        </p>
       </div>
 
-      {/* Mode tabs */}
-      <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setViewMode('by-user')}
-          className={cn(
-            'px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors flex items-center gap-1.5',
-            viewMode === 'by-user' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary hover:bg-hover'
-          )}
-        >
-          <User className="w-3.5 h-3.5" /> Theo người dùng
-        </button>
-        <button
-          onClick={() => setViewMode('by-doc')}
-          className={cn(
-            'px-4 py-1.5 rounded-lg text-[13px] font-medium transition-colors flex items-center gap-1.5',
-            viewMode === 'by-doc' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary hover:bg-hover'
-          )}
-        >
-          <FileKey className="w-3.5 h-3.5" /> Theo tài liệu / thư mục
-        </button>
+      {/* Info banner */}
+      <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-accent/5 border border-accent/20 text-[12px] text-text-secondary">
+        <Info className="w-4 h-4 text-accent flex-shrink-0" />
+        Chọn phòng ban bên trái → tick tài liệu muốn cho phép → nhấn <strong className="text-text-primary mx-1">Lưu thay đổi</strong>.
+        Nhân viên thuộc phòng ban sẽ thấy tài liệu khi chat.
       </div>
 
-      {/* ── BY USER ──────────────────────────────────────────────────────────── */}
-      {viewMode === 'by-user' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* User list */}
-          <div className="bg-elevated border border-border rounded-xl overflow-hidden flex flex-col">
-            <div className="panel-header">
-              Chọn người dùng
-              <span className="text-[11px] text-text-muted font-normal">{nonAdminUsers.length} người</span>
-            </div>
-            <div className="px-3 py-2 border-b border-border">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted" />
-                <input
-                  value={userSearch}
-                  onChange={e => setUserSearch(e.target.value)}
-                  placeholder="Tìm tên, phòng ban..."
-                  className="input-base pl-7 py-1.5 text-[12px] w-full"
-                />
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* ── LEFT: Department list ── */}
+        <div className="w-[260px] flex-shrink-0 bg-elevated border border-border rounded-xl flex flex-col overflow-hidden">
+          {/* Panel header */}
+          <div className="px-4 py-3 border-b border-border flex-shrink-0">
+            <p className="text-[12px] font-semibold text-text-primary uppercase tracking-wide">Phòng ban</p>
+          </div>
+          <div className="divide-y divide-border overflow-y-auto flex-1">
+            {departments.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                <Building2 className="w-8 h-8 text-text-muted/30 mb-2" />
+                <p className="text-[12px] text-text-muted">Chưa có phòng ban</p>
               </div>
-            </div>
-            <div className="divide-y divide-border overflow-y-auto flex-1">
-              {filteredUsers.length === 0 && (
-                <p className="text-center py-6 text-[13px] text-text-muted">Không tìm thấy</p>
-              )}
-              {filteredUsers.map(user => (
+            )}
+            {departments.map(dept => {
+              const active = selectedDept?.id === dept.id;
+              const docCount = permissions[dept.id]?.size ?? dept.doc_count;
+              return (
                 <button
-                  key={user.id}
-                  onClick={() => setSelectedUser(user.id)}
+                  key={dept.id}
+                  onClick={() => selectDeptById(dept)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
-                    selectedUser === user.id ? 'bg-accent/10 border-l-2 border-accent' : 'hover:bg-hover'
+                    'w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors',
+                    active ? 'bg-accent/10 border-l-[3px] border-accent' : 'hover:bg-hover border-l-[3px] border-transparent',
                   )}
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-accent flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
-                    {userInitial(user.full_name)}
+                  <div className={cn('p-1.5 rounded-lg flex-shrink-0', active ? 'bg-accent/20' : 'bg-surface')}>
+                    <Building2 className={cn('w-3.5 h-3.5', active ? 'text-accent' : 'text-text-muted')} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn('text-[13px] font-semibold truncate', active ? 'text-accent' : 'text-text-primary')}>
+                      {dept.name}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-text-muted">
+                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{dept.user_count} người</span>
+                      <span>·</span>
+                      <span className={cn('flex items-center gap-1', docCount > 0 ? 'text-success' : '')}>
+                        <FileText className="w-3 h-3" />{docCount} doc
+                      </span>
+                    </div>
+                  </div>
+                  {active && <ChevronRight className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── RIGHT: Documents ── */}
+        <div className="flex-1 min-w-0 bg-elevated border border-border rounded-xl flex flex-col overflow-hidden">
+          {selectedDept ? (
+            <>
+              {/* Right header */}
+              <div className="px-5 py-3 border-b border-border flex items-center justify-between flex-shrink-0 gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-accent/10 flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-accent" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13px] font-medium text-text-primary truncate">{user.full_name}</p>
-                    <p className="text-[11px] text-text-muted">{user.department}</p>
+                    <p className="text-[14px] font-bold text-text-primary truncate">{selectedDept.name}</p>
+                    <p className="text-[11px] text-text-muted">
+                      <span className={cn('font-semibold', totalAllowed > 0 ? 'text-success' : 'text-text-muted')}>{totalAllowed}</span>
+                      {' '}/{' '}{docs.length} tài liệu được cấp quyền
+                    </p>
                   </div>
-                  <span className="ml-auto text-[11px] text-text-muted shrink-0">
-                    {(permissions[user.id] ?? []).length} doc
-                  </span>
+                </div>
+                <button
+                  onClick={savePermissions}
+                  disabled={saving}
+                  className={cn(
+                    'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-colors flex-shrink-0 disabled:opacity-50',
+                    savedDept === selectedDept.id
+                      ? 'bg-success/20 text-success border border-success/30'
+                      : 'bg-accent text-white hover:bg-accent-hover',
+                  )}
+                >
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {saving ? 'Đang lưu...' : savedDept === selectedDept.id ? 'Đã lưu ✓' : 'Lưu thay đổi'}
                 </button>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Folder + doc tree for selected user */}
-          <div className="lg:col-span-2 bg-elevated border border-border rounded-xl overflow-hidden flex flex-col">
-            <div className="panel-header">
-              <span>Quyền xem — {selectedUserObj?.full_name}</span>
-              <span className="text-text-muted normal-case font-normal text-[12px]">
-                {(permissions[selectedUser] ?? []).length} / {companyDocs.length} tài liệu
-              </span>
-            </div>
+              {/* Search */}
+              <div className="px-4 py-2.5 border-b border-border flex-shrink-0">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+                  <input
+                    value={docSearch}
+                    onChange={e => setDocSearch(e.target.value)}
+                    placeholder="Tìm tài liệu..."
+                    className="input-base pl-9 py-1.5 text-[12px] w-full"
+                  />
+                </div>
+              </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-border">
-              {mockCategories.map(cat => {
-                const catDocs = docsInCategory(cat.name);
-                if (catDocs.length === 0) return null;
-                const state = folderState(selectedUser, cat.name);
-                const expanded = expandedFolders.has(cat.name);
-                const allowedCount = folderAllowedCount(selectedUser, cat.name);
-
-                return (
-                  <div key={cat.id}>
-                    {/* Folder row */}
-                    <div className="flex items-center gap-2 px-4 py-2.5 bg-surface/60 hover:bg-surface transition-colors">
-                      <button
-                        onClick={() => toggleExpandFolder(cat.name)}
-                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                      >
-                        <ChevronRight className={cn('w-3.5 h-3.5 text-text-muted transition-transform shrink-0', expanded && 'rotate-90')} />
-                        <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
-                        <span className="text-[13px] font-semibold text-text-primary">{cat.name}</span>
-                        <span className={cn(
-                          'text-[11px] ml-1',
-                          allowedCount === catDocs.length ? 'text-success' : allowedCount > 0 ? 'text-warning' : 'text-text-muted'
-                        )}>
-                          {allowedCount}/{catDocs.length} doc
-                        </span>
-                      </button>
-                      <FolderCheckbox state={state} onClick={() => toggleFolder(selectedUser, cat.name)} />
-                    </div>
-
-                    {/* Docs in folder */}
-                    {expanded && catDocs.map(doc => {
-                      const allowed = userHasDoc(selectedUser, doc.id);
-                      return (
-                        <div key={doc.id} className="flex items-center gap-3 px-4 py-2.5 pl-10 hover:bg-hover/40 transition-colors border-t border-border/50">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] text-text-primary truncate">{doc.filename}</p>
-                            <p className="text-[11px] text-text-muted">{doc.file_size}</p>
-                          </div>
-                          <StatusBadge status={doc.ingestion_status} />
-                          <DocCheckbox allowed={allowed} onClick={() => toggleDoc(selectedUser, doc.id)} />
+              {/* Document tree */}
+              <div className="flex-1 overflow-y-auto">
+                {loadingPerms ? (
+                  <div className="flex items-center justify-center py-16 gap-2 text-text-muted">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-[13px]">Đang tải...</span>
+                  </div>
+                ) : docs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                    <FileX className="w-12 h-12 text-text-muted/30 mb-3" />
+                    <p className="text-[14px] font-semibold text-text-primary mb-1">Chưa có tài liệu COMPANY</p>
+                    <p className="text-[12px] text-text-muted">Upload tài liệu với phạm vi "Công ty" để phân quyền tại đây</p>
+                  </div>
+                ) : filteredCategories.size === 0 ? (
+                  <div className="flex items-center justify-center py-16 text-[13px] text-text-muted">
+                    Không tìm thấy tài liệu phù hợp
+                  </div>
+                ) : (
+                  Array.from(filteredCategories.entries()).map(([cat, catDocs]) => {
+                    const state = folderState(selectedDept.id, catDocs);
+                    const expanded = expandedFolders.has(cat);
+                    const allowedCount = catDocs.filter(d => deptPerm(selectedDept.id).has(d.id)).length;
+                    return (
+                      <div key={cat} className="border-b border-border last:border-0">
+                        {/* Folder row */}
+                        <div className="flex items-center gap-2 px-4 py-3 bg-surface/40 hover:bg-surface/70 transition-colors">
+                          <button
+                            onClick={() => toggleFolder2(cat)}
+                            className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                          >
+                            <ChevronRight className={cn('w-3.5 h-3.5 text-text-muted transition-transform flex-shrink-0', expanded && 'rotate-90')} />
+                            <FolderOpen className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                            <span className="text-[13px] font-semibold text-text-primary">{cat}</span>
+                            <span className={cn(
+                              'text-[11px] font-medium ml-1',
+                              allowedCount === catDocs.length ? 'text-success' : allowedCount > 0 ? 'text-warning' : 'text-text-muted',
+                            )}>
+                              {allowedCount}/{catDocs.length}
+                            </span>
+                          </button>
+                          <FolderCheckbox state={state} onClick={() => toggleFolder(selectedDept.id, catDocs)} />
                         </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
 
-            <div className="px-4 py-3 border-t border-border flex justify-end">
-              <button
-                onClick={() => setSaved(true)}
-                className={cn(
-                  'px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-colors',
-                  saved ? 'bg-success/20 text-success border border-success/30' : 'bg-accent text-white hover:bg-accent-hover'
+                        {/* Doc rows */}
+                        {expanded && catDocs.map(doc => {
+                          const allowed = deptPerm(selectedDept.id).has(doc.id);
+                          return (
+                            <div
+                              key={doc.id}
+                              className={cn(
+                                'flex items-center gap-3 px-4 py-2.5 pl-11 border-t border-border/40 transition-colors cursor-pointer',
+                                allowed ? 'hover:bg-success/5' : 'hover:bg-hover/40',
+                              )}
+                              onClick={() => toggleDoc(selectedDept.id, doc.id)}
+                            >
+                              <FileText className={cn('w-3.5 h-3.5 flex-shrink-0', allowed ? 'text-success' : 'text-text-muted')} />
+                              <div className="flex-1 min-w-0">
+                                <p className={cn('text-[13px] truncate', allowed ? 'text-text-primary font-medium' : 'text-text-secondary')}>
+                                  {doc.title}
+                                </p>
+                                <p className="text-[11px] text-text-muted">{formatSize(doc.file_size_bytes)}</p>
+                              </div>
+                              <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', STATUS_COLORS[doc.ingestion_status] ?? 'bg-surface border-border text-text-muted')}>
+                                {doc.ingestion_status}
+                              </span>
+                              <DocCheckbox allowed={allowed} onClick={() => toggleDoc(selectedDept.id, doc.id)} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })
                 )}
-              >
-                {saved ? '✓ Đã lưu' : 'Lưu thay đổi'}
-              </button>
+              </div>
+            </>
+          ) : (
+            /* Empty state */
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-6">
+              <div className="p-4 rounded-2xl bg-accent/5 mb-4">
+                <Building2 className="w-12 h-12 text-accent/30" />
+              </div>
+              <p className="text-[15px] font-semibold text-text-primary mb-1">Chọn phòng ban</p>
+              <p className="text-[13px] text-text-muted max-w-xs">
+                Nhấn vào một phòng ban bên trái để cấp quyền tài liệu cho phòng ban đó.
+              </p>
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* ── BY DOC / FOLDER ──────────────────────────────────────────────────── */}
-      {viewMode === 'by-doc' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Left panel: doc or folder selector */}
-          <div className="bg-elevated border border-border rounded-xl overflow-hidden flex flex-col">
-            {/* Sub-tabs */}
-            <div className="panel-header gap-0 p-1.5">
-              <div className="flex gap-1 bg-surface border border-border rounded-lg p-0.5 w-full">
-                <button
-                  onClick={() => setByDocTab('doc')}
-                  className={cn(
-                    'flex-1 py-1 rounded-md text-[12px] font-medium transition-colors',
-                    byDocTab === 'doc' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
-                  )}
-                >
-                  Tài liệu
-                </button>
-                <button
-                  onClick={() => setByDocTab('folder')}
-                  className={cn(
-                    'flex-1 py-1 rounded-md text-[12px] font-medium transition-colors flex items-center justify-center gap-1',
-                    byDocTab === 'folder' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
-                  )}
-                >
-                  <FolderOpen className="w-3 h-3" /> Thư mục
-                </button>
-              </div>
-            </div>
-
-            {/* Doc list */}
-            {byDocTab === 'doc' && (
-              <div className="divide-y divide-border overflow-y-auto flex-1">
-                {companyDocs.map(doc => (
-                  <button
-                    key={doc.id}
-                    onClick={() => setSelectedDoc(doc.id)}
-                    className={cn(
-                      'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors',
-                      selectedDoc === doc.id ? 'bg-accent/10 border-l-2 border-accent' : 'hover:bg-hover'
-                    )}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-text-primary truncate">{doc.filename}</p>
-                      <p className="text-[11px] text-text-muted">{doc.category} · {docAllowedUsers(doc.id).length} user</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Folder list */}
-            {byDocTab === 'folder' && (
-              <div className="divide-y divide-border overflow-y-auto flex-1">
-                {mockCategories.map(cat => {
-                  const catDocs = docsInCategory(cat.name);
-                  if (catDocs.length === 0) return null;
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => setSelectedFolder(cat.name)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors',
-                        selectedFolder === cat.name ? 'bg-accent/10 border-l-2 border-accent' : 'hover:bg-hover'
-                      )}
-                    >
-                      <FolderOpen className={cn('w-4 h-4 shrink-0', selectedFolder === cat.name ? 'text-accent' : 'text-text-muted')} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-text-primary">{cat.name}</p>
-                        <p className="text-[11px] text-text-muted">{catDocs.length} tài liệu · {folderFullAccessUsers(cat.name).length} user toàn quyền</p>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Right panel: users */}
-          <div className="lg:col-span-2 bg-elevated border border-border rounded-xl overflow-hidden flex flex-col">
-            <div className="panel-header">
-              {byDocTab === 'doc'
-                ? <span>Ai được xem — <span className="text-accent font-semibold">{selectedDocObj?.filename}</span></span>
-                : <span>Quyền theo thư mục — <span className="text-accent font-semibold">{selectedFolder}</span> <span className="text-text-muted font-normal text-[12px]">({docsInCategory(selectedFolder).length} tài liệu)</span></span>
-              }
-            </div>
-
-            {/* Search users in by-doc panel */}
-            <div className="px-3 py-2 border-b border-border">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted" />
-                <input
-                  value={userSearch}
-                  onChange={e => setUserSearch(e.target.value)}
-                  placeholder="Tìm người dùng..."
-                  className="input-base pl-7 py-1.5 text-[12px] w-full"
-                />
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-border">
-              {filteredUsers.length === 0 && (
-                <p className="text-center py-6 text-[13px] text-text-muted">Không tìm thấy</p>
-              )}
-              {filteredUsers.map(user => {
-                if (byDocTab === 'doc') {
-                  const allowed = userHasDoc(user.id, selectedDoc);
-                  return (
-                    <div key={user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-hover/50 transition-colors">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-accent flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
-                        {userInitial(user.full_name)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-text-primary">{user.full_name}</p>
-                        <p className="text-[11px] text-text-muted">{user.department} · {user.role}</p>
-                      </div>
-                      <span className={cn('text-[12px] font-semibold mr-2', allowed ? 'text-success' : 'text-text-muted')}>
-                        {allowed ? 'Được phép' : 'Bị chặn'}
-                      </span>
-                      <DocCheckbox allowed={allowed} onClick={() => toggleDoc(user.id, selectedDoc)} />
-                    </div>
-                  );
-                } else {
-                  const state = userFolderState(user.id, selectedFolder);
-                  const count = folderAllowedCount(user.id, selectedFolder);
-                  const total = docsInCategory(selectedFolder).length;
-                  return (
-                    <div key={user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-hover/50 transition-colors">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-accent flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
-                        {userInitial(user.full_name)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-text-primary">{user.full_name}</p>
-                        <p className="text-[11px] text-text-muted">{user.department} · {user.role}</p>
-                      </div>
-                      <span className={cn(
-                        'text-[12px] font-semibold mr-2',
-                        state === 'all' ? 'text-success' : state === 'some' ? 'text-warning' : 'text-text-muted'
-                      )}>
-                        {state === 'all' ? 'Toàn bộ' : state === 'some' ? `${count}/${total} doc` : 'Không có'}
-                      </span>
-                      <FolderCheckbox state={state} onClick={() => toggleFolderForUser(user.id, selectedFolder)} />
-                    </div>
-                  );
-                }
-              })}
-            </div>
-
-            <div className="px-4 py-3 border-t border-border flex justify-end">
-              <button
-                onClick={() => setSaved(true)}
-                className={cn(
-                  'px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-colors',
-                  saved ? 'bg-success/20 text-success border border-success/30' : 'bg-accent text-white hover:bg-accent-hover'
-                )}
-              >
-                {saved ? '✓ Đã lưu' : 'Lưu thay đổi'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

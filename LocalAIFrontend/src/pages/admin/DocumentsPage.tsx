@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils';
 import { useDocumentTree } from '../../hooks/useDocumentTree';
 import { useDocumentUpload } from '../../hooks/useDocumentUpload';
 import { useDocumentContent } from '../../hooks/useDocumentContent';
+import { UploadQueuePanel } from '../../components/admin/UploadQueuePanel';
 
 const DocumentsPage: React.FC = () => {
   const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree();
@@ -26,7 +27,7 @@ const DocumentsPage: React.FC = () => {
   const [showUpload, setShowUpload] = useState(false);
 
   // Upload form state
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles_state, setUploadFiles_state] = useState<File[]>([]);
   const [uploadCategoryId, setUploadCategoryId] = useState<number>(0);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,19 +38,11 @@ const DocumentsPage: React.FC = () => {
     }
   }, [categories, uploadCategoryId]);
 
-  const { uploads, uploadFiles } = useDocumentUpload({
+  const { uploads, uploadFiles, dismiss, dismissAll } = useDocumentUpload({
     categoryId: uploadCategoryId || 1,
     scope: 'COMPANY',
-    onSuccess: () => {
-      refetch();
-      setTimeout(() => { setShowUpload(false); setUploadFile(null); }, 800);
-    },
+    onSuccess: () => { refetch(); },
   });
-
-  const activeUpload = useMemo(
-    () => uploads.find(u => uploadFile && u.filename === uploadFile.name),
-    [uploads, uploadFile]
-  );
 
   const { data: chunkData, loading: chunkLoading, error: chunkError } = useDocumentContent(drawerDocTitle);
 
@@ -91,13 +84,17 @@ const DocumentsPage: React.FC = () => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) setUploadFile(file);
+    const files = Array.from(e.dataTransfer.files).filter(f =>
+      /\.(pdf|docx?|xlsx?|txt)$/i.test(f.name)
+    );
+    if (files.length) setUploadFiles_state(prev => [...prev, ...files]);
   };
 
   const submitUpload = () => {
-    if (!uploadFile) return;
-    uploadFiles([uploadFile]);
+    if (uploadFiles_state.length === 0) return;
+    uploadFiles(uploadFiles_state);
+    setShowUpload(false);
+    setUploadFiles_state([]);
   };
 
   const catDocCount = (catId: number) => allDocs.filter(d => d.category_id === catId).length;
@@ -364,11 +361,12 @@ const DocumentsPage: React.FC = () => {
           <div className="bg-surface border border-border rounded-2xl w-full max-w-md p-6 shadow-2xl animate-fade-in">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-[16px] font-bold text-text-primary">Upload tài liệu</h2>
-              <button onClick={() => setShowUpload(false)} className="btn-icon w-7 h-7">
+              <button onClick={() => { setShowUpload(false); setUploadFiles_state([]); }} className="btn-icon w-7 h-7">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
+            {/* Drop zone */}
             <div
               onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
               onDragLeave={() => setIsDragging(false)}
@@ -383,84 +381,76 @@ const DocumentsPage: React.FC = () => {
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,.docx,.xlsx,.txt,.doc,.xls"
+                multiple
                 className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) setUploadFile(f); }}
+                onChange={e => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length) setUploadFiles_state(prev => [...prev, ...files]);
+                  e.target.value = '';
+                }}
               />
-              {uploadFile ? (
-                <div className="flex items-center justify-center gap-2 text-[13px] text-text-primary">
-                  <Check className="w-4 h-4 text-success" />
-                  <span className="font-medium truncate max-w-[260px]">{uploadFile.name}</span>
-                </div>
-              ) : (
-                <>
-                  <Upload className="w-6 h-6 text-accent mx-auto mb-2" />
-                  <p className="text-[13px] text-text-secondary">Kéo thả file vào đây hoặc <span className="text-accent font-semibold">chọn file</span></p>
-                  <p className="text-[11px] text-text-muted mt-1">PDF, DOCX, XLSX, TXT</p>
-                </>
-              )}
+              <Upload className="w-6 h-6 text-accent mx-auto mb-2" />
+              <p className="text-[13px] text-text-secondary">Kéo thả file vào đây hoặc <span className="text-accent font-semibold">chọn file</span></p>
+              <p className="text-[11px] text-text-muted mt-1">PDF, DOCX, XLSX, TXT · Nhiều file cùng lúc</p>
             </div>
 
-            <div className="space-y-3 mb-5">
-              <div>
-                <label className="text-[12px] font-semibold text-text-secondary block mb-1">Danh mục</label>
-                <select
-                  value={uploadCategoryId}
-                  onChange={e => setUploadCategoryId(Number(e.target.value))}
-                  className="input-base w-full"
-                >
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+            {/* File list */}
+            {uploadFiles_state.length > 0 && (
+              <div className="mb-4 space-y-1.5 max-h-36 overflow-y-auto">
+                {uploadFiles_state.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 px-3 py-1.5 bg-elevated rounded-lg">
+                    <Check className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                    <span className="text-[12px] text-text-primary truncate flex-1">{f.name}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setUploadFiles_state(prev => prev.filter((_, j) => j !== i)); }}
+                      className="text-text-muted hover:text-danger transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
 
-            {activeUpload?.status === 'uploading' && (
-              <div className="flex items-center gap-2 text-[13px] text-text-secondary mb-4 animate-fade-in">
-                <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                Đang upload... {activeUpload.progress}%
-              </div>
-            )}
-            {activeUpload?.status === 'processing' && (
-              <div className="flex items-center gap-2 text-[13px] text-text-secondary mb-4 animate-fade-in">
-                <Loader2 className="w-4 h-4 animate-spin text-warning" />
-                Đang xử lý & tạo vector...
-              </div>
-            )}
-            {activeUpload?.status === 'done' && (
-              <div className="flex items-center gap-2 text-[13px] text-success mb-4 animate-fade-in">
-                <Check className="w-4 h-4" />
-                Upload thành công!
-              </div>
-            )}
-            {activeUpload?.status === 'error' && (
-              <div className="flex items-center gap-2 text-[13px] text-danger mb-4 animate-fade-in">
-                <X className="w-4 h-4" />
-                Lỗi: {activeUpload.error}
-              </div>
-            )}
+            {/* Category */}
+            <div className="mb-5">
+              <label className="text-[12px] font-semibold text-text-secondary block mb-1">Danh mục</label>
+              <select
+                value={uploadCategoryId}
+                onChange={e => setUploadCategoryId(Number(e.target.value))}
+                className="input-base w-full"
+              >
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
 
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setShowUpload(false)}
+                onClick={() => { setShowUpload(false); setUploadFiles_state([]); }}
                 className="px-4 py-1.5 text-[13px] border border-border text-text-secondary rounded-lg hover:bg-hover transition-colors"
               >
                 Hủy
               </button>
               <button
                 onClick={submitUpload}
-                disabled={!uploadFile || activeUpload?.status === 'uploading' || activeUpload?.status === 'processing'}
+                disabled={uploadFiles_state.length === 0}
                 className={cn(
                   'flex items-center gap-1.5 px-4 py-1.5 text-[13px] font-semibold rounded-lg transition-colors',
-                  !uploadFile || activeUpload?.status === 'uploading' || activeUpload?.status === 'processing'
+                  uploadFiles_state.length === 0
                     ? 'bg-accent/40 text-white/60 cursor-not-allowed'
                     : 'bg-accent hover:bg-accent-hover text-white'
                 )}
               >
-                <Upload className="w-3.5 h-3.5" /> Upload
+                <Upload className="w-3.5 h-3.5" />
+                Upload {uploadFiles_state.length > 1 ? `${uploadFiles_state.length} file` : ''}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── Floating Upload Queue (Google Drive style) ─────────────────────── */}
+      <UploadQueuePanel uploads={uploads} onDismiss={dismiss} onDismissAll={dismissAll} />
     </div>
   );
 };
