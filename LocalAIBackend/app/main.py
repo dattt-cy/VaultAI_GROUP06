@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from app.core.config import settings
 
 # Database setup — model imports register tables with SQLAlchemy metadata
@@ -9,6 +11,7 @@ from app.models import user_model, doc_model, chat_model, sys_model  # noqa: F40
 
 # Routers
 from app.api.routes import documents, chat, admin, auth
+from app.api.dependencies import require_admin
 
 Base.metadata.create_all(bind=engine)
 
@@ -37,11 +40,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_uploads_dir = os.path.join(os.path.dirname(__file__), "../uploads")
+os.makedirs(os.path.join(_uploads_dir, "avatars"), exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=_uploads_dir), name="uploads")
+
 # Include Routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
 
 
 @app.on_event("startup")

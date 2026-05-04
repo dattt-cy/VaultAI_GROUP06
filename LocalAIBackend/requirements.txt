@@ -1,4 +1,5 @@
 fastapi
+PyMySQL
 uvicorn
 pydantic
 pydantic-settings
