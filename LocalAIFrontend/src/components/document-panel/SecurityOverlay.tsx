@@ -5,18 +5,8 @@ interface SecurityOverlayProps {
 }
 
 export const SecurityOverlay: React.FC<SecurityOverlayProps> = ({ children }) => {
-  useEffect(() => {
-    const block = (e: Event) => e.preventDefault();
-    document.addEventListener('contextmenu', block);
-    document.addEventListener('copy', block);
-    document.addEventListener('cut', block);
-    return () => {
-      document.removeEventListener('contextmenu', block);
-      document.removeEventListener('copy', block);
-      document.removeEventListener('cut', block);
-    };
-  }, []);
-
+  // Không dùng document-level listener vì sẽ block copy toàn trang
+  // Chỉ block trong phạm vi element này qua React event handlers
   return (
     <div
       onContextMenu={e => e.preventDefault()}
