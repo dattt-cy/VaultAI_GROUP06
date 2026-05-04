@@ -1,0 +1,88 @@
+TÀI LIỆU ÔN TẬP AWS SOLUTIONS ARCHITECT PROFESSIONAL
+Ghi chú cá nhân – Nguyễn Minh Khoa | Bắt đầu: 01/08/2024 | Thi dự kiến: 15/11/2024
+
+1. TỔNG QUAN KỲ THI
+
+Exam Code: SAP-C02
+Số câu: 75 câu (65 scored + 10 unscored)
+Thời gian: 180 phút
+Điểm đạt: 750/1000
+Giá thi: 300 USD (công ty hỗ trợ 100% nếu đạt)
+
+Domain phân bổ:
+- Domain 1: Design Solutions for Organizational Complexity (26%)
+- Domain 2: Design for New Solutions (29%)
+- Domain 3: Continuous Improvement for Existing Solutions (25%)
+- Domain 4: Accelerate Workload Migration and Modernization (20%)
+
+2. TIẾN ĐỘ HỌC TẬP
+
+Tuần 1–4 (Tháng 8): Core Services Review
+- [x] IAM nâng cao: SCP, Permission Boundaries, Identity Federation
+- [x] VPC: Transit Gateway, VPC Peering, PrivateLink, Direct Connect
+- [x] EC2: Auto Scaling nâng cao, Placement Groups, Spot Fleet
+- [x] S3: Replication, Lifecycle, Intelligent-Tiering, Object Lock
+
+Tuần 5–8 (Tháng 9): Advanced Topics
+- [x] Multi-account strategy: AWS Organizations, Control Tower
+- [x] Hybrid cloud: Site-to-Site VPN, Direct Connect redundancy
+- [ ] Data & Analytics: Redshift, EMR, Kinesis, Glue (đang học)
+- [ ] Serverless: Lambda@Edge, Step Functions, EventBridge
+
+Tuần 9–12 (Tháng 10): Architecture Patterns
+- [ ] Well-Architected Framework (6 pillars) – deep dive
+- [ ] Disaster Recovery patterns: Pilot Light, Warm Standby, Multi-region Active-Active
+- [ ] Migration strategies: 7 Rs (Retire, Retain, Rehost, Replatform, Repurchase, Refactor, Relocate)
+- [ ] Cost Optimization patterns
+
+Tuần 13–16 (Tháng 11): Practice & Review
+- [ ] 3 full practice exams (Tutorials Dojo – mục tiêu >80% mỗi bài)
+- [ ] Review all wrong answers
+- [ ] Flashcard review toàn bộ
+
+3. GHI CHÚ QUAN TRỌNG THEO TOPIC
+
+IAM & Security:
+- SCP deny trumps everything, kể cả root account (trừ billing).
+- Permission Boundary giới hạn maximum permissions, không grant thêm.
+- IAM Role AssumeRole chain: Tối đa 1 hop (role A không thể assume role B đã được assume).
+- AWS Organizations: SCP áp dụng cho member accounts, KHÔNG áp dụng cho management account.
+
+Networking:
+- VPC Peering không transitive – nếu A-B, B-C peered thì A không nói chuyện được C qua B.
+- Transit Gateway giải quyết vấn đề này – hub-and-spoke model.
+- Direct Connect: Private VIF cho VPC, Public VIF cho AWS public services, Transit VIF cho Transit GW.
+- Security Group: Stateful (return traffic tự động cho phép). NACL: Stateless (phải allow cả inbound lẫn outbound).
+
+High Availability:
+- RDS Multi-AZ: Synchronous replication, failover tự động ~1-2 phút. Read Replica: Async replication.
+- Aurora: 6 copies across 3 AZs, quorum-based write (4/6), read (3/6).
+- ElastiCache: Redis có persistence và replication, Memcached không có.
+
+Cost Optimization:
+- Savings Plans linh hoạt hơn Reserved Instances (EC2 + Fargate + Lambda).
+- Spot Interruption: 2 phút warning. Tốt cho stateless, fault-tolerant workloads.
+- S3 Intelligent-Tiering không có retrieval fee – phù hợp khi access pattern không đoán được.
+
+4. NGUỒN TÀI LIỆU
+
+Tốt nhất đang dùng:
+1. Adrian Cantrill Course (cantrill.io) – hands-on nhiều, giải thích sâu
+2. Tutorials Dojo Practice Exams – sát với đề thật nhất
+3. AWS Well-Architected Framework whitepapers (PDF – đọc trước khi thi 2 tuần)
+4. AWS re:Invent talks trên YouTube (architecture patterns)
+
+Không nên dùng:
+- Braindumps – vi phạm NDA, câu hỏi lỗi thời và sai
+- A Cloud Guru basic course (quá nông cho SAP)
+
+5. KẾT QUẢ PRACTICE EXAMS
+
+| Ngày       | Đề          | Số câu | Điểm  | Thời gian |
+|------------|-------------|--------|-------|-----------|
+| 15/10/2024 | TD Set 1    | 75     | 72%   | 165 phút  |
+| 22/10/2024 | TD Set 2    | 75     | 76%   | 158 phút  |
+| 29/10/2024 | TD Set 3    | 75     | 81%   | 152 phút  |
+| 05/11/2024 | TD Final    | 75     | 84%   | 145 phút  |
+
+Mục tiêu: Đạt >85% trong practice exam trước khi thi thật.

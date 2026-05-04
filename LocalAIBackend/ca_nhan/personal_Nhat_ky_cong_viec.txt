@@ -1,0 +1,83 @@
+NHẬT KÝ CÔNG VIỆC – QUÝ 1/2024
+Tác giả: Nguyễn Minh Khoa | Senior Software Engineer
+
+THÁNG 1/2024
+
+03/01 – Kickoff năm mới
+- Họp all-hands với CEO: Công ty đặt mục tiêu 210 tỷ năm 2024, tăng 25%. CEO nhấn mạnh chiến lược AI-first.
+- Nhận OKR Q1: Lead module AI integration cho ERP. Deadline demo: 15/04.
+- Cảm nhận: Hào hứng với dự án mới, áp lực vừa phải.
+
+10/01 – Technical Design Review
+- Trình bày kiến trúc AI module lần đầu. Tech Lead (anh Hùng) feedback nhiều về scalability.
+- Quyết định: Chuyển từ monolithic AI service sang microservice architecture.
+- Việc cần làm: Vẽ lại architecture diagram, estimate lại timeline.
+
+17/01 – Onboard thành viên mới
+- Nhận mentor 2 junior mới: Tú (fresher, UET) và Linh (6 tháng kinh nghiệm, FPT Software).
+- Lập kế hoạch onboarding 2 tuần cho cả hai.
+- Ghi chú: Tú học nhanh nhưng hay bỏ qua error handling. Linh cẩn thận nhưng cần boost confidence.
+
+25/01 – Nghỉ Tết (25/01 – 02/02)
+- Nhận thưởng Tết: 2,5 tháng lương cơ bản (hài lòng).
+- Kế hoạch Tết: Về quê Đà Nẵng, nghỉ ngơi hoàn toàn, không check email.
+
+THÁNG 2/2024
+
+05/02 – Quay lại sau Tết
+- Review code của Tú và Linh để trong kỳ nghỉ. Tú tự làm thêm được 2 tasks nhỏ – ấn tượng.
+- Restart Docker environment: Gặp lỗi ChromaDB version conflict, mất 2 giờ debug.
+- Fix: Downgrade chromadb từ 0.4.22 xuống 0.4.18 (issue đã có trên GitHub).
+
+14/02 – Milestone 1 hoàn thành
+- Data pipeline đã chạy ổn định 5 ngày liên tiếp, xử lý 50k transactions/ngày.
+- Anomaly detection prototype đạt accuracy 87% trên test set – Tech Lead approve.
+- Celebrate: Cả team đi ăn tối, công ty cover.
+
+22/02 – Incident nhỏ
+- 14h: Alert từ monitoring – ChromaDB memory usage spike lên 8GB (threshold 6GB).
+- Root cause: Một query không có limit, load toàn bộ collection vào memory.
+- Fix trong 45 phút: Thêm `where_document` filter và limit=1000 cho tất cả query.
+- Post-mortem viết xong, gửi team. Lesson: Luôn test với production-scale data, không chỉ test set nhỏ.
+
+THÁNG 3/2024
+
+07/03 – Technical Review Meeting
+- Quyết định dùng Prophet thay LSTM cho forecasting (đã note ở file dự án).
+- Thêm quyết định quan trọng: Dùng feature flags để rollout dần thay vì big bang.
+- Linh đề xuất dùng LaunchDarkly → Approve, Linh sẽ setup.
+
+15/03 – 1-on-1 với Manager
+- Feedback tốt về tiến độ dự án và việc mentor junior.
+- Manager nói: "Có thể xem xét promote lên Staff Engineer cuối năm nếu duy trì track record".
+- Yêu cầu từ manager: Improve kỹ năng presentation, cần thuyết phục được C-level.
+- Hành động: Đăng ký khóa "Storytelling with Data" trên Coursera.
+
+21/03 – Demo nội bộ cho phòng Tài chính
+- Demo anomaly detection cho CFO và team kế toán (8 người).
+- Phản ứng rất tích cực. CFO yêu cầu thêm: Email alert khi anomaly > 50 triệu.
+- Một kế toán hỏi: "Hệ thống có giải thích được TẠI SAO bất thường không?" → Đây là điểm quan trọng, cần LLM explanation.
+- Cập nhật backlog thêm 3 user stories mới.
+
+28/03 – Cuối Q1 retrospective
+- Sprint velocity Q1: 87 story points (mục tiêu 80) – đạt.
+- KPI cá nhân Q1: Tự đánh giá 88/100.
+- Điểm cần cải thiện Q2: Documentation (hiện chỉ ~40% coverage), testing (45%).
+- Điểm tự hào: Đã build được culture code review chất lượng trong team.
+
+TỔNG KẾT Q1
+
+Tích cực:
+- Module AI đúng tiến độ, quality tốt.
+- Mentor 2 junior hiệu quả – cả 2 đã có thể tự xử lý task level 2/5.
+- Mối quan hệ với các phòng ban khác (đặc biệt Tài chính) được cải thiện.
+
+Cần cải thiện:
+- Work-life balance: Đã OT >10 giờ/tuần trong 2 tuần cuối tháng 3 (do gấp milestone).
+- Documentation: Cần đặt thành non-negotiable trong definition of done.
+- Kỹ năng estimate: Còn underestimate complexity của integration tasks.
+
+Kế hoạch Q2:
+- Complete forecasting module + production deploy.
+- Thi thử AWS SAP lần đầu.
+- Viết 2 blog posts kỹ thuật cho tech blog công ty.

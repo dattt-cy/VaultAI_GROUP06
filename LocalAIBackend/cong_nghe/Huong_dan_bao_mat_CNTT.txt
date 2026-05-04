@@ -1,0 +1,112 @@
+HƯỚNG DẪN BẢO MẬT CÔNG NGHỆ THÔNG TIN
+Phiên bản 3.1 – Cập nhật tháng 01/2024
+Bộ phận: IT Security | Áp dụng cho: Toàn bộ nhân viên
+
+MỤC 1 – MẬT KHẨU VÀ XÁC THỰC
+
+1.1. Yêu cầu mật khẩu bắt buộc
+- Độ dài tối thiểu: 12 ký tự.
+- Bao gồm ít nhất: 1 chữ hoa, 1 chữ thường, 1 chữ số, 1 ký tự đặc biệt (!@#$%^&*).
+- Không được dùng tên, ngày sinh, số điện thoại làm mật khẩu.
+- Không được dùng lại 10 mật khẩu gần nhất.
+- Đổi mật khẩu bắt buộc mỗi 90 ngày.
+
+1.2. Xác thực hai yếu tố (2FA/MFA)
+- Bắt buộc cho tất cả tài khoản hệ thống nội bộ (ERP, HRM, CRM, email công ty).
+- Ứng dụng xác thực được khuyến nghị: Google Authenticator, Microsoft Authenticator.
+- Không dùng SMS OTP cho tài khoản cấp quản lý trở lên vì rủi ro SIM swap.
+- Khi mất thiết bị xác thực, liên hệ IT ngay lập tức để vô hiệu hóa.
+
+1.3. Quản lý mật khẩu
+- Không được lưu mật khẩu trong trình duyệt cho các hệ thống quan trọng.
+- Sử dụng trình quản lý mật khẩu được công ty cấp phép (Bitwarden Enterprise).
+- Không chia sẻ mật khẩu với bất kỳ ai, kể cả IT hoặc quản lý.
+
+MỤC 2 – AN TOÀN THIẾT BỊ
+
+2.1. Máy tính làm việc
+- Bật khóa màn hình tự động sau 5 phút không sử dụng (Windows: Win+L để khóa ngay).
+- Không cài phần mềm bên ngoài chưa được IT phê duyệt.
+- Bật BitLocker mã hóa ổ đĩa (IT hỗ trợ cài đặt cho máy chưa có).
+- Cập nhật hệ điều hành và phần mềm diệt virus theo lịch tự động.
+- Không vô hiệu hóa Windows Defender hoặc phần mềm bảo mật.
+
+2.2. Thiết bị di động
+- Bật mã hóa thiết bị và mã PIN/Vân tay bắt buộc.
+- Chỉ cài ứng dụng từ App Store/Google Play chính thức.
+- Không cài APK từ nguồn không rõ ràng lên thiết bị có chứa dữ liệu công ty.
+- Báo cáo ngay với IT khi mất hoặc bị đánh cắp thiết bị.
+
+2.3. USB và thiết bị lưu trữ ngoài
+- Cấm sử dụng USB cá nhân trên máy tính công ty trừ khi được IT cho phép.
+- USB được cấp phát bởi công ty phải dùng phần mềm mã hóa VeraCrypt.
+- Không cắm USB nhặt được vào máy tính (có thể chứa mã độc - Rubber Ducky attack).
+
+MỤC 3 – AN TOÀN EMAIL VÀ GIAO TIẾP
+
+3.1. Nhận diện email giả mạo (Phishing)
+Các dấu hiệu cảnh báo:
+- Địa chỉ email người gửi không khớp với tên hiển thị.
+- Email yêu cầu cung cấp mật khẩu, thông tin tài khoản ngân hàng.
+- Link trong email trỏ về domain lạ (hover chuột vào link trước khi nhấp).
+- Email tạo cảm giác khẩn cấp: "Tài khoản bị khóa ngay lập tức", "Xác nhận trong 24h".
+- File đính kèm .exe, .zip, .macro Excel/Word từ nguồn không quen biết.
+
+3.2. Quy tắc gửi email
+- Không gửi dữ liệu khách hàng qua email bên ngoài (dùng hệ thống nội bộ).
+- Kiểm tra kỹ địa chỉ CC/BCC trước khi gửi thông tin nhạy cảm.
+- Email nội bộ chứa dữ liệu tài chính phải được mã hóa (S/MIME hoặc nén có mật khẩu).
+
+3.3. Ứng dụng nhắn tin
+- Trao đổi công việc chính thức qua Microsoft Teams (được quản lý và lưu trữ).
+- Không dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng.
+- Telegram, Facebook Messenger bị cấm tuyệt đối cho trao đổi dữ liệu công ty.
+
+MỤC 4 – BẢO MẬT DỮ LIỆU
+
+4.1. Phân loại dữ liệu
+- Tối mật (Top Secret): Chiến lược kinh doanh, mã nguồn lõi, dữ liệu cá nhân khách hàng.
+- Bí mật (Confidential): Báo cáo tài chính nội bộ, thông tin lương thưởng, hồ sơ nhân sự.
+- Nội bộ (Internal): Tài liệu quy trình, hướng dẫn, biên bản họp.
+- Công khai (Public): Tài liệu marketing, thông cáo báo chí đã phát hành.
+
+4.2. Xử lý dữ liệu tối mật và bí mật
+- Lưu trữ trên hệ thống nội bộ được mã hóa, không lưu trên cloud cá nhân (Google Drive, Dropbox).
+- In ấn tài liệu tối mật phải có sự giám sát, hủy tài liệu bằng máy hủy giấy (shredder).
+- Không chụp ảnh màn hình chứa dữ liệu nhạy cảm để lưu trữ bên ngoài.
+
+4.3. Backup và phục hồi
+- Dữ liệu cá nhân trong công việc phải được lưu trên server chia sẻ (không chỉ ổ C máy tính).
+- IT thực hiện backup toàn bộ hệ thống: Hàng ngày (incremental), hàng tuần (full backup).
+- RTO (thời gian phục hồi) mục tiêu: 4 giờ; RPO (điểm phục hồi) mục tiêu: 24 giờ.
+
+MỤC 5 – MẠNG VÀ VPN
+
+5.1. Kết nối Internet tại văn phòng
+- Mạng CORP-WIFI dành cho máy tính công ty (kết nối qua chứng chỉ số).
+- Mạng GUEST-WIFI dành cho khách thăm và thiết bị cá nhân.
+- Không truy cập tài nguyên công ty từ mạng GUEST-WIFI.
+
+5.2. Làm việc từ xa (Remote Work)
+- Bắt buộc kết nối VPN (GlobalProtect) trước khi truy cập hệ thống nội bộ.
+- Không làm việc trên mạng wifi công cộng (cafe, sân bay) mà không có VPN.
+- Đặt mật khẩu cho router wifi tại nhà, dùng WPA3 hoặc WPA2.
+
+5.3. Truy cập website bị hạn chế
+- Hệ thống lọc web tự động chặn các trang mạng xã hội không phục vụ công việc.
+- Yêu cầu mở trang web cho mục đích công việc: tạo ticket tại helpdesk.company.vn.
+
+MỤC 6 – ỨNG PHÓ SỰ CỐ BẢO MẬT
+
+6.1. Báo cáo sự cố
+- Phát hiện sự cố bảo mật → Báo ngay IT Hotline: 1900-XXXX hoặc security@company.vn.
+- Không tự xử lý các sự cố liên quan đến mã độc, ransomware, rò rỉ dữ liệu.
+- Ghi lại thời gian phát hiện, hành vi bất thường, thiết bị liên quan để IT điều tra.
+
+6.2. Các sự cố phổ biến và cách xử lý ban đầu
+- Máy tính bị mã độc: Ngắt kết nối mạng ngay (rút dây hoặc tắt wifi), gọi IT.
+- Nhận email lừa đảo: Không nhấp link, chuyển tiếp toàn bộ email đến security@company.vn.
+- Tài khoản bị đánh cắp: Báo IT ngay, đổi mật khẩu từ thiết bị khác, kiểm tra log đăng nhập.
+- Mất thiết bị: Báo IT trong vòng 1 giờ để kích hoạt xóa dữ liệu từ xa (Remote Wipe).
+
+Bộ phận IT thực hiện kiểm tra bảo mật định kỳ (Penetration Testing) 2 lần/năm. Mọi vi phạm chính sách bảo mật IT sẽ bị xử lý theo Quy chế lao động nội bộ.
