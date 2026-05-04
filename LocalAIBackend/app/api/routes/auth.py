@@ -4,11 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from fastapi import Request
+
 from app.api.dependencies import get_db, get_current_user
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.crud.crud_user import authenticate_user
 from app.models.doc_model import CategoryPermission
+from app.api.routes.admin import write_audit_log
 
 router = APIRouter()
 
@@ -44,7 +47,7 @@ def _build_user_response(user, db: Session) -> dict:
 
 
 @router.post("/login")
-def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(body: LoginRequest, response: Response, request: Request, db: Session = Depends(get_db)):
     user = authenticate_user(db, body.username, body.password)
     if not user:
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không đúng")
@@ -64,6 +67,13 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
 
     user.last_login = datetime.utcnow()
     db.commit()
+
+    write_audit_log(
+        db, action="LOGIN",
+        username=user.username, user_id=user.id,
+        details={"browser": request.headers.get("user-agent", "")[:80]},
+        ip_address=request.client.host if request.client else None,
+    )
 
     return _build_user_response(user, db)
 
