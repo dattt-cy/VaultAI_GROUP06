@@ -75,10 +75,42 @@ _AMBIGUOUS_CONTAINS = (
 )
 
 
+_YES_NO_PATTERNS = [
+    r"có được (chấp nhận|phép|không)\??$",
+    r"có (vi phạm|cho phép|hợp lệ|được phép) không\??$",
+    r"(có|được) \w+ không\??$",
+    r"\w+ có được không\??$",
+    r"(có thể|được phép) \w+ không\??$",
+]
+
+
+def is_yes_no_query(query: str) -> bool:
+    """Trả True nếu câu hỏi dạng Yes/No cần suy luận từ quy định."""
+    q = query.strip().lower()
+    return any(re.search(p, q) for p in _YES_NO_PATTERNS)
+
+
+_YES_NO_SUFFIXES = re.compile(
+    r'\s+(có được (chấp nhận|phép|không)|có (vi phạm|cho phép|hợp lệ|được phép) không'
+    r'|(có thể|được phép) \w+ không|có được không)\??$',
+    re.IGNORECASE,
+)
+
+
+def extract_yes_no_topic(query: str) -> str:
+    """
+    Trích topic từ câu hỏi Yes/No để dùng làm retrieval query.
+    VD: "Chụp ảnh màn hình có được chấp nhận không" → "Chụp ảnh màn hình"
+    """
+    topic = _YES_NO_SUFFIXES.sub("", query.strip())
+    return topic.strip() if topic.strip() else query
+
+
 def needs_rewrite(query: str, history: list[dict]) -> bool:
     """
     Trả True nếu query có khả năng mơ hồ và cần rewrite dựa trên history.
     Cần ít nhất 2 dấu hiệu để tránh false positive.
+    Câu hỏi Yes/No dạng "X có được không?" luôn được rewrite thành dạng keyword search.
     """
     if not history:
         return False
@@ -98,6 +130,10 @@ def needs_rewrite(query: str, history: list[dict]) -> bool:
     # Câu hỏi chỉ có dấu hỏi cuối, rất ngắn
     if re.match(r'^[\w\s]{1,15}\?$', query.strip()):
         score += 1
+
+    # Câu hỏi Yes/No dạng "X có được không?" — rewrite để khớp keyword search tốt hơn
+    if any(re.search(p, q) for p in _YES_NO_PATTERNS):
+        score += 2
 
     return score >= 2
 

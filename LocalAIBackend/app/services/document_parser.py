@@ -1,5 +1,6 @@
 import hashlib
 import os
+import re
 import pdfplumber
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -118,6 +119,34 @@ def extract_pages_from_pdf_ocr(file_path: str) -> list[tuple[int, str]]:
     return pages
 
 
+_SECTION_HEADER_RE = re.compile(
+    r'^('
+    r'\d+(\.\d+)*\.?\s+\S.{0,80}'   # 4.2. Tiêu đề hoặc 1.2.3 Tiêu đề
+    r'|[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẸẺẼẾỀ\s]{5,60}'  # TIÊU ĐỀ VIẾT HOA
+    r')',
+    re.MULTILINE,
+)
+
+
+def _extract_section_header(text: str) -> str:
+    """
+    Trích tiêu đề section từ đầu đoạn text (parent chunk).
+    Ưu tiên: dòng đánh số (4.2. ...) → dòng IN HOA → dòng đầu tiên ngắn.
+    Trả về chuỗi rỗng nếu không tìm thấy.
+    """
+    first_lines = text.strip().splitlines()[:5]
+    for line in first_lines:
+        line = line.strip()
+        if not line:
+            continue
+        if _SECTION_HEADER_RE.match(line) and len(line) < 120:
+            return line
+    # Fallback: dòng đầu tiên nếu ngắn (có thể là tiêu đề không theo pattern)
+    if first_lines and len(first_lines[0].strip()) < 80:
+        return first_lines[0].strip()
+    return ""
+
+
 def chunk_text_parent_child(text: str) -> list[dict]:
     """
     Parent-child chunking cho non-PDF.
@@ -150,7 +179,11 @@ def chunk_text_parent_child(text: str) -> list[dict]:
             "parent_index": p_idx,
             "page_number": 1,
         })
+        header = _extract_section_header(parent_text)
         for child_text in child_splitter.split_text(parent_text):
+            # Prepend header nếu child không bắt đầu bằng chính header đó
+            if header and not child_text.strip().startswith(header):
+                child_text = f"{header}\n{child_text}"
             result.append({
                 "text": child_text,
                 "chunk_type": "child",
@@ -192,7 +225,10 @@ def chunk_pages_parent_child(pages: list[tuple[int, str]]) -> list[dict]:
                 "parent_index": global_parent_idx,
                 "page_number": page_num,
             })
+            header = _extract_section_header(parent_text)
             for child_text in child_splitter.split_text(parent_text):
+                if header and not child_text.strip().startswith(header):
+                    child_text = f"{header}\n{child_text}"
                 result.append({
                     "text": child_text,
                     "chunk_type": "child",
