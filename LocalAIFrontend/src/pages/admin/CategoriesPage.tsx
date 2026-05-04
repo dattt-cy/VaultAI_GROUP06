@@ -1,40 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
-import { mockCategories } from '../../mocks/adminMocks';
+import { apiGet, apiPost, apiPatch, apiDelete } from '../../utils/apiClient';
 
-type Category = typeof mockCategories[0];
+interface Category {
+  id: number;
+  name: string;
+  description: string;
+  document_count: number;
+  created_at: string;
+}
 
 const CategoriesPage: React.FC = () => {
-  const [categories, setCategories] = useState(mockCategories);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [editId, setEditId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ name: '', description: '' });
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ name: '', description: '' });
 
+  const fetchCategories = useCallback(async () => {
+    const res = await apiGet('/api/admin/categories');
+    setCategories(await res.json());
+  }, []);
+
+  useEffect(() => { fetchCategories(); }, [fetchCategories]);
+
   const startEdit = (cat: Category) => {
     setEditId(cat.id);
-    setEditForm({ name: cat.name, description: cat.description });
+    setEditForm({ name: cat.name, description: cat.description ?? '' });
   };
 
-  const saveEdit = () => {
-    setCategories(prev => prev.map(c => c.id === editId ? { ...c, ...editForm } : c));
+  const saveEdit = async () => {
+    await apiPatch(`/api/admin/categories/${editId}`, editForm);
     setEditId(null);
+    fetchCategories();
   };
 
-  const deleteCategory = (id: number) => {
-    const cat = categories.find(c => c.id === id);
-    if (cat && cat.document_count > 0) {
-      alert(`Không thể xóa danh mục "${cat.name}" vì còn ${cat.document_count} tài liệu liên kết.`);
-      return;
+  const deleteCategory = async (id: number) => {
+    const res = await apiDelete(`/api/admin/categories/${id}`);
+    if (res.status === 400) {
+      const err = await res.json();
+      alert(err.detail);
+    } else {
+      fetchCategories();
     }
-    setCategories(prev => prev.filter(c => c.id !== id));
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!createForm.name.trim()) return;
-    setCategories(prev => [...prev, { id: Date.now(), ...createForm, document_count: 0, created_at: new Date().toISOString().split('T')[0] }]);
+    await apiPost('/api/admin/categories', createForm);
     setCreateForm({ name: '', description: '' });
     setShowCreate(false);
+    fetchCategories();
   };
 
   return (
@@ -52,7 +68,6 @@ const CategoriesPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Create form */}
       {showCreate && (
         <div className="bg-elevated border border-accent/30 rounded-xl p-4 space-y-3 animate-fade-in">
           <p className="text-[13px] font-semibold text-text-primary">Danh mục mới</p>
@@ -65,7 +80,6 @@ const CategoriesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Category list */}
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-left border-collapse">
           <thead>
@@ -95,7 +109,7 @@ const CategoriesPage: React.FC = () => {
                 <td className="px-4 py-3">
                   <span className={`text-[13px] font-semibold ${cat.document_count > 0 ? 'text-accent' : 'text-text-muted'}`}>{cat.document_count}</span>
                 </td>
-                <td className="px-4 py-3 text-[12px] text-text-muted">{cat.created_at}</td>
+                <td className="px-4 py-3 text-[12px] text-text-muted">{cat.created_at?.split('T')[0] ?? '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5 justify-end">
                     {editId === cat.id ? (
