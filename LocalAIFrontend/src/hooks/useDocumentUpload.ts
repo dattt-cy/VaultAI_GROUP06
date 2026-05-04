@@ -128,5 +128,13 @@ export function useDocumentUpload({
     setUploads(prev => prev.filter(u => u.status !== 'done'));
   }, []);
 
-  return { uploads, uploadFiles, clearDone };
+  const dismiss = useCallback((id: string) => {
+    setUploads(prev => prev.filter(u => u.id !== id));
+  }, []);
+
+  const dismissAll = useCallback(() => {
+    setUploads(prev => prev.filter(u => u.status === 'uploading' || u.status === 'processing'));
+  }, []);
+
+  return { uploads, uploadFiles, clearDone, dismiss, dismissAll };
 }
