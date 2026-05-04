@@ -1,9 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Cpu, HardDrive, Zap, RefreshCw, Wifi } from 'lucide-react';
-import { mockSystemMetrics } from '../../mocks/adminMocks';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Cpu, Zap, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { apiGet } from '../../utils/apiClient';
+
+interface MetricsData {
+  cpu_percent: number;
+  ram_used_mb: number;
+  ram_total_mb: number;
+  vram_used_mb: number;
+  vram_total_mb: number;
+  ollama: { url: string; model: string; online: boolean };
+}
+
+interface HistoryPoint { cpu: number; ram: number; vram: number; timestamp: string }
 
 const MetricBar: React.FC<{ label: string; used: number; total: number; unit: string; color: string }> = ({ label, used, total, unit, color }) => {
-  const pct = Math.round((used / total) * 100);
+  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
   return (
     <div className="bg-elevated border border-border rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
@@ -19,27 +30,46 @@ const MetricBar: React.FC<{ label: string; used: number; total: number; unit: st
 };
 
 const SystemMetricsPage: React.FC = () => {
-  const [metrics, setMetrics] = useState(mockSystemMetrics.current);
+  const [metrics, setMetrics] = useState<MetricsData | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const history = mockSystemMetrics.history;
+  const [loading, setLoading] = useState(false);
+
+  const fetchMetrics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiGet('/api/admin/system/metrics');
+      const data: MetricsData = await res.json();
+      setMetrics(data);
+      setLastRefresh(new Date());
+      setHistory(prev => {
+        const point: HistoryPoint = {
+          cpu: data.cpu_percent,
+          ram: data.ram_used_mb,
+          vram: data.vram_used_mb,
+          timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        };
+        return [...prev.slice(-11), point];
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const id = setInterval(() => {
-      setMetrics(prev => ({
-        ...prev,
-        cpu_percent: Math.max(5, Math.min(95, prev.cpu_percent + (Math.random() - 0.5) * 10)),
-        ram_used_mb: Math.max(3000, Math.min(14000, prev.ram_used_mb + Math.round((Math.random() - 0.5) * 200))),
-        vram_used_mb: Math.max(2000, Math.min(7500, prev.vram_used_mb + Math.round((Math.random() - 0.5) * 100))),
-        timestamp: new Date().toISOString(),
-      }));
-      setLastRefresh(new Date());
-    }, 5000);
+    const id = setInterval(fetchMetrics, 5000);
     return () => clearInterval(id);
-  }, [autoRefresh]);
+  }, [autoRefresh, fetchMetrics]);
 
-  const maxBar = Math.max(...history.map(h => h.cpu));
+  if (!metrics) {
+    return <div className="flex items-center justify-center h-48 text-text-muted text-[13px]">Đang tải...</div>;
+  }
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -49,6 +79,9 @@ const SystemMetricsPage: React.FC = () => {
           <p className="text-[13px] text-text-muted mt-0.5">Cập nhật lúc {lastRefresh.toLocaleTimeString('vi-VN')}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={fetchMetrics} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-[12px] text-text-muted hover:bg-hover transition-colors">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin-fast' : ''}`} /> Refresh
+          </button>
           <button
             onClick={() => setAutoRefresh(a => !a)}
             className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-[12px] font-medium transition-colors ${autoRefresh ? 'border-success/40 text-success bg-success/10' : 'border-border text-text-muted hover:bg-hover'}`}
@@ -59,7 +92,6 @@ const SystemMetricsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Metric cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-elevated border border-border rounded-xl p-4 flex items-center gap-4">
           <div className="p-2.5 rounded-lg bg-accent/15"><Cpu className="w-5 h-5 text-accent" /></div>
@@ -72,58 +104,65 @@ const SystemMetricsPage: React.FC = () => {
           </div>
         </div>
         <MetricBar label="RAM" used={metrics.ram_used_mb} total={metrics.ram_total_mb} unit="MB" color="bg-success" />
-        <MetricBar label="VRAM (GPU)" used={metrics.vram_used_mb} total={metrics.vram_total_mb} unit="MB" color="bg-warning" />
-      </div>
-
-      {/* CPU history chart */}
-      <div className="bg-elevated border border-border rounded-xl p-5">
-        <p className="text-[13px] font-semibold text-text-primary mb-4">CPU Usage — lịch sử</p>
-        <div className="flex items-end gap-1.5 h-24">
-          {history.map((h, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className="w-full rounded-t bg-accent/60 hover:bg-accent transition-colors"
-                style={{ height: `${(h.cpu / 100) * 96}px` }}
-                title={`CPU: ${h.cpu}%`}
-              />
-              <span className="text-[10px] text-text-muted">{h.timestamp}</span>
+        {metrics.vram_total_mb > 0
+          ? <MetricBar label="VRAM (GPU)" used={metrics.vram_used_mb} total={metrics.vram_total_mb} unit="MB" color="bg-warning" />
+          : (
+            <div className="bg-elevated border border-border rounded-xl p-4 flex items-center gap-3">
+              <Zap className="w-5 h-5 text-text-muted" />
+              <div>
+                <p className="text-[13px] font-semibold text-text-primary">VRAM (GPU)</p>
+                <p className="text-[12px] text-text-muted">Không phát hiện GPU</p>
+              </div>
             </div>
-          ))}
-        </div>
+          )
+        }
       </div>
 
-      {/* RAM & VRAM history */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {[
-          { label: 'RAM Usage (MB)', key: 'ram' as const, max: metrics.ram_total_mb, color: 'bg-success/60 hover:bg-success' },
-          { label: 'VRAM Usage (MB)', key: 'vram' as const, max: metrics.vram_total_mb, color: 'bg-warning/60 hover:bg-warning' },
-        ].map(({ label, key, max, color }) => (
-          <div key={key} className="bg-elevated border border-border rounded-xl p-5">
-            <p className="text-[13px] font-semibold text-text-primary mb-4">{label}</p>
-            <div className="flex items-end gap-1.5 h-20">
+      {history.length > 1 && (
+        <>
+          <div className="bg-elevated border border-border rounded-xl p-5">
+            <p className="text-[13px] font-semibold text-text-primary mb-4">CPU Usage — lịch sử</p>
+            <div className="flex items-end gap-1.5 h-24">
               {history.map((h, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div
-                    className={`w-full rounded-t ${color} transition-colors`}
-                    style={{ height: `${(h[key] / max) * 80}px` }}
-                    title={`${h[key]} MB`}
-                  />
+                  <div className="w-full rounded-t bg-accent/60 hover:bg-accent transition-colors" style={{ height: `${(h.cpu / 100) * 96}px` }} title={`CPU: ${h.cpu.toFixed(1)}%`} />
                   <span className="text-[10px] text-text-muted">{h.timestamp}</span>
                 </div>
               ))}
             </div>
           </div>
-        ))}
-      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {[
+              { label: 'RAM Usage (MB)', key: 'ram' as const, max: metrics.ram_total_mb, color: 'bg-success/60 hover:bg-success' },
+              { label: 'VRAM Usage (MB)', key: 'vram' as const, max: metrics.vram_total_mb || 1, color: 'bg-warning/60 hover:bg-warning' },
+            ].map(({ label, key, max, color }) => (
+              <div key={key} className="bg-elevated border border-border rounded-xl p-5">
+                <p className="text-[13px] font-semibold text-text-primary mb-4">{label}</p>
+                <div className="flex items-end gap-1.5 h-20">
+                  {history.map((h, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div className={`w-full rounded-t ${color} transition-colors`} style={{ height: `${(h[key] / max) * 80}px` }} title={`${h[key]} MB`} />
+                      <span className="text-[10px] text-text-muted">{h.timestamp}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
-      {/* Ollama status */}
       <div className="bg-elevated border border-border rounded-xl p-4 flex items-center gap-4">
-        <div className="p-2.5 rounded-lg bg-success/15"><Wifi className="w-5 h-5 text-success" /></div>
+        <div className={`p-2.5 rounded-lg ${metrics.ollama.online ? 'bg-success/15' : 'bg-danger/15'}`}>
+          {metrics.ollama.online ? <Wifi className="w-5 h-5 text-success" /> : <WifiOff className="w-5 h-5 text-danger" />}
+        </div>
         <div>
           <p className="text-[13px] font-semibold text-text-primary">Ollama Service</p>
-          <p className="text-[12px] text-text-muted">http://localhost:11434 · Model: qwen2.5:7b · Đang chạy</p>
+          <p className="text-[12px] text-text-muted">{metrics.ollama.url} · Model: {metrics.ollama.model}</p>
         </div>
-        <span className="ml-auto text-[11px] px-2.5 py-1 rounded-full bg-success/15 text-success border border-success/30 font-semibold">Online</span>
+        <span className={`ml-auto text-[11px] px-2.5 py-1 rounded-full font-semibold border ${metrics.ollama.online ? 'bg-success/15 text-success border-success/30' : 'bg-danger/15 text-danger border-danger/30'}`}>
+          {metrics.ollama.online ? 'Online' : 'Offline'}
+        </span>
       </div>
     </div>
   );
