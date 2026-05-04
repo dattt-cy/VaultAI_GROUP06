@@ -13,6 +13,7 @@ const RolesPage          = lazy(() => import('./pages/admin/RolesPage'));
 const DocPermissionsPage = lazy(() => import('./pages/admin/DocPermissionsPage'));
 const DocumentsPage      = lazy(() => import('./pages/admin/DocumentsPage'));
 const CategoriesPage     = lazy(() => import('./pages/admin/CategoriesPage'));
+const DepartmentsPage    = lazy(() => import('./pages/admin/DepartmentsPage'));
 const AIConfigPage       = lazy(() => import('./pages/admin/AIConfigPage'));
 const ChatMonitorPage    = lazy(() => import('./pages/admin/ChatMonitorPage'));
 const FeedbackPage       = lazy(() => import('./pages/admin/FeedbackPage'));
@@ -48,6 +49,7 @@ function AppRoutes() {
           <Route path="doc-permissions"  element={<DocPermissionsPage />} />
           <Route path="documents"        element={<DocumentsPage />} />
           <Route path="categories"       element={<CategoriesPage />} />
+          <Route path="departments"      element={<DepartmentsPage />} />
           <Route path="ai-config"        element={<AIConfigPage />} />
           <Route path="chat-monitor"     element={<ChatMonitorPage />} />
           <Route path="feedback"         element={<FeedbackPage />} />
