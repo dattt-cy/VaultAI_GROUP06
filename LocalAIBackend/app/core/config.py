@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # Database
-    SQLALCHEMY_DATABASE_URI: str = "sqlite:///./localai.db"
+    SQLALCHEMY_DATABASE_URI: str = "mysql+pymysql://root:1234567890aS@localhost:3306/localai?charset=utf8mb4"
     
     # Vector DB
     CHROMA_PERSIST_DIR: str = "./chroma_db"
