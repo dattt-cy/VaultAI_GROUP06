@@ -1,18 +1,54 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
   Search, X, Eye, Trash2, RefreshCw, Upload,
   FolderOpen, Folder, Plus, Check, Loader2,
 } from 'lucide-react';
 import { StatusBadge } from '../../components/admin/AdminTable';
 import { cn } from '../../lib/utils';
-import { useDocumentTree } from '../../hooks/useDocumentTree';
 import { useDocumentUpload } from '../../hooks/useDocumentUpload';
 import { useDocumentContent } from '../../hooks/useDocumentContent';
 import { UploadQueuePanel } from '../../components/admin/UploadQueuePanel';
+import { apiGet, API_BASE } from '../../utils/apiClient';
+
+interface AdminDoc {
+  id: number; title: string; file_type: string; scope: string;
+  category_id: number | null; category_name: string | null;
+  ingestion_status: string; total_tokens: number;
+}
+interface AdminCat { id: number; name: string }
 
 const DocumentsPage: React.FC = () => {
-  const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument } = useDocumentTree();
-  const allDocs = useMemo(() => [...sharedDocs, ...privateDocs], [sharedDocs, privateDocs]);
+  const [allDocs, setAllDocs] = useState<AdminDoc[]>([]);
+  const [categories, setCategories] = useState<AdminCat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refetch = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      const [docsRes, catsRes] = await Promise.all([
+        apiGet('/api/admin/documents?limit=500'),
+        apiGet('/api/admin/categories'),
+      ]);
+      if (!docsRes.ok) throw new Error(`HTTP ${docsRes.status}`);
+      const docsData = await docsRes.json();
+      const catsData = catsRes.ok ? await catsRes.json() : [];
+      setAllDocs(docsData.items ?? []);
+      setCategories(Array.isArray(catsData) ? catsData : []);
+    } catch (e: any) {
+      setError(e.message ?? 'Lỗi tải dữ liệu');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { refetch(); }, [refetch]);
+
+  const deleteDocument = useCallback(async (id: number) => {
+    await fetch(`${API_BASE}/api/documents/${id}`, { method: 'DELETE', credentials: 'include' });
+    await refetch(true);
+  }, [refetch]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -157,7 +193,7 @@ const DocumentsPage: React.FC = () => {
               <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
             </button>
             <button
-              onClick={() => { setShowUpload(true); setUploadFile(null); setIsDragging(false); }}
+              onClick={() => { setShowUpload(true); setUploadFiles_state([]); setIsDragging(false); }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors"
             >
               <Plus className="w-4 h-4" /> Upload mới

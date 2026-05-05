@@ -14,12 +14,14 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
-    @apply bg-base text-text-primary overflow-hidden;
+    @apply bg-base text-text-primary;
     margin: 0;
+    overflow: hidden;
   }
 
   #root {
-    @apply w-screen h-screen flex flex-col overflow-hidden;
+    @apply w-screen h-screen flex flex-col;
+    overflow: hidden;
   }
 
   /* Scrollbar */

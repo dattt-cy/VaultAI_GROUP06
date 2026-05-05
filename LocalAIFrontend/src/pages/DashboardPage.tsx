@@ -32,10 +32,12 @@ const CARD_COLORS = [
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, canAccess, logout } = useAuth();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Notebook | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchNotebooks = useCallback(async () => {
     try {
@@ -58,12 +60,18 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => { fetchNotebooks(); }, [fetchNotebooks]);
 
   const deleteNotebook = async (id: number) => {
-    await fetch(`${API_BASE}/api/chat/sessions/${id}`, {
-      method: 'DELETE',
-      credentials: 'include',
-    });
-    setNotebooks(prev => prev.filter(n => n.id !== id));
-    setMenuOpen(null);
+    setDeleting(true);
+    try {
+      await fetch(`${API_BASE}/api/chat/sessions/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      setNotebooks(prev => prev.filter(n => n.id !== id));
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+      setMenuOpen(null);
+    }
   };
 
   const handleLogout = async () => {
@@ -79,7 +87,7 @@ export const DashboardPage: React.FC = () => {
     .toUpperCase() ?? 'AI';
 
   return (
-    <div className="min-h-screen bg-base flex flex-col font-sans" onClick={() => setMenuOpen(null)}>
+    <div className="h-screen bg-base flex flex-col font-sans overflow-hidden" onClick={() => setMenuOpen(null)}>
 
       {/* ── Top Navigation ── */}
       <header className="h-16 flex items-center justify-between px-6 bg-surface border-b border-border">
@@ -93,9 +101,9 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {isAdmin && (
+          {canAccess(5) && (
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-danger/10 text-danger border border-danger/20 font-semibold">
-              Admin
+              {isAdmin ? 'Admin' : 'Quản lý'}
             </span>
           )}
           <div className="flex items-center gap-2">
@@ -115,7 +123,8 @@ export const DashboardPage: React.FC = () => {
       </header>
 
       {/* ── Main Content ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-8 py-10">
+      <main className="flex-1 overflow-y-auto">        
+        <div className="max-w-7xl w-full mx-auto px-8 py-10">
 
         <div className="flex justify-between items-end mb-6">
           <div>
@@ -183,7 +192,7 @@ export const DashboardPage: React.FC = () => {
                       onClick={e => e.stopPropagation()}
                     >
                       <button
-                        onClick={() => deleteNotebook(nb.id)}
+                        onClick={() => { setDeleteTarget(nb); setMenuOpen(null); }}
                         className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-danger hover:bg-danger/10 transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -210,7 +219,56 @@ export const DashboardPage: React.FC = () => {
             </div>
           ))}
         </div>
+        </div>
       </main>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="bg-surface border border-border rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4 animate-fade-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-danger" />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-text-primary">Xóa sổ ghi chú?</h3>
+                <p className="text-[12px] text-text-muted mt-0.5">Hành động này không thể hoàn tác</p>
+              </div>
+            </div>
+
+            <p className="text-[13px] text-text-secondary mb-5 bg-base rounded-xl px-3 py-2.5 border border-border line-clamp-2">
+              &ldquo;{deleteTarget.title}&rdquo;
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 rounded-xl text-[13px] font-semibold border border-border text-text-secondary hover:bg-hover transition-colors disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => deleteNotebook(deleteTarget.id)}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 rounded-xl text-[13px] font-semibold bg-danger text-white hover:bg-danger/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleting ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin-fast" />Đang xóa...</>
+                ) : (
+                  <><Trash2 className="w-3.5 h-3.5" />Xóa</>                  
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

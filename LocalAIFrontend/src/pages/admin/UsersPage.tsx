@@ -64,7 +64,7 @@ const UsersPage: React.FC = () => {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, canAccess } = useAuth();
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -196,12 +196,14 @@ const UsersPage: React.FC = () => {
               {filtered.length} / {users.length} người dùng &middot; {activeCount} hoạt động
             </p>
           </div>
-          <button
-            onClick={() => { setForm(emptyForm); setShowCreate(true); }}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white rounded-xl text-[13px] font-semibold transition-colors flex-shrink-0"
-          >
-            <Plus className="w-4 h-4" /> Thêm người dùng
-          </button>
+          {canAccess(9) && (
+            <button
+              onClick={() => { setForm(emptyForm); setShowCreate(true); }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white rounded-xl text-[13px] font-semibold transition-colors flex-shrink-0"
+            >
+              <Plus className="w-4 h-4" /> Thêm người dùng
+            </button>
+          )}
         </div>
 
         {/* Filters */}
@@ -311,7 +313,7 @@ const UsersPage: React.FC = () => {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            {(!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
+                            {canAccess(9) && (!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
                               <button
                                 onClick={() => toggleActive(u.id)}
                                 className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors border',
@@ -324,14 +326,16 @@ const UsersPage: React.FC = () => {
                                 {u.is_active ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
                               </button>
                             )}
-                            <button
-                              onClick={() => { openEdit(u); setSelected(u); }}
-                              className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent flex items-center justify-center transition-colors border border-accent/20"
-                              title="Sửa"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            {(!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
+                            {canAccess(9) && (
+                              <button
+                                onClick={() => { openEdit(u); setSelected(u); }}
+                                className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent flex items-center justify-center transition-colors border border-accent/20"
+                                title="Sửa"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            )}
+                            {canAccess(9) && (!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
                               <button
                                 onClick={() => setShowDeleteId(u.id)}
                                 className="w-8 h-8 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger flex items-center justify-center transition-colors border border-danger/20"
@@ -412,7 +416,7 @@ const UsersPage: React.FC = () => {
       {/* ── Create modal ── */}
       {showCreate && (
         <Modal title="Thêm người dùng mới" onClose={() => setShowCreate(false)}>
-          <UserForm form={form} setForm={setForm} roles={roles} departments={departments} showPassword />
+          <UserForm form={form} setForm={setForm} roles={roles} departments={departments} showPassword canAssignAdmin={canAccess(10)} />
           <div className="flex gap-2 mt-5">
             <button onClick={() => setShowCreate(false)} className="flex-1 py-2 rounded-lg border border-border text-text-secondary text-[13px] hover:bg-hover transition-colors">Hủy</button>
             <button
@@ -442,7 +446,7 @@ const UsersPage: React.FC = () => {
               <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
           </div>
-          <UserForm form={form} setForm={setForm} roles={roles} departments={departments} showPassword passwordOptional />
+          <UserForm form={form} setForm={setForm} roles={roles} departments={departments} showPassword passwordOptional canAssignAdmin={canAccess(10)} />
           <div className="flex gap-2 mt-5">
             <button onClick={() => setShowEdit(false)} className="flex-1 py-2 rounded-lg border border-border text-text-secondary text-[13px] hover:bg-hover transition-colors">Hủy</button>
             <button
@@ -508,9 +512,10 @@ interface FormProps {
   departments: Department[];
   showPassword?: boolean;
   passwordOptional?: boolean;
+  canAssignAdmin?: boolean;
 }
 
-const UserForm = ({ form, setForm, roles, departments, showPassword, passwordOptional }: FormProps) => {
+const UserForm = ({ form, setForm, roles, departments, showPassword, passwordOptional, canAssignAdmin = false }: FormProps) => {
   const fields: { key: keyof typeof emptyForm; label: string; type: string; required?: boolean }[] = [
     { key: 'username', label: 'Tên đăng nhập', type: 'text', required: true },
     { key: 'full_name', label: 'Họ và tên', type: 'text', required: true },
@@ -560,7 +565,7 @@ const UserForm = ({ form, setForm, roles, departments, showPassword, passwordOpt
             onChange={e => setForm(f => ({ ...f, role_id: Number(e.target.value) }))}
             className="input-base text-[13px] appearance-none pr-8"
           >
-            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            {roles.filter(r => canAssignAdmin || r.name !== 'admin').map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
         </div>

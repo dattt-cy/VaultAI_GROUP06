@@ -4,6 +4,7 @@ import {
   Search, Mail, Shield, Clock, ChevronRight, UserX, Loader2,
 } from 'lucide-react';
 import { apiGet, apiPost, apiPatch, apiDelete } from '../../utils/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
 
 const API_BASE = 'http://localhost:8000';
@@ -57,9 +58,9 @@ const UserAvatar = ({ user, size = 'md' }: { user: DeptUser; size?: 'sm' | 'md' 
 
 // ── Dept list item ──────────────────────────────────────────────────────
 const DeptCard = ({
-  dept, active, onClick, onEdit, onDelete,
+  dept, active, onClick, onEdit, onDelete, canEdit,
 }: {
-  dept: Department; active: boolean;
+  dept: Department; active: boolean; canEdit: boolean;
   onClick: () => void; onEdit: () => void; onDelete: () => void;
 }) => (
   <button
@@ -84,19 +85,22 @@ const DeptCard = ({
       <ChevronRight className={cn('w-3.5 h-3.5 flex-shrink-0 transition-transform', active ? 'text-accent rotate-0' : 'text-text-muted opacity-0 group-hover:opacity-100')} />
     </div>
     {/* action buttons – appear on hover */}
-    <div className="absolute top-2 right-2 hidden group-hover:flex gap-1" onClick={e => e.stopPropagation()}>
-      <button onClick={onEdit} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors" title="Sửa">
-        <Pencil className="w-3 h-3" />
-      </button>
-      <button onClick={onDelete} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-danger hover:border-danger/40 transition-colors" title="Xóa">
-        <Trash2 className="w-3 h-3" />
-      </button>
-    </div>
+    {canEdit && (
+      <div className="absolute top-2 right-2 hidden group-hover:flex gap-1" onClick={e => e.stopPropagation()}>
+        <button onClick={onEdit} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors" title="Sửa">
+          <Pencil className="w-3 h-3" />
+        </button>
+        <button onClick={onDelete} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-danger hover:border-danger/40 transition-colors" title="Xóa">
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    )}
   </button>
 );
 
 // ── Main Page ───────────────────────────────────────────────────────────
 const DepartmentsPage: React.FC = () => {
+  const { canAccess } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptUsers, setDeptUsers] = useState<DeptUser[]>([]);
@@ -217,13 +221,15 @@ const DepartmentsPage: React.FC = () => {
             <h1 className="text-[18px] font-bold text-text-primary">Phòng ban</h1>
             <p className="text-[12px] text-text-muted">{departments.length} phòng · {totalUsers} nhân viên</p>
           </div>
-          <button
-            onClick={() => { setShowCreate(true); setError(null); }}
-            className="w-8 h-8 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors"
-            title="Thêm phòng ban"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+          {canAccess(9) && (
+            <button
+              onClick={() => { setShowCreate(true); setError(null); }}
+              className="w-8 h-8 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors"
+              title="Thêm phòng ban"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Create inline form */}
@@ -299,6 +305,7 @@ const DepartmentsPage: React.FC = () => {
                   onClick={() => selectDept(dept)}
                   onEdit={() => startEdit(dept)}
                   onDelete={() => setDeleteConfirmId(dept.id)}
+                  canEdit={canAccess(9)}
                 />
               )
             ))

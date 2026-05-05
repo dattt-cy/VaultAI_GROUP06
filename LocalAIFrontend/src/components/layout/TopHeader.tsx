@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export const TopHeader: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, canAccess, logout } = useAuth();
 
   const handleLogout = async () => {
     await logout();
@@ -22,11 +22,15 @@ export const TopHeader: React.FC = () => {
   return (
     <header className="h-12 bg-surface border-b border-border flex items-center justify-between px-4 flex-shrink-0 z-50">
       {/* Logo */}
-      <div className="flex items-center gap-2.5">
+      <button
+        onClick={() => navigate('/dashboard')}
+        className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+        title="Về trang sổ ghi chú"
+      >
         <img src="/logo.png" alt="VaultAI Logo" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
         <span className="font-semibold text-[15px] text-text-primary">VaultAI</span>
         <span className="badge bg-accent/15 text-accent border border-accent/40">NỘI BỘ</span>
-      </div>
+      </button>
 
       {/* Right */}
       <div className="flex items-center gap-3">
@@ -42,7 +46,7 @@ export const TopHeader: React.FC = () => {
         </span>
 
         {/* Admin Panel link */}
-        {isAdmin && (
+        {canAccess(5) && (
           <button
             onClick={() => navigate('/admin')}
             className="flex items-center gap-1.5 px-2.5 py-1.5 border border-danger/40 text-danger hover:bg-danger/10 rounded-lg transition-colors text-[12px] font-semibold"

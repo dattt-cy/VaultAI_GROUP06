@@ -15,6 +15,7 @@ export interface AuthUser {
   username: string;
   full_name: string;
   role: string;
+  access_level: number;
   department?: string;
   category_permissions: CategoryPermission[];
 }
@@ -23,6 +24,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAdmin: boolean;
+  canAccess: (minLevel: number) => boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -50,6 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           username: data.username,
           full_name: data.full_name,
           role: data.role,
+          access_level: data.access_level ?? 1,
           department: data.department,
           category_permissions: data.category_permissions ?? [],
         };
@@ -80,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       username: data.username,
       full_name: data.full_name,
       role: data.role,
+      access_level: data.access_level ?? 1,
       department: data.department,
       category_permissions: data.category_permissions ?? [],
     };
@@ -96,8 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
   }, []);
 
+  const canAccess = (minLevel: number) => (user?.access_level ?? 0) >= minLevel;
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAdmin: user?.role === 'admin', login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAdmin: user?.role === 'admin', canAccess, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

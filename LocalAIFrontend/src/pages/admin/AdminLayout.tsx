@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { SidebarNav } from '../../components/admin/SidebarNav';
 
 const AdminLayout: React.FC = () => {
-  const { isAdmin, isLoading } = useAuth();
+  const { canAccess, isLoading } = useAuth();
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -16,7 +16,7 @@ const AdminLayout: React.FC = () => {
     );
   }
 
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  if (!canAccess(5)) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="h-screen flex flex-col bg-base overflow-hidden">
