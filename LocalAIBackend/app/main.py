@@ -11,7 +11,7 @@ from app.models import user_model, doc_model, chat_model, sys_model  # noqa: F40
 
 # Routers
 from app.api.routes import documents, chat, admin, auth
-from app.api.dependencies import require_admin
+from app.api.dependencies import require_min_level
 
 Base.metadata.create_all(bind=engine)
 
@@ -48,7 +48,7 @@ app.mount("/uploads", StaticFiles(directory=_uploads_dir), name="uploads")
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"], dependencies=[Depends(require_min_level(5))])
 
 
 @app.on_event("startup")

@@ -33,6 +33,7 @@ def _build_user_response(user, db: Session) -> dict:
         "username": user.username,
         "full_name": user.full_name,
         "role": user.role.name,
+        "access_level": user.role.access_level,
         "department": user.department,
         "category_permissions": [
             {
