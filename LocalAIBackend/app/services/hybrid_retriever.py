@@ -343,9 +343,9 @@ def hybrid_retrieve(
         ce_score = float(scores[idx])
         rrf_rank = rrf_rank_map.get(page.vector_id, n)
         rrf_bonus = (n - rrf_rank) / n * 0.5
-        # FTS boost nhỏ — chỉ tiebreaker khi CE score tương đương, không lấn át semantic
+        # Boost mạnh khi FTS exact match (score >= 0.8) để không bị CE tiếng Anh lấn át
         raw_fts = fts_score_map.get(page.vector_id, 0.0)
-        fts_boost = raw_fts * 0.5 if raw_fts >= 0.8 else 0.0
+        fts_boost = raw_fts * 5.0 if raw_fts >= 0.8 else 0.0
         page._temp_rerank_score = ce_score + rrf_bonus + fts_boost
 
     # Sắp xếp giảm dần theo điểm và lấy Top K
