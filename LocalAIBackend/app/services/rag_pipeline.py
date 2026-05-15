@@ -68,9 +68,10 @@ Câu hỏi: {question}
 
 QUY TẮC:
 - TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
-- ƯU TIÊN SỬ DỤNG suy luận logic: Nếu NGỮ CẢNH đề cập đến chủ đề liên quan (dù dùng từ ngữ khác nhau), hãy suy luận và trả lời. Ví dụ: tài liệu nói "IT thực hiện backup" → có thể trả lời "IT chịu trách nhiệm khôi phục". Tài liệu nói "bộ phận X thực hiện Y" → X chịu trách nhiệm về Y.
-- Chỉ từ chối khi NGỮ CẢNH HOÀN TOÀN KHÔNG ĐỀ CẬP đến chủ đề câu hỏi (ví dụ hỏi về lương nhưng context chỉ nói về kỹ thuật). Nếu có thông tin liên quan dù gián tiếp, hãy trả lời và giải thích suy luận.
-- Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+- CHỈ TRẢ LỜI ĐÚNG NHỮNG GÌ ĐƯỢC HỎI. Nếu câu hỏi hỏi về X, chỉ trả lời về X — không tự thêm thông tin về Y, Z dù chúng xuất hiện trong tài liệu gần đó.
+- ƯU TIÊN SỬ DỤNG suy luận logic: Nếu NGỮ CẢNH đề cập đến chủ đề liên quan (dù dùng từ ngữ khác nhau), hãy suy luận và trả lời. Ví dụ: tài liệu nói "IT thực hiện backup" → có thể trả lời "IT chịu trách nhiệm khôi phục".
+- Chỉ từ chối khi NGỮ CẢNH HOÀN TOÀN KHÔNG ĐỀ CẬP đến chủ đề câu hỏi. Nếu có thông tin liên quan dù gián tiếp, hãy trả lời và giải thích suy luận.
+- Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết duy nhất: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." KHÔNG được viết câu này kèm với nội dung trả lời khác.
 - Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
   - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
@@ -144,6 +145,129 @@ def _generate_suggestions(context: str, answer: str) -> list:
     except Exception as e:
         print(f"[Suggestions ERROR] {e}")
         return []
+
+
+def _verify_citations_post_hoc(
+    response: str,
+    chunks: list,
+    threshold: float = -1.5,
+) -> tuple[str, dict, list[list[str]]]:
+    """
+    Xác minh citation bằng cách rerank từng câu/bullet trong response với tất cả chunks.
+
+    Thay vì tin LLM tự gắn [A][B][C], hàm này:
+    1. Tách response thành các đơn vị có nghĩa (câu / dòng bullet)
+    2. Rerank từng đơn vị với tất cả chunks → chunk có score cao nhất = nguồn thực sự
+    3. Chỉ gán citation khi score vượt threshold (tránh gán sai cho câu chuyển tiếp)
+    4. Trả về response đã gắn [1][2], citation_source_lines, và relevant_spans
+
+    Fallback: nếu reranker không available, trả về response gốc không thay đổi.
+    """
+    try:
+        reranker = get_reranker()
+        if not reranker:
+            return response, {}, [[] for _ in chunks]
+    except Exception:
+        return response, {}, [[] for _ in chunks]
+
+    # Tách response thành các đơn vị: dòng bullet hoặc câu trong đoạn văn
+    raw_lines = response.split('\n')
+    units: list[tuple[int, str, str]] = []  # (line_idx, line_raw, text_to_score)
+
+    for idx, line in enumerate(raw_lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Với bullet, score cả dòng; với đoạn văn dài, tách theo dấu câu
+        if re.match(r'^[-*•]\s+', stripped) or re.match(r'^\d+[\.\)]\s+', stripped):
+            text = re.sub(r'^[-*•\d\.\)]+\s*', '', stripped)
+            text = re.sub(r'\s*\[\d+\]\s*$', '', text).strip()
+            if len(text) > 10:
+                units.append((idx, line, text))
+        else:
+            # Tách câu trong đoạn văn thường
+            sentences = re.split(r'(?<=[.!?])\s+', stripped)
+            for sent in sentences:
+                clean = re.sub(r'\s*\[\d+\]\s*', '', sent).strip()
+                if len(clean) > 15:
+                    units.append((idx, line, clean))
+
+    if not units or not chunks:
+        return response, {}, [[] for _ in chunks]
+
+    # Build pairs: mỗi unit × mỗi chunk
+    all_pairs = []
+    for _, _, text in units:
+        for chunk in chunks:
+            all_pairs.append([text, chunk.content])
+
+    try:
+        all_scores = reranker.predict(all_pairs)
+    except Exception as e:
+        print(f"[PostHocCite ERROR] {e}")
+        return response, {}, [[] for _ in chunks]
+
+    num_chunks = len(chunks)
+    # Map line_idx → best chunk_idx
+    line_to_chunk: dict[int, int] = {}
+    citation_source_lines: dict[int, list[str]] = {}
+
+    for i, (line_idx, _, text) in enumerate(units):
+        scores = all_scores[i * num_chunks: (i + 1) * num_chunks]
+        scores_list = scores.tolist() if hasattr(scores, 'tolist') else list(scores)
+        best_idx = int(max(range(num_chunks), key=lambda j: scores_list[j]))
+        best_score = scores_list[best_idx]
+        if best_score >= threshold:
+            # Nếu dòng này đã có chunk được gán, dùng chunk có score cao hơn
+            if line_idx not in line_to_chunk or scores_list[line_to_chunk[line_idx]] < best_score:
+                line_to_chunk[line_idx] = best_idx
+            citation_source_lines.setdefault(best_idx, []).append(text)
+
+    # Xây dựng tập chunk nào thực sự được cite (theo thứ tự xuất hiện)
+    used_chunk_indices = []
+    for idx in sorted(line_to_chunk.keys()):
+        c = line_to_chunk[idx]
+        if c not in used_chunk_indices:
+            used_chunk_indices.append(c)
+
+    # Map chunk_idx gốc → số thứ tự hiển thị [1],[2],...
+    chunk_to_display: dict[int, int] = {c: n + 1 for n, c in enumerate(used_chunk_indices)}
+
+    # Rebuild response: thêm [N] vào cuối mỗi dòng bullet hoặc câu cuối đoạn
+    result_lines = list(raw_lines)
+    line_done: set[int] = set()
+
+    for idx, line_raw, _ in units:
+        if idx in line_to_chunk and idx not in line_done:
+            c_idx = line_to_chunk[idx]
+            display_n = chunk_to_display[c_idx]
+            clean_line = re.sub(r'\s*\[\d+\]\s*$', '', result_lines[idx]).rstrip()
+            result_lines[idx] = f"{clean_line} [{display_n}]"
+            line_done.add(idx)
+
+    new_response = '\n'.join(result_lines)
+
+    # Tính relevant_spans cho từng chunk được cite
+    relevant_spans: list[list[str]] = [[] for _ in chunks]
+    for c_idx, src_lines in citation_source_lines.items():
+        query_text = " ".join(src_lines[:3])
+        chunk = chunks[c_idx]
+        chunk_sentences = [
+            s.strip() for s in re.split(r'(?<=[.!?\n])\s+', chunk.content)
+            if len(s.strip()) > 15
+        ]
+        if not chunk_sentences:
+            continue
+        pairs = [[query_text, s] for s in chunk_sentences]
+        try:
+            span_scores = reranker.predict(pairs)
+            span_list = span_scores.tolist() if hasattr(span_scores, 'tolist') else list(span_scores)
+            scored = sorted(zip(span_list, chunk_sentences), key=lambda x: x[0], reverse=True)
+            relevant_spans[c_idx] = [s for score, s in scored if score > -2.0][:3]
+        except Exception:
+            pass
+
+    return new_response, citation_source_lines, relevant_spans, used_chunk_indices
 
 
 def _extract_relevant_spans_dynamic(chunk_queries: list[str], chunks: list) -> list[list[str]]:
@@ -231,6 +355,26 @@ def _process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
         result_lines.append(line)
 
     return '\n'.join(result_lines), citation_source_lines
+
+
+_NOT_FOUND_PATTERN = re.compile(
+    r'Tôi không tìm thấy thông tin này trong tài liệu[^\n]*',
+    re.IGNORECASE,
+)
+
+
+def _strip_spurious_not_found(text: str) -> str:
+    """
+    Xóa câu 'Tôi không tìm thấy...' nếu response đã có nội dung thực sự.
+    Qwen2.5 hay thêm câu này như closing statement dù đã trả lời đầy đủ.
+    Chỉ giữ lại câu này nếu nó là NỘI DUNG DUY NHẤT của response.
+    """
+    stripped = _NOT_FOUND_PATTERN.sub('', text).strip()
+    # Nếu sau khi xóa còn lại nội dung có nghĩa → dùng bản đã xóa
+    if len(stripped) > 20:
+        return stripped
+    # Nếu xóa xong không còn gì → response thực sự là "không tìm thấy", giữ nguyên
+    return text.strip()
 
 
 def _fix_bullet_indentation(text: str) -> str:
@@ -341,8 +485,9 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     # 2. Ghép ngữ cảnh
     context_parts = []
     for i, chunk in enumerate(chunks):
-        letter = chr(65 + (i % 26)) # 0 -> A, 1 -> B...
-        context_parts.append(f"[TÀI LIỆU {letter}]\n{chunk.content}")
+        letter = chr(65 + (i % 26))
+        source_name = chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}")
+        context_parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{chunk.content}")
 
     merged_context = "\n\n".join(context_parts)
 
@@ -364,36 +509,30 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
 
-    # 5. Xóa context labels, giữ lại [A]/[B] citations do LLM chèn
-    safe_response = re.sub(r'\[\d+\]', '', safe_response)
-    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
+    # 5. Xóa context labels thừa + marker [A][B][C] thô + câu "không tìm thấy" giả
+    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
+    safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
+    safe_response = _strip_spurious_not_found(safe_response)
 
-    # 6. Xử lý LLM citations + căn chỉnh thụt lề bullet
-    safe_response, citation_source_lines = _process_llm_citations(safe_response, len(chunks))
+    # 6. Post-hoc citation verification — rerank từng câu với chunk thực tế
+    safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
+        _verify_citations_post_hoc(safe_response, chunks)
     safe_response = _fix_bullet_indentation(safe_response)
 
-    # 7. Build chunk_queries cho relevant spans
-    chunk_queries = [query] * len(chunks)
-    for chunk_idx, src_lines in citation_source_lines.items():
-        if 0 <= chunk_idx < len(chunks):
-            chunk_queries[chunk_idx] = " ".join(src_lines)
-
-    # 8. Rerank tìm highlight (Dynamic Spans)
-    all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
-
-    # 8. Đóng gói citations
+    # 7. Đóng gói citations — chỉ include chunk được cite thực sự
     citations = []
-    for i, chunk in enumerate(chunks):
+    for display_n, c_idx in enumerate(used_chunk_indices):
+        chunk = chunks[c_idx]
         citations.append({
             "content_preview": chunk.content,
             "document_id": chunk.document_id,
             "chunk_index": chunk.chunk_index,
-            "page": chunk.chunk_index + 1,
+            "page": chunk.page_metadata.get("page_number", chunk.chunk_index + 1),
             "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
             "rerank_score": round(chunk.rerank_score, 4),
             "source_type": chunk.source_type,
-            "relevant_spans": all_relevant_spans[i] if i < len(all_relevant_spans) else [],
-            "source_lines": citation_source_lines.get(i, []),
+            "relevant_spans": all_relevant_spans[c_idx] if c_idx < len(all_relevant_spans) else [],
+            "source_lines": citation_source_lines.get(c_idx, []),
         })
 
     # 8. Sinh gợi ý câu hỏi tiếp theo
@@ -468,7 +607,11 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
     yield _sse({"type": "thinking", "step": "🧠 Đang tổng hợp câu trả lời..."})
 
-    context_parts = [f"[TÀI LIỆU {chr(65 + i % 26)}]\n{chunk.content}" for i, chunk in enumerate(chunks)]
+    context_parts = []
+    for i, chunk in enumerate(chunks):
+        letter = chr(65 + i % 26)
+        source_name = chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}")
+        context_parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{chunk.content}")
     merged_context = "\n\n".join(context_parts)
 
     if not _is_summary_intent(query) and check_hallucination(merged_context, retrieval_query):
@@ -508,46 +651,35 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     # Post-process
     safe_response = apply_pii_masking(full_response)
-    safe_response = re.sub(r'\[\d+\]', '', safe_response)
-    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+\]', '', safe_response).strip()
+    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
+    safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
+    safe_response = _strip_spurious_not_found(safe_response)
     log_english_leakage(safe_response)
 
-    # Xử lý LLM citations + căn chỉnh thụt lề bullet
-    safe_response, citation_source_lines = _process_llm_citations(safe_response, len(chunks))
+    # Post-hoc citation verification — rerank từng câu với chunk thực tế
+    safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
+        _verify_citations_post_hoc(safe_response, chunks)
     safe_response = _fix_bullet_indentation(safe_response)
 
     # Gửi corrected_text để frontend thay thế text đã stream bằng bản có citation
     yield _sse({"type": "corrected_text", "content": safe_response})
 
-    chunk_queries = [query] * len(chunks)
-    for chunk_idx, src_lines in citation_source_lines.items():
-        if 0 <= chunk_idx < len(chunks):
-            chunk_queries[chunk_idx] = " ".join(src_lines)
-
-    # Build citations ngay — không có relevant_spans để tránh block reranker
+    # Build citations — chỉ include chunk được cite thực sự
     citations = []
-    for i, chunk in enumerate(chunks):
+    for c_idx in used_chunk_indices:
+        chunk = chunks[c_idx]
         citations.append({
             "content_preview": chunk.content,
             "document_id": chunk.document_id,
             "chunk_index": chunk.chunk_index,
-            "page": chunk.chunk_index + 1,
+            "page": chunk.page_metadata.get("page_number", chunk.chunk_index + 1),
             "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
             "rerank_score": round(chunk.rerank_score, 4),
             "source_type": chunk.source_type,
-            "relevant_spans": [],
-            "source_lines": citation_source_lines.get(i, []),
+            "relevant_spans": all_relevant_spans[c_idx] if c_idx < len(all_relevant_spans) else [],
+            "source_lines": citation_source_lines.get(c_idx, []),
         })
 
-    # Yield done ngay — frontend không phải đợi reranker và suggestions
     yield _sse({"type": "done", "citations": citations, "suggestions": []})
-
-    # Compute relevant_spans sau done — gửi qua event riêng để frontend patch vào citations
-    all_relevant_spans = _extract_relevant_spans_dynamic(chunk_queries, chunks)
-    spans_payload = [
-        all_relevant_spans[i] if i < len(all_relevant_spans) else []
-        for i in range(len(chunks))
-    ]
-    yield _sse({"type": "relevant_spans", "spans": spans_payload})
 
     # _generate_suggestions tắt: thêm 1 LLM call sau done → Ollama bận, request tiếp bị queue
