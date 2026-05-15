@@ -184,8 +184,12 @@ def rewrite_query(query: str, history: list[dict], llm_invoke_fn) -> str:
 # 4. Expand query thành nhiều biến thể (cho adaptive retrieval)
 # ---------------------------------------------------------------------------
 
-_EXPAND_TEMPLATE = """Tạo 2 cách diễn đạt khác nhau của câu hỏi sau (cùng ý nghĩa, khác từ ngữ).
-Mỗi câu một dòng, không đánh số, không giải thích, không thêm nội dung khác.
+_EXPAND_TEMPLATE = """Tạo 2 cách diễn đạt khác nhau của câu hỏi sau để tìm kiếm trong tài liệu nội bộ tiếng Việt.
+
+Yêu cầu:
+- Thay thế từ tiếng Anh / thuật ngữ kỹ thuật bằng từ tiếng Việt tương đương thường dùng trong tài liệu công ty (ví dụ: "flash drive" → "USB", "laptop" → "máy tính xách tay", "backup" → "sao lưu", "email" → "thư điện tử").
+- Dùng từ ngữ khác nhau nhưng cùng ý nghĩa.
+- Mỗi câu một dòng, không đánh số, không giải thích, không thêm nội dung khác.
 
 Câu hỏi gốc: {query}
 2 biến thể:"""
