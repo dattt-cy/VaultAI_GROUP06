@@ -76,6 +76,19 @@ def overview(db: Session = Depends(get_db)):
         chroma_count = -1
         chroma_status = f"error: {e}"
 
+    total_feedback    = db.query(Feedback).count()
+    pending_feedback  = db.query(Feedback).filter(
+        Feedback.reaction.in_(["DISLIKE", "HALLUCINATED"]),
+        Feedback.resolved == False,  # noqa: E712
+    ).count()
+    feedback_stats = {
+        "total":       total_feedback,
+        "pending":     pending_feedback,
+        "likes":       db.query(Feedback).filter(Feedback.reaction == "LIKE").count(),
+        "dislikes":    db.query(Feedback).filter(Feedback.reaction == "DISLIKE").count(),
+        "hallucinated":db.query(Feedback).filter(Feedback.reaction == "HALLUCINATED").count(),
+    }
+
     return {
         "total_users": total_users,
         "total_documents": total_documents,
@@ -84,6 +97,7 @@ def overview(db: Session = Depends(get_db)):
         "ingestion_stats": ingestion_stats,
         "chroma_status": chroma_status,
         "chroma_vectors": chroma_count,
+        "feedback_stats": feedback_stats,
     }
 
 
@@ -849,19 +863,44 @@ def activate_system_prompt(prompt_id: int, db: Session = Depends(get_db)):
 # 12. Chat Monitor – tất cả sessions (admin)
 # ─────────────────────────────────────────────
 @router.get("/chat/sessions", summary="Tất cả phiên chat")
-def list_all_sessions(skip: int = 0, limit: int = 50, db: Session = Depends(get_db)):
-    sessions = (
-        db.query(ChatSession)
-        .order_by(ChatSession.created_at.desc())
-        .offset(skip).limit(limit).all()
-    )
-    total = db.query(ChatSession).count()
+def list_all_sessions(
+    skip: int = 0,
+    limit: int = 20,
+    search: str = "",
+    is_archived: str = "",
+    db: Session = Depends(get_db),
+):
+    from typing import Optional
+    query = db.query(ChatSession)
+
+    # Filter archived
+    if is_archived == "true":
+        query = query.filter(ChatSession.is_archived == True)
+    elif is_archived == "false":
+        query = query.filter(ChatSession.is_archived == False)
+
+    # Filter by email/username — join User
+    if search:
+        query = query.join(User, ChatSession.user_id == User.id).filter(
+            (User.email.ilike(f"%{search}%")) |
+            (User.username.ilike(f"%{search}%")) |
+            (User.full_name.ilike(f"%{search}%"))
+        )
+
+    total = query.count()
+    sessions = query.order_by(ChatSession.created_at.desc()).offset(skip).limit(limit).all()
+
+    user_ids = {s.user_id for s in sessions}
+    users = {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
     return {
         "total": total,
         "items": [
             {
                 "id": s.id,
                 "user_id": s.user_id,
+                "username": users[s.user_id].username if s.user_id in users else None,
+                "full_name": users[s.user_id].full_name if s.user_id in users else None,
+                "email": users[s.user_id].email if s.user_id in users else None,
                 "session_title": s.session_title,
                 "is_archived": s.is_archived,
                 "message_count": db.query(Message).filter(Message.session_id == s.id).count(),
@@ -905,20 +944,110 @@ def list_all_feedback(skip: int = 0, limit: int = 100, db: Session = Depends(get
         .offset(skip).limit(limit).all()
     )
     total = db.query(Feedback).count()
-    return {
-        "total": total,
-        "items": [
-            {
-                "id": f.id,
-                "message_id": f.message_id,
-                "reaction": f.reaction,
-                "user_comment": f.user_comment,
-                "corrected_text": f.corrected_text,
-                "created_at": str(f.created_at),
-            }
-            for f in feedbacks
-        ],
-    }
+
+    items = []
+    for f in feedbacks:
+        item = {
+            "id": f.id,
+            "message_id": f.message_id,
+            "reaction": f.reaction,
+            "user_comment": f.user_comment,
+            "corrected_text": f.corrected_text,
+            "resolved": f.resolved if f.resolved is not None else False,
+            "created_at": str(f.created_at),
+            "user_question": None,
+            "ai_answer": None,
+            "citations": [],
+        }
+
+        msg = db.query(Message).filter(Message.id == f.message_id).first()
+        if msg:
+            item["ai_answer"] = msg.content
+
+            user_msg = (
+                db.query(Message)
+                .filter(
+                    Message.session_id == msg.session_id,
+                    Message.id < msg.id,
+                    Message.sender_type == "user",
+                )
+                .order_by(Message.id.desc())
+                .first()
+            )
+            if user_msg:
+                item["user_question"] = user_msg.content
+
+            try:
+                raw_citations = _json.loads(msg.citations_json or "[]")
+                enriched = []
+                for c in raw_citations:
+                    doc_id = c.get("document_id")
+                    doc = db.query(Document).filter(Document.id == doc_id).first() if doc_id else None
+                    enriched.append({
+                        "document_id": doc_id,
+                        "document_title": doc.title if doc else c.get("sourceFile", "Unknown"),
+                        "chunk_index": c.get("chunk_index"),
+                        "excerpt": c.get("content_preview", ""),
+                        "relevant_spans": c.get("relevant_spans", []),
+                    })
+                item["citations"] = enriched
+            except Exception:
+                pass
+
+        items.append(item)
+
+    return {"total": total, "items": items}
+
+
+@router.patch("/feedback/{feedback_id}/resolve", summary="Đánh dấu phản hồi đã xử lý")
+def resolve_feedback(feedback_id: int, db: Session = Depends(get_db)):
+    f = db.query(Feedback).filter(Feedback.id == feedback_id).first()
+    if not f:
+        raise HTTPException(status_code=404, detail="Feedback không tồn tại")
+    f.resolved = not f.resolved
+    db.commit()
+    return {"success": True, "resolved": f.resolved}
+
+
+@router.get("/feedback/flagged-documents", summary="Tài liệu bị báo lỗi nhiều nhất")
+def flagged_documents(db: Session = Depends(get_db)):
+    """Trả về danh sách tài liệu xuất hiện trong feedback DISLIKE/HALLUCINATED,
+    sắp xếp theo số lần bị báo lỗi giảm dần."""
+    bad_feedbacks = (
+        db.query(Feedback)
+        .filter(Feedback.reaction.in_(["DISLIKE", "HALLUCINATED"]))
+        .all()
+    )
+
+    doc_counts: dict = {}  # document_id → {title, bad_count, unresolved_count}
+    for f in bad_feedbacks:
+        msg = db.query(Message).filter(Message.id == f.message_id).first()
+        if not msg or not msg.citations_json:
+            continue
+        try:
+            citations = _json.loads(msg.citations_json)
+        except Exception:
+            continue
+        seen = set()
+        for c in citations:
+            doc_id = c.get("document_id")
+            if not doc_id or doc_id in seen:
+                continue
+            seen.add(doc_id)
+            if doc_id not in doc_counts:
+                doc = db.query(Document).filter(Document.id == doc_id).first()
+                doc_counts[doc_id] = {
+                    "document_id": doc_id,
+                    "document_title": doc.title if doc else c.get("sourceFile", "Unknown"),
+                    "bad_count": 0,
+                    "unresolved_count": 0,
+                }
+            doc_counts[doc_id]["bad_count"] += 1
+            if not f.resolved:
+                doc_counts[doc_id]["unresolved_count"] += 1
+
+    result = sorted(doc_counts.values(), key=lambda x: x["bad_count"], reverse=True)
+    return {"items": result}
 
 
 # ─────────────────────────────────────────────
