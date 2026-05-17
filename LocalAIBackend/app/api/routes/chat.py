@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -285,7 +286,14 @@ async def get_session_messages(
     if not session:
         raise HTTPException(status_code=404, detail="Session không tồn tại")
 
+    from app.models.chat_model import Feedback as FeedbackModel
     msgs = sorted(session.messages, key=lambda m: m.created_at)
+
+    # Build feedback lookup: message_id → reaction
+    msg_ids = [m.id for m in msgs]
+    feedbacks = db.query(FeedbackModel).filter(FeedbackModel.message_id.in_(msg_ids)).all()
+    feedback_map = {f.message_id: f.reaction.lower() for f in feedbacks}
+
     return {
         "session_id": session_id,
         "title": session.session_title or "Cuộc trò chuyện",
@@ -296,17 +304,21 @@ async def get_session_messages(
                 "content": m.content,
                 "citations": json.loads(m.citations_json) if m.citations_json else [],
                 "created_at": m.created_at.isoformat(),
+                "feedback": feedback_map.get(m.id),
             }
             for m in msgs
         ],
     }
 
 
+class FeedbackBody(BaseModel):
+    user_comment: Optional[str] = None
+
 @router.post("/messages/{message_id}/feedback")
 async def save_feedback(
     message_id: int,
     reaction: str,
-    user_comment: Optional[str] = None,
+    body: Optional[FeedbackBody] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -317,6 +329,8 @@ async def save_feedback(
     ).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message không tồn tại")
+
+    user_comment = body.user_comment if body else None
 
     existing = db.query(FeedbackModel).filter(FeedbackModel.message_id == message_id).first()
     if existing:

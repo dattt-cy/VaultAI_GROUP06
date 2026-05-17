@@ -51,6 +51,7 @@ class Feedback(Base):
     reaction = Column(String(20), nullable=False)
     user_comment = Column(Text, nullable=True)
     corrected_text = Column(Text, nullable=True)
+    resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     message = relationship("Message", back_populates="feedbacks")
