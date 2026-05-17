@@ -11,6 +11,7 @@ from app.models import user_model, doc_model, chat_model, sys_model  # noqa: F40
 
 # Routers
 from app.api.routes import documents, chat, admin, auth
+from app.api.routes import admin_ollama, admin_rag_config, admin_backup, admin_security
 from app.api.dependencies import require_min_level
 
 Base.metadata.create_all(bind=engine)
@@ -20,9 +21,15 @@ def _run_migrations():
     from sqlalchemy import text, inspect
     with engine.connect() as conn:
         inspector = inspect(engine)
+
         msg_cols = {c["name"] for c in inspector.get_columns("messages")}
         if "citations_json" not in msg_cols:
             conn.execute(text("ALTER TABLE messages ADD COLUMN citations_json TEXT"))
+            conn.commit()
+
+        fb_cols = {c["name"] for c in inspector.get_columns("feedbacks")}
+        if "resolved" not in fb_cols:
+            conn.execute(text("ALTER TABLE feedbacks ADD COLUMN resolved BOOLEAN DEFAULT FALSE"))
             conn.commit()
 
 _run_migrations()
@@ -34,7 +41,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
+                   "http://localhost:5174", "http://127.0.0.1:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -49,6 +57,10 @@ app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"], dependencies=[Depends(require_min_level(5))])
+app.include_router(admin_ollama.router, prefix="/api/admin", tags=["Admin - Ollama"])
+app.include_router(admin_rag_config.router, prefix="/api/admin", tags=["Admin - RAG Config"])
+app.include_router(admin_backup.router, prefix="/api/admin", tags=["Admin - Backup"])
+app.include_router(admin_security.router, prefix="/api/admin", tags=["Admin - Security"])
 
 
 @app.on_event("startup")
@@ -84,6 +96,37 @@ def seed_initial_data():
             db.add(default_admin)
             db.commit()
             print("[Seed] Tài khoản mặc định: username=admin  password=admin123")
+
+        # Seed LLM config nếu chưa có
+        from app.models.sys_model import LlmConfig, SystemPrompt
+        if not db.query(LlmConfig).first():
+            default_llm = LlmConfig(
+                model_name=settings.LLM_MODEL_NAME,
+                temperature=settings.LLM_TEMPERATURE,
+                context_window_limit=settings.LLM_NUM_CTX,
+                max_new_tokens=settings.LLM_NUM_PREDICT,
+                is_active=True,
+            )
+            db.add(default_llm)
+            db.commit()
+            print(f"[Seed] LLM config mặc định: model={settings.LLM_MODEL_NAME}")
+
+        # Seed System Prompt nếu chưa có
+        if not db.query(SystemPrompt).first():
+            default_prompt = SystemPrompt(
+                version_name="v1.0 - Mặc định",
+                description="System prompt mặc định cho trợ lý AI nội bộ",
+                prompt_content=(
+                    "Bạn là trợ lý AI nội bộ của tổ chức. "
+                    "Hãy trả lời dựa trên tài liệu được cung cấp, trung thực và rõ ràng. "
+                    "Nếu không tìm thấy thông tin trong tài liệu, hãy nói thẳng là không có dữ liệu liên quan. "
+                    "Trả lời bằng tiếng Việt trừ khi người dùng hỏi bằng ngôn ngữ khác."
+                ),
+                is_active=True,
+            )
+            db.add(default_prompt)
+            db.commit()
+            print("[Seed] System prompt mặc định đã được tạo")
     finally:
         db.close()
 
