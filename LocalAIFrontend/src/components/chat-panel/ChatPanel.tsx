@@ -11,7 +11,8 @@ interface ChatPanelProps {
   onSend: (t: string) => void;
   onCancel: () => void;
   onCitationClick: (c: Citation) => void;
-  onFeedback: (id: string, type: 'like' | 'dislike') => void;
+  onFeedback: (id: string, type: 'like' | 'dislike', comment?: string) => void;
+  onReport: (id: string, reportType: string, comment: string) => void;
   prefill?: string;
   onPrefillConsumed?: () => void;
   checkedCount: number;
@@ -20,7 +21,7 @@ interface ChatPanelProps {
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
-  messages, isGenerating, onSend, onCancel, onCitationClick, onFeedback, prefill, onPrefillConsumed,
+  messages, isGenerating, onSend, onCancel, onCitationClick, onFeedback, onReport, prefill, onPrefillConsumed,
   checkedCount, checkedIds, selectedDocNames = [],
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -163,6 +164,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               message={msg}
               onCitationClick={onCitationClick}
               onFeedback={onFeedback}
+              onReport={onReport}
               onSuggestionClick={onSend}
               showSuggestions={msg.id === lastCompletedAssistantId}
             />

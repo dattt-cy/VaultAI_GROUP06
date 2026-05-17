@@ -19,7 +19,7 @@ export interface Message {
   citations?: Citation[];
   timestamp: Date;
   isStreaming?: boolean;
-  feedback?: 'like' | 'dislike' | null;
+  feedback?: 'like' | 'dislike' | 'report' | null;
   suggestions?: string[];
   isCancelled?: boolean;
   thinkingSteps?: string[];
@@ -83,6 +83,7 @@ export function useChatState() {
       const data = await res.json();
       const msgs: Message[] = (data.messages ?? []).map((m: any) => ({
         id: String(m.id),
+        backendId: m.id,
         role: m.role as 'user' | 'assistant',
         content: m.content,
         citations: (m.citations ?? []).map((c: any, index: number) => ({
@@ -95,6 +96,7 @@ export function useChatState() {
           source_lines: c.source_lines || [],
         })),
         timestamp: new Date(m.created_at),
+        feedback: m.feedback ?? null,
       }));
       setMessages(msgs.length > 0 ? msgs : [WELCOME_MSG]);
       setCurrentSessionId(sessionId);
@@ -277,18 +279,35 @@ export function useChatState() {
     }
   }, [currentSessionId, loadSessions]);
 
-  const setFeedback = useCallback((msgId: string, reaction: 'like' | 'dislike') => {
+  const setFeedback = useCallback((msgId: string, reaction: 'like' | 'dislike', comment?: string) => {
     setMessages(prev => {
       const msg = prev.find(m => m.id === msgId);
       const newReaction = msg?.feedback === reaction ? null : reaction;
-      // Fire-and-forget API call if we have a backend ID
       if (msg?.backendId && newReaction) {
-        fetch(`${API_BASE}/api/chat/messages/${msg.backendId}/feedback?reaction=${newReaction}`, {
+        fetch(`${API_BASE}/api/chat/messages/${msg.backendId}/feedback?reaction=${newReaction.toUpperCase()}`, {
           method: 'POST',
           credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_comment: comment ?? null }),
         }).catch(() => { /* ignore */ });
       }
       return prev.map(m => m.id === msgId ? { ...m, feedback: newReaction } : m);
+    });
+  }, []);
+
+  const reportMessage = useCallback((msgId: string, reportType: string, comment: string) => {
+    setMessages(prev => {
+      const msg = prev.find(m => m.id === msgId);
+      if (msg?.backendId) {
+        const userComment = comment ? `[${reportType}] ${comment}` : `[${reportType}]`;
+        fetch(`${API_BASE}/api/chat/messages/${msg.backendId}/feedback?reaction=HALLUCINATED`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_comment: userComment }),
+        }).catch(() => { /* ignore */ });
+      }
+      return prev.map(m => m.id === msgId ? { ...m, feedback: 'report' } : m);
     });
   }, []);
 
@@ -303,6 +322,6 @@ export function useChatState() {
 
   return {
     messages, sessions, currentSessionId, isGenerating, cancelledQuestion,
-    sendMessage, cancelMessage, setFeedback, newSession, loadSession, deleteSession, loadSessions,
+    sendMessage, cancelMessage, setFeedback, reportMessage, newSession, loadSession, deleteSession, loadSessions,
   };
 }

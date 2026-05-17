@@ -9,13 +9,14 @@ import { ChatActions } from './ChatActions';
 interface MessageBubbleProps {
   message: Message;
   onCitationClick: (c: Citation, sourceLine?: string) => void;
-  onFeedback: (id: string, type: 'like' | 'dislike') => void;
+  onFeedback: (id: string, type: 'like' | 'dislike', comment?: string) => void;
+  onReport: (id: string, reportType: string, comment: string) => void;
   onSuggestionClick?: (s: string) => void;
   showSuggestions?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
-  message, onCitationClick, onFeedback, onSuggestionClick, showSuggestions,
+  message, onCitationClick, onFeedback, onReport, onSuggestionClick, showSuggestions,
 }) => {
   const isUser = message.role === 'user';
 
@@ -298,7 +299,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           {/* Actions */}
           {!message.isStreaming && (
             <>
-              <ChatActions messageId={message.id} feedback={message.feedback} onFeedback={onFeedback} content={message.content} />
+              <ChatActions messageId={message.id} feedback={message.feedback} onFeedback={onFeedback} onReport={onReport} content={message.content} />
             </>
           )}
         </div>}
