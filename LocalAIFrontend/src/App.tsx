@@ -14,11 +14,15 @@ const DocPermissionsPage = lazy(() => import('./pages/admin/DocPermissionsPage')
 const DocumentsPage      = lazy(() => import('./pages/admin/DocumentsPage'));
 const CategoriesPage     = lazy(() => import('./pages/admin/CategoriesPage'));
 const DepartmentsPage    = lazy(() => import('./pages/admin/DepartmentsPage'));
-const AIConfigPage       = lazy(() => import('./pages/admin/AIConfigPage'));
-const ChatMonitorPage    = lazy(() => import('./pages/admin/ChatMonitorPage'));
-const FeedbackPage       = lazy(() => import('./pages/admin/FeedbackPage'));
-const AuditLogsPage      = lazy(() => import('./pages/admin/AuditLogsPage'));
-const SystemMetricsPage  = lazy(() => import('./pages/admin/SystemMetricsPage'));
+const AIConfigPage          = lazy(() => import('./pages/admin/AIConfigPage'));
+const ChatMonitorPage       = lazy(() => import('./pages/admin/ChatMonitorPage'));
+const FeedbackPage          = lazy(() => import('./pages/admin/FeedbackPage'));
+const AuditLogsPage         = lazy(() => import('./pages/admin/AuditLogsPage'));
+const SystemMetricsPage     = lazy(() => import('./pages/admin/SystemMetricsPage'));
+const ModelManagementPage   = lazy(() => import('./pages/admin/ModelManagementPage'));
+const RAGConfigPage         = lazy(() => import('./pages/admin/RAGConfigPage'));
+const BackupPage            = lazy(() => import('./pages/admin/BackupPage'));
+const SecuritySettingsPage  = lazy(() => import('./pages/admin/SecuritySettingsPage'));
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center bg-base">
@@ -53,8 +57,12 @@ function AppRoutes() {
           <Route path="ai-config"        element={<AIConfigPage />} />
           <Route path="chat-monitor"     element={<ChatMonitorPage />} />
           <Route path="feedback"         element={<FeedbackPage />} />
-          <Route path="audit-logs"       element={<AuditLogsPage />} />
+          <Route path="audit-logs"         element={<AuditLogsPage />} />
           <Route path="system-metrics"   element={<SystemMetricsPage />} />
+          <Route path="model-management" element={<ModelManagementPage />} />
+          <Route path="rag-config"       element={<RAGConfigPage />} />
+          <Route path="backup"           element={<BackupPage />} />
+          <Route path="security"         element={<SecuritySettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
