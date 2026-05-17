@@ -40,11 +40,6 @@ export const TopHeader: React.FC = () => {
           <span className="text-[12px] text-text-muted">Trực tuyến</span>
         </div>
 
-        {/* Role badge */}
-        <span className={`badge border hidden sm:inline-flex ${isAdmin ? 'bg-danger/15 text-danger border-danger/30' : 'bg-warning/15 text-warning border-warning/30'}`}>
-          {isAdmin ? 'Admin' : 'Người dùng'}
-        </span>
-
         {/* Admin Panel link */}
         {canAccess(5) && (
           <button

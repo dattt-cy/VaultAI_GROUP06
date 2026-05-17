@@ -24,7 +24,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
 
   const {
     messages, isGenerating, cancelledQuestion, currentSessionId,
-    sendMessage, cancelMessage, setFeedback, loadSession,
+    sendMessage, cancelMessage, setFeedback, reportMessage, loadSession,
   } = useChatState();
 
   // Load session từ URL param khi workspace mở
@@ -79,6 +79,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             onCancel={cancelMessage}
             onCitationClick={handleCitationClick}
             onFeedback={setFeedback}
+            onReport={reportMessage}
             prefill={prefill || cancelledQuestion || undefined}
             onPrefillConsumed={() => setPrefill(undefined)}
             checkedCount={checkedIds.size}
