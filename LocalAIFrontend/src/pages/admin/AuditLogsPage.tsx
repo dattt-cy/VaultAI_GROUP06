@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
-import { API_BASE } from '../../utils/apiClient';
+import { apiGet } from '../../utils/apiClient';
 
 interface AuditLog {
   id: number;
@@ -33,7 +33,7 @@ const AuditLogsPage: React.FC = () => {
     const params = new URLSearchParams({ limit: '200' });
     if (filterAction) params.set('action', filterAction);
     if (search) params.set('username', search);
-    const res = await fetch(`${API_BASE}/api/admin/audit-logs?${params}`);
+    const res = await apiGet(`/api/admin/audit-logs?${params}`);
     const data = await res.json();
     setLogs(data.items ?? []);
     setTotal(data.total ?? 0);

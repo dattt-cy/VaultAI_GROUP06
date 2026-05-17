@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Check, Zap, FileText } from 'lucide-react';
-import { API_BASE } from '../../utils/apiClient';
+import { API_BASE, apiGet, apiPut, apiPost } from '../../utils/apiClient';
 
 interface LlmConfig {
   id: number;
@@ -33,13 +33,13 @@ const AIConfigPage: React.FC = () => {
   const [testResult, setTestResult] = useState<string | null>(null);
 
   const fetchConfig = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/api/admin/ai-config`);
+    const res = await apiGet('/api/admin/ai-config');
     const data = await res.json();
     if (data.active !== false) setConfig(data);
   }, []);
 
   const fetchPrompts = useCallback(async () => {
-    const res = await fetch(`${API_BASE}/api/admin/system-prompts`);
+    const res = await apiGet('/api/admin/system-prompts');
     setPrompts(await res.json());
   }, []);
 
@@ -48,7 +48,7 @@ const AIConfigPage: React.FC = () => {
   const testConnection = async () => {
     setTestResult('testing');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/ai-config/test-connection`, { method: 'POST' });
+      const res = await apiPost('/api/admin/ai-config/test-connection');
       const data = await res.json();
       setTestResult(data.online ? 'ok' : 'fail');
     } catch {
@@ -60,15 +60,11 @@ const AIConfigPage: React.FC = () => {
     if (!config) return;
     setSavingConfig(true);
     try {
-      await fetch(`${API_BASE}/api/admin/ai-config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model_name: config.model_name,
-          temperature: config.temperature,
-          context_window_limit: config.context_window_limit,
-          max_new_tokens: config.max_new_tokens,
-        }),
+      await apiPut('/api/admin/ai-config', {
+        model_name: config.model_name,
+        temperature: config.temperature,
+        context_window_limit: config.context_window_limit,
+        max_new_tokens: config.max_new_tokens,
       });
       setSavedConfig(true);
     } finally {
@@ -77,16 +73,12 @@ const AIConfigPage: React.FC = () => {
   };
 
   const activatePrompt = async (id: number) => {
-    await fetch(`${API_BASE}/api/admin/system-prompts/${id}/activate`, { method: 'POST' });
+    await apiPost(`/api/admin/system-prompts/${id}/activate`);
     fetchPrompts();
   };
 
   const savePromptEdit = async () => {
-    await fetch(`${API_BASE}/api/admin/system-prompts/${editPromptId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt_content: editContent }),
-    });
+    await apiPut(`/api/admin/system-prompts/${editPromptId}`, { prompt_content: editContent });
     setEditPromptId(null);
     fetchPrompts();
   };

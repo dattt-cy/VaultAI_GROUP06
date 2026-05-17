@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search, X, Eye, Trash2, RefreshCw, Upload,
   FolderOpen, Folder, Plus, Check, Loader2,
@@ -62,6 +63,15 @@ const DocumentsPage: React.FC = () => {
   const [drawerDocTitle, setDrawerDocTitle] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const open = searchParams.get('open');
+    if (open) {
+      setDrawerDocTitle(open);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   // Upload form state
   const [uploadFiles_state, setUploadFiles_state] = useState<File[]>([]);
   const [uploadCategoryId, setUploadCategoryId] = useState<number>(0);
@@ -79,6 +89,26 @@ const DocumentsPage: React.FC = () => {
     scope: 'COMPANY',
     onSuccess: () => { refetch(); },
   });
+
+  // Replace doc flow
+  const [replaceDoc, setReplaceDoc] = useState<AdminDoc | null>(null);
+  const [replacing, setReplacing] = useState(false);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
+
+  const { uploads: replaceUploads, uploadFiles: uploadReplaceFile, dismiss: dismissReplace, dismissAll: dismissAllReplace } = useDocumentUpload({
+    categoryId: replaceDoc?.category_id ?? 1,
+    scope: (replaceDoc?.scope as 'COMPANY' | 'PERSONAL') ?? 'COMPANY',
+    onSuccess: () => { refetch(); setReplacing(false); },
+  });
+
+  const handleReplaceFileSelected = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0 || !replaceDoc) return;
+    setReplacing(true);
+    await deleteDocument(replaceDoc.id);
+    uploadReplaceFile([files[0]]);
+    setDrawerDocTitle(null);
+    if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
+  }, [replaceDoc, deleteDocument, uploadReplaceFile]);
 
   const { data: chunkData, loading: chunkLoading, error: chunkError } = useDocumentContent(drawerDocTitle);
 
@@ -349,15 +379,39 @@ const DocumentsPage: React.FC = () => {
       </div>
 
       {/* ── Chunk Drawer ───────────────────────────────────────────────────── */}
+      {/* Hidden file input for replace */}
+      <input
+        ref={replaceFileInputRef}
+        type="file"
+        accept=".pdf,.docx,.xlsx,.txt,.doc,.xls"
+        className="hidden"
+        onChange={e => handleReplaceFileSelected(e.target.files)}
+      />
+
       {drawerDocTitle && (
         <div className="fixed inset-0 z-50 flex">
           <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={() => setDrawerDocTitle(null)} />
           <div className="w-full max-w-lg bg-surface border-l border-border flex flex-col animate-slide-in">
             <div className="panel-header border-b border-border">
-              <span>Chunks — {drawerDocTitle}</span>
-              <button onClick={() => setDrawerDocTitle(null)} className="btn-icon w-6 h-6">
-                <X className="w-3 h-3" />
-              </button>
+              <span className="truncate flex-1 min-w-0 mr-2">Chunks — {drawerDocTitle}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    const doc = allDocs.find(d => d.title === drawerDocTitle) ?? null;
+                    setReplaceDoc(doc);
+                    replaceFileInputRef.current?.click();
+                  }}
+                  disabled={replacing}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-warning/15 hover:bg-warning/25 text-warning border border-warning/30 rounded-lg text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Xóa tài liệu cũ và upload file mới thay thế"
+                >
+                  {replacing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                  Thay thế tài liệu
+                </button>
+                <button onClick={() => setDrawerDocTitle(null)} className="btn-icon w-6 h-6">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {chunkLoading && (
@@ -486,7 +540,7 @@ const DocumentsPage: React.FC = () => {
       )}
 
       {/* ── Floating Upload Queue (Google Drive style) ─────────────────────── */}
-      <UploadQueuePanel uploads={uploads} onDismiss={dismiss} onDismissAll={dismissAll} />
+      <UploadQueuePanel uploads={[...uploads, ...replaceUploads]} onDismiss={id => { dismiss(id); dismissReplace(id); }} onDismissAll={() => { dismissAll(); dismissAllReplace(); }} />
     </div>
   );
 };
