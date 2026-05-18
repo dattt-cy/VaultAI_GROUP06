@@ -19,10 +19,10 @@ class Settings(BaseSettings):
     LLM_MODEL_NAME: str = "qwen2.5:7b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     LLM_TEMPERATURE: float = 0.1       # Thấp → qwen2.5:7b bám sát tài liệu, ít bịa hơn
-    LLM_NUM_PREDICT: int = 8192        # Tăng lên để AI trả lời dài và chi tiết hơn
-    LLM_NUM_CTX: int = 32768           # qwen2.5:7b hỗ trợ 128k — tăng để nhồi nhiều tài liệu hơn vào context
-    LLM_NUM_GPU: int = -1              # -1 = offload toàn bộ layers lên GPU (tận dụng GPU tối đa)
-    LLM_NUM_BATCH: int = 512           # Tăng batch size để xử lý nhanh hơn khi GPU đủ VRAM
+    LLM_NUM_PREDICT: int = 4096        # Tăng nhẹ từ 2048 — đủ cho câu trả lời chi tiết mà không OOM
+    LLM_NUM_CTX: int = 8192            # Giữ 8192: qwen2.5:7b + KV cache vừa khít 4GB VRAM RTX 3050
+    LLM_NUM_GPU: int = -1              # Offload tối đa layers lên GPU, Ollama tự cân bằng khi hết VRAM
+    LLM_NUM_BATCH: int = 128           # Nhỏ vừa phải cho 4GB VRAM, tránh OOM trong batch decode
 
     # Thinking / Reasoning Settings
     THINKING_ENABLED: bool = False     # Tắt thinking để giảm latency từ 3-5 phút xuống ~20-35 giây
