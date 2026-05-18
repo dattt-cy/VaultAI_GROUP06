@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ThumbsUp, ThumbsDown, AlertTriangle, FileText,
-  CheckCircle, ExternalLink, X, MessageSquare, Bot,
+  CheckCircle, ExternalLink, X, MessageSquare, Bot, Inbox,
 } from 'lucide-react';
 import { apiGet, apiPatch } from '../../utils/apiClient';
 import { useNavigate } from 'react-router-dom';
 import { DocumentViewer } from '../../components/document-panel/DocumentViewer';
 import type { HighlightState } from '../../hooks/useDocumentHighlight';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { SkeletonPanel } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface FeedbackCitation {
   document_id: number;
@@ -50,21 +54,34 @@ const FeedbackPage: React.FC = () => {
   const [total, setTotal]           = useState(0);
   const [selected, setSelected]     = useState<FeedbackItem | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ title: string; chunkIndex: number; excerpt: string } | null>(null);
+  const [isLoading, setIsLoading]   = useState(true);
   const navigate = useNavigate();
+  const toast = useToast();
 
   const fetchFeedback = useCallback(async () => {
-    const res  = await apiGet('/api/admin/feedback?limit=200');
-    const data = await res.json();
-    setFeedbacks(data.items ?? []);
-    setTotal(data.total ?? 0);
-  }, []);
+    try {
+      const res  = await apiGet('/api/admin/feedback?limit=200');
+      const data = await res.json();
+      setFeedbacks(data.items ?? []);
+      setTotal(data.total ?? 0);
+    } catch (err) {
+      toast.error('Không tải được phản hồi', String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => { fetchFeedback(); }, [fetchFeedback]);
 
   const handleResolve = async (id: number) => {
-    await apiPatch(`/api/admin/feedback/${id}/resolve`);
-    setFeedbacks(prev => prev.map(f => f.id === id ? { ...f, resolved: !f.resolved } : f));
-    setSelected(prev => prev?.id === id ? { ...prev, resolved: !prev.resolved } : prev);
+    try {
+      await apiPatch(`/api/admin/feedback/${id}/resolve`);
+      setFeedbacks(prev => prev.map(f => f.id === id ? { ...f, resolved: !f.resolved } : f));
+      setSelected(prev => prev?.id === id ? { ...prev, resolved: !prev.resolved } : prev);
+      toast.success('Đã cập nhật trạng thái phản hồi');
+    } catch (err) {
+      toast.error('Không cập nhật được', String(err));
+    }
   };
 
   const likes        = feedbacks.filter(f => f.reaction === 'LIKE').length;
@@ -78,34 +95,45 @@ const FeedbackPage: React.FC = () => {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
   });
 
+  if (isLoading) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <PageHeader title="Phản hồi người dùng" subtitle="Đánh giá chất lượng câu trả lời của AI" />
+        <SkeletonPanel rows={5} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full space-y-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-[20px] font-bold text-text-primary">Phản hồi người dùng</h1>
-          <p className="text-[13px] text-text-muted mt-0.5">
-            Đánh giá chất lượng câu trả lời của AI · {total} phản hồi
-            {pending > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 bg-danger/15 text-danger border border-danger/30 rounded-full text-[11px] font-semibold">
-                {pending} cần xử lý
-              </span>
-            )}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Phản hồi người dùng"
+        subtitle={`Đánh giá chất lượng câu trả lời của AI · ${total.toLocaleString('vi-VN')} phản hồi`}
+        actions={
+          pending > 0 ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-danger/10 text-danger border border-danger/30 rounded-full text-[11px] font-semibold">
+              <AlertTriangle className="w-3 h-3" />
+              {pending} cần xử lý
+            </span>
+          ) : null
+        }
+      />
 
       {/* Stats */}
-      <div className="flex gap-3">
+      <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Hài lòng',        value: likes,        icon: ThumbsUp,      bg: 'bg-success/10',  border: 'border-success/25', text: 'text-success'  },
-          { label: 'Không hài lòng',  value: dislikes,     icon: ThumbsDown,    bg: 'bg-warning/10',  border: 'border-warning/25', text: 'text-warning'  },
-          { label: 'Ảo giác AI',      value: hallucinated, icon: AlertTriangle, bg: 'bg-danger/10',   border: 'border-danger/25',  text: 'text-danger'   },
+          { label: 'Hài lòng',       value: likes,        icon: ThumbsUp,      bg: 'bg-success/8',  border: 'border-success/20', text: 'text-success' },
+          { label: 'Không hài lòng', value: dislikes,     icon: ThumbsDown,    bg: 'bg-warning/8',  border: 'border-warning/20', text: 'text-warning' },
+          { label: 'Ảo giác AI',     value: hallucinated, icon: AlertTriangle, bg: 'bg-danger/8',   border: 'border-danger/20',  text: 'text-danger'  },
         ].map(s => (
-          <div key={s.label} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border ${s.bg} ${s.border}`}>
-            <s.icon className={`w-3.5 h-3.5 ${s.text} shrink-0`} />
-            <span className="text-[12px] text-text-muted">{s.label}</span>
-            <span className={`text-[15px] font-bold ${s.text}`}>{s.value}</span>
+          <div key={s.label} className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${s.bg} ${s.border}`}>
+            <div className={`p-2 rounded-lg bg-surface ${s.text} flex-shrink-0`}>
+              <s.icon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-text-muted uppercase tracking-wide font-semibold">{s.label}</p>
+              <p className={`text-[20px] font-bold ${s.text} tabular-nums leading-tight`}>{s.value.toLocaleString('vi-VN')}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -136,7 +164,12 @@ const FeedbackPage: React.FC = () => {
         <div className={`flex flex-col rounded-xl border border-border overflow-hidden transition-all duration-200 ${selected ? 'w-[45%]' : 'w-full'}`}>
           <div className="overflow-y-auto flex-1">
             {filtered.length === 0 && (
-              <div className="px-4 py-10 text-center text-[13px] text-text-muted">Không có phản hồi nào</div>
+              <EmptyState
+                icon={Inbox}
+                title="Không có phản hồi nào"
+                description={filter ? 'Thử bỏ bộ lọc để xem toàn bộ phản hồi.' : 'Chưa có người dùng nào để lại phản hồi.'}
+                compact
+              />
             )}
             {filtered.map(f => {
               const isActive = selected?.id === f.id;

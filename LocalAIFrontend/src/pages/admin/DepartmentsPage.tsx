@@ -3,11 +3,12 @@ import {
   Plus, Pencil, Trash2, X, Check, Building2, Users, AlertCircle,
   Search, Mail, Shield, Clock, ChevronRight, UserX, Loader2,
 } from 'lucide-react';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../../utils/apiClient';
+import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from '../../utils/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
-
-const API_BASE = 'http://localhost:8000';
+import { useToast } from '../../components/admin/ui/Toast';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
 
 interface Department {
   id: number;
@@ -114,21 +115,26 @@ const DepartmentsPage: React.FC = () => {
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const toast = useToast();
 
   const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3000);
+    if (ok) toast.success(msg); else toast.error(msg);
   };
 
   const fetchDepartments = useCallback(async () => {
-    const res = await apiGet('/api/admin/departments');
-    const data: Department[] = await res.json();
-    setDepartments(data);
-    // refresh selected dept info
-    setSelectedDept(prev => prev ? (data.find(d => d.id === prev.id) ?? null) : null);
-  }, []);
+    try {
+      const res = await apiGet('/api/admin/departments');
+      const data: Department[] = await res.json();
+      setDepartments(data);
+      setSelectedDept(prev => prev ? (data.find(d => d.id === prev.id) ?? null) : null);
+    } catch (err) {
+      toast.error('Không tải được phòng ban', String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   const fetchDeptUsers = useCallback(async (deptId: number) => {
     setLoadingUsers(true);
@@ -265,11 +271,17 @@ const DepartmentsPage: React.FC = () => {
 
         {/* Dept list */}
         <div className="flex flex-col gap-2 overflow-y-auto flex-1 pr-0.5">
-          {departments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Building2 className="w-10 h-10 text-text-muted/30 mb-2" />
-              <p className="text-[12px] text-text-muted">Chưa có phòng ban</p>
-            </div>
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-[68px] w-full" rounded="xl" />
+            ))
+          ) : departments.length === 0 ? (
+            <EmptyState
+              icon={Building2}
+              title="Chưa có phòng ban"
+              description={canAccess(9) ? 'Bấm + để tạo phòng ban đầu tiên.' : 'Liên hệ admin để được tạo phòng ban.'}
+              compact
+            />
           ) : (
             departments.map(dept => (
               editId === dept.id ? (
@@ -487,16 +499,6 @@ const DepartmentsPage: React.FC = () => {
         );
       })()}
 
-      {/* ── Toast ── */}
-      {toast && (
-        <div className={cn(
-          'fixed bottom-5 right-5 z-[100] px-4 py-2.5 rounded-xl text-[13px] font-medium shadow-lg flex items-center gap-2 animate-fade-in',
-          toast.ok ? 'bg-success/20 border border-success/40 text-success' : 'bg-danger/20 border border-danger/40 text-danger',
-        )}>
-          {toast.ok ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 };

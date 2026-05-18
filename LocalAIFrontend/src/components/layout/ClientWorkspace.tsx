@@ -25,6 +25,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const {
     messages, isGenerating, cancelledQuestion, currentSessionId,
     sendMessage, cancelMessage, setFeedback, reportMessage, loadSession,
+    regenerateLast, editAndResend,
   } = useChatState();
 
   // Load session từ URL param khi workspace mở
@@ -77,6 +78,8 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             isGenerating={isGenerating}
             onSend={(text) => sendMessage(text, Array.from(checkedIds))}
             onCancel={cancelMessage}
+            onRegenerate={() => regenerateLast(Array.from(checkedIds))}
+            onEditUserMessage={(id, text) => editAndResend(id, text, Array.from(checkedIds))}
             onCitationClick={handleCitationClick}
             onFeedback={setFeedback}
             onReport={reportMessage}

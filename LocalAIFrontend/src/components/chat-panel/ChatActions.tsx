@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ThumbsUp, ThumbsDown, AlertCircle, Copy, Check } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, AlertCircle, Copy, Check, RefreshCw } from 'lucide-react';
 import { ReportDialog } from './ReportDialog';
 
 const DISLIKE_REASONS = ['Câu trả lời không đúng', 'Không liên quan', 'Quá dài / ngắn', 'Khác'];
@@ -10,9 +10,10 @@ interface ChatActionsProps {
   onFeedback: (id: string, type: 'like' | 'dislike', comment?: string) => void;
   onReport: (id: string, reportType: string, comment: string) => void;
   content?: string;
+  onRegenerate?: () => void;
 }
 
-export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, onFeedback, onReport, content }) => {
+export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, onFeedback, onReport, content, onRegenerate }) => {
   const [showDislikePopover, setShowDislikePopover] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [dislikeReason, setDislikeReason] = useState('');
@@ -85,17 +86,21 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
           </button>
 
           {showDislikePopover && (
-            <div className="absolute left-0 top-full mt-2 z-40 bg-surface border border-border rounded-xl shadow-xl p-3 w-64 animate-fade-in">
-              <p className="text-[11px] font-medium text-text-muted mb-2">Vì sao chưa tốt?</p>
-              <div className="flex flex-wrap gap-1.5 mb-2">
+            <div
+              role="dialog"
+              aria-label="Phản hồi chưa tốt"
+              className="absolute left-0 bottom-full mb-2 z-40 bg-surface border border-border rounded-xl shadow-xl p-3 w-[260px] animate-fade-in"
+            >
+              <p className="text-[11px] font-semibold text-text-secondary mb-2">Vì sao chưa tốt?</p>
+              <div className="grid grid-cols-2 gap-1.5 mb-2.5">
                 {DISLIKE_REASONS.map(r => (
                   <button
                     key={r}
                     onClick={() => setDislikeReason(r === dislikeReason ? '' : r)}
-                    className={`px-2 py-1 rounded-md text-[11px] border transition-colors cursor-pointer
+                    className={`px-2 py-1.5 rounded-md text-[11px] border transition-colors cursor-pointer text-center
                       ${dislikeReason === r
-                        ? 'bg-danger/15 border-danger/40 text-danger'
-                        : 'border-border text-text-secondary hover:bg-hover'}`}
+                        ? 'bg-accent/15 border-accent/40 text-accent font-medium'
+                        : 'bg-elevated border-border text-text-secondary hover:bg-hover hover:border-border/80'}`}
                   >
                     {r}
                   </button>
@@ -106,15 +111,24 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
                 value={dislikeComment}
                 onChange={e => setDislikeComment(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submitDislike()}
-                placeholder="Nhập thêm..."
-                className="w-full bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[11px] text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors mb-2"
+                placeholder="Mô tả thêm (tuỳ chọn)"
+                aria-label="Mô tả thêm về phản hồi"
+                className="w-full bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-text-primary placeholder-text-muted focus:outline-none focus:border-accent transition-colors mb-2.5"
               />
-              <button
-                onClick={submitDislike}
-                className="w-full py-1.5 rounded-lg text-[11px] font-medium bg-danger text-white hover:bg-danger/90 transition-colors cursor-pointer"
-              >
-                Gửi
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setShowDislikePopover(false)}
+                  className="flex-1 py-1.5 rounded-lg text-[12px] font-medium border border-border text-text-secondary hover:bg-hover transition-colors cursor-pointer"
+                >
+                  Huỷ
+                </button>
+                <button
+                  onClick={submitDislike}
+                  className="flex-1 py-1.5 rounded-lg text-[12px] font-medium bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
+                >
+                  Gửi
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -125,11 +139,25 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
         <button
           onClick={handleCopy}
           disabled={!content}
+          aria-label="Sao chép câu trả lời"
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary disabled:opacity-40"
         >
           {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
           {copied ? 'Đã sao chép' : 'Sao chép'}
         </button>
+
+        {/* Regenerate — only on last assistant */}
+        {onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            aria-label="Tạo lại câu trả lời"
+            title="Tạo lại câu trả lời"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Tạo lại
+          </button>
+        )}
 
         <div className="w-px h-4 bg-border mx-1" />
 

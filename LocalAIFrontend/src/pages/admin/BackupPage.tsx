@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HardDrive, Download, Trash2, RefreshCw, Upload, X, AlertTriangle } from 'lucide-react';
+import { HardDrive, Download, Trash2, RefreshCw, Upload, X, AlertTriangle, Info } from 'lucide-react';
 import { apiGet, apiDelete, API_BASE } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface BackupFile {
   filename: string;
@@ -16,12 +20,11 @@ const BackupPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
+    if (type === 'success') toast.success(msg); else toast.error(msg);
   };
 
   const fetchBackups = useCallback(async () => {
@@ -122,47 +125,45 @@ const BackupPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium max-w-sm ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-          {toast.msg}
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Sao lưu & Phục hồi</h1>
-          <p className="text-sm text-text-muted mt-1">Backup database và vector store, khôi phục khi cần</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={fetchBackups}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-elevated text-sm"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Làm mới
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            {creating ? <RefreshCw size={14} className="animate-spin" /> : <HardDrive size={14} />}
-            {creating ? 'Đang tạo...' : 'Tạo backup ngay'}
-          </button>
-        </div>
-      </div>
+    <div className="space-y-5 animate-fade-in">
+      <PageHeader
+        title="Sao lưu & Phục hồi"
+        subtitle="Backup database và vector store, khôi phục khi cần"
+        icon={<HardDrive className="w-5 h-5 text-text-secondary" />}
+        actions={
+          <>
+            <button
+              onClick={fetchBackups}
+              disabled={loading}
+              aria-label="Làm mới"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-elevated border border-border text-text-secondary hover:text-text-primary text-[12px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Làm mới</span>
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={creating}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[13px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {creating ? <RefreshCw size={14} className="animate-spin" /> : <HardDrive size={14} />}
+              {creating ? 'Đang tạo...' : 'Tạo backup ngay'}
+            </button>
+          </>
+        }
+      />
 
       {/* Info box */}
-      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-sm text-blue-400">
-        <p className="font-medium mb-1">Nội dung backup bao gồm:</p>
-        <ul className="list-disc list-inside space-y-0.5 text-blue-400/80">
-          <li>Database SQL dump (localai)</li>
-          <li>ChromaDB vector store snapshot</li>
-          <li>Metadata thời gian và trạng thái</li>
-        </ul>
+      <div className="bg-accent/8 border border-accent/25 rounded-lg p-3 text-[13px] text-accent flex items-start gap-2">
+        <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <div>
+          <p className="font-semibold mb-0.5">Nội dung backup bao gồm:</p>
+          <ul className="list-disc list-inside space-y-0.5 text-accent/80">
+            <li>Database SQL dump (localai)</li>
+            <li>ChromaDB vector store snapshot</li>
+            <li>Metadata thời gian và trạng thái</li>
+          </ul>
+        </div>
       </div>
 
       {/* Backup List */}
@@ -172,14 +173,11 @@ const BackupPage: React.FC = () => {
           <span className="text-xs text-text-muted">{backups.length} file</span>
         </div>
         {loading && backups.length === 0 ? (
-          <div className="flex items-center justify-center h-32 text-text-muted text-sm">
-            <RefreshCw size={16} className="animate-spin mr-2" /> Đang tải...
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" rounded="lg" />)}
           </div>
         ) : backups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-text-muted text-sm gap-2">
-            <HardDrive size={28} className="opacity-30" />
-            <p>Chưa có backup nào. Hãy tạo backup đầu tiên.</p>
-          </div>
+          <EmptyState icon={HardDrive} title="Chưa có backup nào" description="Bấm 'Tạo backup ngay' để tạo bản đầu tiên." compact />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -227,7 +225,7 @@ const BackupPage: React.FC = () => {
           <Upload size={16} className="text-accent" />
           <h2 className="text-sm font-semibold text-text-primary">Khôi phục từ backup</h2>
         </div>
-        <div className="flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-xs text-yellow-400">
+        <div className="flex items-start gap-2.5 bg-warning/10 border border-warning/30 rounded-lg p-3 text-[12px] text-warning">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>Khôi phục sẽ ghi đè ChromaDB hiện tại. Database SQL cần restore thủ công. Hãy chắc chắn đã backup trước.</span>
         </div>
@@ -274,7 +272,7 @@ const BackupPage: React.FC = () => {
             <button
               onClick={handleRestore}
               disabled={restoring}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-[13px] rounded-lg bg-warning text-white font-semibold hover:bg-warning/85 disabled:opacity-50 cursor-pointer"
             >
               {restoring && <RefreshCw size={12} className="animate-spin" />}
               {restoring ? 'Đang khôi phục...' : 'Bắt đầu khôi phục'}
@@ -285,17 +283,22 @@ const BackupPage: React.FC = () => {
 
       {/* Delete Confirm */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
-          <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
-            <h2 className="text-lg font-semibold text-text-primary mb-2">Xác nhận xóa</h2>
-            <p className="text-sm text-text-secondary mb-4">
-              Xóa file <span className="font-mono text-text-primary text-xs">{deleteTarget}</span>? Hành động không thể hoàn tác.
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+            <h2 className="text-[15px] font-semibold text-text-primary mb-2">Xác nhận xoá</h2>
+            <p className="text-[13px] text-text-secondary mb-4">
+              Xoá file <span className="font-mono text-text-primary text-[12px]">{deleteTarget}</span>? Hành động không thể hoàn tác.
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="px-4 py-2 text-sm rounded-lg border border-border text-text-secondary hover:bg-elevated">Hủy</button>
-              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="px-4 py-2 text-[13px] rounded-lg border border-border text-text-secondary hover:bg-hover transition-colors cursor-pointer">Huỷ</button>
+              <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-[13px] rounded-lg bg-danger text-white font-semibold hover:bg-danger/85 disabled:opacity-50 flex items-center gap-2 cursor-pointer">
                 {deleting && <RefreshCw size={12} className="animate-spin" />}
-                Xóa
+                Xoá
               </button>
             </div>
           </div>

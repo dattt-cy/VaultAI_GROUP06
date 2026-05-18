@@ -132,16 +132,22 @@ export function useChatState() {
     setIsGenerating(false);
   }, []);
 
-  const sendMessage = useCallback(async (content: string, selectedDocIds: number[] = []) => {
+  const sendMessage = useCallback(async (
+    content: string,
+    selectedDocIds: number[] = [],
+    opts?: { skipUserAppend?: boolean }
+  ) => {
     setCancelledQuestion('');
 
-    const userMsg: Message = {
-      id: `u-${Date.now()}`,
-      role: 'user',
-      content,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMsg]);
+    if (!opts?.skipUserAppend) {
+      const userMsg: Message = {
+        id: `u-${Date.now()}`,
+        role: 'user',
+        content,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, userMsg]);
+    }
     setIsGenerating(true);
 
     const assistantId = `a-${Date.now()}`;
@@ -311,6 +317,34 @@ export function useChatState() {
     });
   }, []);
 
+  // Regenerate last assistant reply using the last user message as prompt
+  const regenerateLast = useCallback(async (selectedDocIds: number[] = []) => {
+    let lastUserContent = '';
+    setMessages(prev => {
+      let lastUserIdx = -1;
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (prev[i].role === 'user') { lastUserIdx = i; lastUserContent = prev[i].content; break; }
+      }
+      if (lastUserIdx < 0) return prev;
+      return prev.slice(0, lastUserIdx + 1);
+    });
+    if (!lastUserContent) return;
+    await sendMessage(lastUserContent, selectedDocIds, { skipUserAppend: true });
+  }, [sendMessage]);
+
+  // Edit a user message and re-send: truncate history up to (excluding) that message, then send normally
+  const editAndResend = useCallback(async (messageId: string, newContent: string, selectedDocIds: number[] = []) => {
+    let canResend = false;
+    setMessages(prev => {
+      const idx = prev.findIndex(m => m.id === messageId);
+      if (idx < 0) return prev;
+      canResend = true;
+      return prev.slice(0, idx);
+    });
+    if (!canResend) return;
+    await sendMessage(newContent, selectedDocIds);
+  }, [sendMessage]);
+
   const deleteSession = useCallback(async (sessionId: number) => {
     await fetch(`${API_BASE}/api/chat/sessions/${sessionId}`, {
       method: 'DELETE',
@@ -323,5 +357,6 @@ export function useChatState() {
   return {
     messages, sessions, currentSessionId, isGenerating, cancelledQuestion,
     sendMessage, cancelMessage, setFeedback, reportMessage, newSession, loadSession, deleteSession, loadSessions,
+    regenerateLast, editAndResend,
   };
 }

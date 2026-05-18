@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Check, Zap, FileText } from 'lucide-react';
-import { API_BASE, apiGet, apiPut, apiPost } from '../../utils/apiClient';
+import { Check, Zap, FileText, Settings2 } from 'lucide-react';
+import { apiGet, apiPut, apiPost } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { SkeletonPanel } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface LlmConfig {
   id: number;
@@ -31,19 +35,31 @@ const AIConfigPage: React.FC = () => {
   const [savedConfig, setSavedConfig] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const toast = useToast();
 
   const fetchConfig = useCallback(async () => {
-    const res = await apiGet('/api/admin/ai-config');
-    const data = await res.json();
-    if (data.active !== false) setConfig(data);
-  }, []);
+    try {
+      const res = await apiGet('/api/admin/ai-config');
+      const data = await res.json();
+      if (data.active !== false) setConfig(data);
+    } catch (err) {
+      toast.error('Không tải được cấu hình AI', String(err));
+    }
+  }, [toast]);
 
   const fetchPrompts = useCallback(async () => {
-    const res = await apiGet('/api/admin/system-prompts');
-    setPrompts(await res.json());
-  }, []);
+    try {
+      const res = await apiGet('/api/admin/system-prompts');
+      setPrompts(await res.json());
+    } catch (err) {
+      toast.error('Không tải được system prompts', String(err));
+    }
+  }, [toast]);
 
-  useEffect(() => { fetchConfig(); fetchPrompts(); }, [fetchConfig, fetchPrompts]);
+  useEffect(() => {
+    Promise.all([fetchConfig(), fetchPrompts()]).finally(() => setIsLoading(false));
+  }, [fetchConfig, fetchPrompts]);
 
   const testConnection = async () => {
     setTestResult('testing');
@@ -51,8 +67,11 @@ const AIConfigPage: React.FC = () => {
       const res = await apiPost('/api/admin/ai-config/test-connection');
       const data = await res.json();
       setTestResult(data.online ? 'ok' : 'fail');
+      if (data.online) toast.success('Kết nối Ollama thành công');
+      else toast.error('Không kết nối được Ollama');
     } catch {
       setTestResult('fail');
+      toast.error('Test kết nối thất bại');
     }
   };
 
@@ -67,28 +86,42 @@ const AIConfigPage: React.FC = () => {
         max_new_tokens: config.max_new_tokens,
       });
       setSavedConfig(true);
+      toast.success('Đã lưu cấu hình LLM');
+    } catch (err) {
+      toast.error('Lưu cấu hình thất bại', String(err));
     } finally {
       setSavingConfig(false);
     }
   };
 
   const activatePrompt = async (id: number) => {
-    await apiPost(`/api/admin/system-prompts/${id}/activate`);
-    fetchPrompts();
+    try {
+      await apiPost(`/api/admin/system-prompts/${id}/activate`);
+      toast.success('Đã kích hoạt prompt');
+      fetchPrompts();
+    } catch (err) {
+      toast.error('Kích hoạt thất bại', String(err));
+    }
   };
 
   const savePromptEdit = async () => {
-    await apiPut(`/api/admin/system-prompts/${editPromptId}`, { prompt_content: editContent });
-    setEditPromptId(null);
-    fetchPrompts();
+    try {
+      await apiPut(`/api/admin/system-prompts/${editPromptId}`, { prompt_content: editContent });
+      setEditPromptId(null);
+      toast.success('Đã lưu prompt');
+      fetchPrompts();
+    } catch (err) {
+      toast.error('Lưu prompt thất bại', String(err));
+    }
   };
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="text-[20px] font-bold text-text-primary">Cấu hình AI</h1>
-        <p className="text-[13px] text-text-muted mt-0.5">Cài đặt mô hình LLM và system prompts</p>
-      </div>
+      <PageHeader
+        title="Cấu hình AI"
+        subtitle="Cài đặt mô hình LLM và system prompts"
+        icon={<Settings2 className="w-5 h-5 text-text-secondary" />}
+      />
 
       <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 w-fit">
         {[{ key: 'llm', label: 'LLM Config', icon: Zap }, { key: 'prompts', label: 'System Prompts', icon: FileText }].map(t => (
@@ -173,14 +206,26 @@ const AIConfigPage: React.FC = () => {
         </div>
       )}
 
-      {tab === 'llm' && !config && (
-        <div className="text-center py-12 text-text-muted text-[13px]">Chưa có cấu hình LLM trong database</div>
+      {tab === 'llm' && isLoading && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <SkeletonPanel rows={4} />
+          <SkeletonPanel rows={2} />
+        </div>
+      )}
+
+      {tab === 'llm' && !isLoading && !config && (
+        <EmptyState
+          icon={Zap}
+          title="Chưa có cấu hình LLM"
+          description="Backend chưa tạo bản ghi config — kiểm tra database."
+        />
       )}
 
       {tab === 'prompts' && (
         <div className="space-y-4">
-          {prompts.length === 0 && (
-            <div className="text-center py-12 text-text-muted text-[13px]">Chưa có system prompt nào</div>
+          {isLoading && <SkeletonPanel rows={3} />}
+          {!isLoading && prompts.length === 0 && (
+            <EmptyState icon={FileText} title="Chưa có system prompt nào" compact />
           )}
           {prompts.map(prompt => (
             <div key={prompt.id} className={`bg-elevated border rounded-xl overflow-hidden transition-colors ${prompt.is_active ? 'border-accent/40' : 'border-border'}`}>

@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Cpu, Trash2, Download, CheckCircle, RefreshCw, X, ChevronRight } from 'lucide-react';
 import { apiGet, apiPut, apiDelete, API_BASE } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface OllamaModel {
   name: string;
@@ -32,11 +36,10 @@ const ModelManagementPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
 
   const [settingActive, setSettingActive] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const toast = useToast();
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    if (type === 'success') toast.success(msg); else toast.error(msg);
   };
 
   const fetchModels = useCallback(async () => {
@@ -153,42 +156,36 @@ const ModelManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      {/* Toast */}
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-          {toast.msg}
-        </div>
-      )}
+    <div className="space-y-5 animate-fade-in">
+      <PageHeader
+        title="Quản lý Model"
+        subtitle="Quản lý các model Ollama đã cài đặt trên hệ thống"
+        icon={<Cpu className="w-5 h-5 text-text-secondary" />}
+        actions={
+          <>
+            <button
+              onClick={fetchModels}
+              disabled={loading}
+              aria-label="Làm mới danh sách model"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-elevated border border-border text-text-secondary hover:text-text-primary text-[12px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">Làm mới</span>
+            </button>
+            <button
+              onClick={() => { setShowPullModal(true); setPullProgress(''); setPullPercent(0); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[13px] font-semibold transition-colors cursor-pointer"
+            >
+              <Download size={14} />
+              Pull Model
+            </button>
+          </>
+        }
+      />
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Quản lý Model</h1>
-          <p className="text-sm text-text-muted mt-1">Quản lý các model Ollama đã cài đặt trên hệ thống</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={fetchModels}
-            disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border text-text-secondary hover:bg-elevated text-sm"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Làm mới
-          </button>
-          <button
-            onClick={() => { setShowPullModal(true); setPullProgress(''); setPullPercent(0); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90"
-          >
-            <Download size={14} />
-            Pull Model
-          </button>
-        </div>
-      </div>
-
-      {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-sm text-red-400">
+        <div className="bg-danger/10 border border-danger/30 rounded-lg p-3 text-[13px] text-danger flex items-center gap-2">
+          <X className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
       )}
@@ -196,14 +193,18 @@ const ModelManagementPage: React.FC = () => {
       {/* Models Table */}
       <div className="bg-elevated border border-border rounded-xl overflow-hidden">
         {loading && models.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-text-muted text-sm">
-            <RefreshCw size={16} className="animate-spin mr-2" /> Đang tải...
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" rounded="lg" />
+            ))}
           </div>
         ) : models.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-40 text-text-muted text-sm gap-2">
-            <Cpu size={32} className="opacity-30" />
-            <p>Chưa có model nào. Hãy pull model mới.</p>
-          </div>
+          <EmptyState
+            icon={Cpu}
+            title="Chưa có model nào"
+            description="Bấm 'Pull Model' để tải model Ollama đầu tiên."
+            compact
+          />
         ) : (
           <table className="w-full text-sm">
             <thead>

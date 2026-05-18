@@ -3,11 +3,13 @@ import {
   Plus, Search, X, Edit2, Trash2, ShieldCheck, ShieldOff,
   Mail, Building2, Calendar, Clock, Camera, ChevronDown, Check, Eye
 } from 'lucide-react';
-import { apiGet, apiPost, apiPatch, apiDelete } from '../../utils/apiClient';
+import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from '../../utils/apiClient';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
-
-const API_BASE = 'http://localhost:8000';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface Role { id: number; name: string; access_level: number }
 interface Department { id: number; name: string; description: string | null }
@@ -62,21 +64,27 @@ const UsersPage: React.FC = () => {
   const [form, setForm] = useState<typeof emptyForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { user: currentUser, canAccess } = useAuth();
+  const toast = useToast();
 
   const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 2800);
+    if (ok) toast.success(msg); else toast.error(msg);
   };
 
   const fetchUsers = useCallback(async () => {
-    const res = await apiGet('/api/admin/users');
-    const data: User[] = await res.json();
-    setUsers(data);
-    setSelected(prev => prev ? (data.find(u => u.id === prev.id) ?? null) : null);
-  }, []);
+    try {
+      const res = await apiGet('/api/admin/users');
+      const data: User[] = await res.json();
+      setUsers(data);
+      setSelected(prev => prev ? (data.find(u => u.id === prev.id) ?? null) : null);
+    } catch (err) {
+      toast.error('Không tải được danh sách người dùng', String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   const fetchRoles = useCallback(async () => {
     const res = await apiGet('/api/admin/roles');
@@ -188,23 +196,20 @@ const UsersPage: React.FC = () => {
     <div className="flex gap-5 animate-fade-in" style={{ minHeight: 'calc(100vh - 8rem)' }}>
       {/* ── Left: list ── */}
       <div className="flex flex-col flex-1 min-w-0 gap-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-[20px] font-bold text-text-primary">Quản lý người dùng</h1>
-            <p className="text-[13px] text-text-muted mt-0.5">
-              {filtered.length} / {users.length} người dùng &middot; {activeCount} hoạt động
-            </p>
-          </div>
-          {canAccess(9) && (
-            <button
-              onClick={() => { setForm(emptyForm); setShowCreate(true); }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white rounded-xl text-[13px] font-semibold transition-colors flex-shrink-0"
-            >
-              <Plus className="w-4 h-4" /> Thêm người dùng
-            </button>
-          )}
-        </div>
+        <PageHeader
+          title="Quản lý người dùng"
+          subtitle={`${filtered.length.toLocaleString('vi-VN')} / ${users.length.toLocaleString('vi-VN')} người dùng · ${activeCount.toLocaleString('vi-VN')} đang hoạt động`}
+          actions={
+            canAccess(9) ? (
+              <button
+                onClick={() => { setForm(emptyForm); setShowCreate(true); }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Thêm người dùng
+              </button>
+            ) : null
+          }
+        />
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
@@ -245,10 +250,32 @@ const UsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filtered.length === 0 ? (
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={`skel-${i}`}>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <Skeleton className="w-11 h-11" rounded="full" />
+                          <div className="space-y-1.5">
+                            <Skeleton className="h-3 w-32" />
+                            <Skeleton className="h-2.5 w-20" />
+                          </div>
+                        </div>
+                      </td>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <td key={j} className="px-5 py-3"><Skeleton className="h-3 w-full" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-16 text-center text-text-muted text-[13px]">
-                      Không tìm thấy người dùng
+                    <td colSpan={7}>
+                      <EmptyState
+                        icon={Search}
+                        title="Không tìm thấy người dùng"
+                        description={search || filterRoleId || filterActive ? 'Thử bỏ bộ lọc để xem toàn bộ.' : 'Chưa có người dùng nào.'}
+                        compact
+                      />
                     </td>
                   </tr>
                 ) : (
@@ -477,16 +504,6 @@ const UsersPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* ── Toast ── */}
-      {toast && (
-        <div className={cn(
-          'fixed bottom-5 right-5 z-[100] px-4 py-2.5 rounded-xl text-[13px] font-medium shadow-lg flex items-center gap-2 animate-fade-in',
-          toast.ok ? 'bg-success/20 border border-success/40 text-success' : 'bg-danger/20 border border-danger/40 text-danger'
-        )}>
-          {toast.ok ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 };

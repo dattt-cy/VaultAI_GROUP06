@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ExternalLink, ChevronDown, Brain, Loader2, Sparkles, Search, BookOpen, Cpu } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { ChevronDown, Brain, Loader2, Sparkles, Search, BookOpen, Cpu, Copy, Check, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Message, Citation } from '../../hooks/useChatState';
 import { CitationTag } from './CitationTag';
@@ -12,73 +12,37 @@ interface MessageBubbleProps {
   onFeedback: (id: string, type: 'like' | 'dislike', comment?: string) => void;
   onReport: (id: string, reportType: string, comment: string) => void;
   onSuggestionClick?: (s: string) => void;
+  onRegenerate?: () => void;
+  onEditUserMessage?: (id: string, newText: string) => void;
+  isLastAssistant?: boolean;
   showSuggestions?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
-  message, onCitationClick, onFeedback, onReport, onSuggestionClick, showSuggestions,
+  message, onCitationClick, onFeedback, onReport, onSuggestionClick,
+  onRegenerate, onEditUserMessage, isLastAssistant, showSuggestions,
 }) => {
   const isUser = message.role === 'user';
 
-  // Extract used citations from content: [1], [2]
-  const usedIndices = new Set<number>();
-  if (!isUser && message.content) {
-    const matches = Array.from(message.content.matchAll(/\[(\d+)\]/g));
-    matches.forEach(m => usedIndices.add(parseInt(m[1], 10) - 1));
-  }
-
-  // Create re-mapping to make citations start from 1 sequentially
-  const usedIndicesArray = Array.from(usedIndices).sort((a, b) => a - b);
-  const indexMap = new Map<number, number>();
-  usedIndicesArray.forEach((oldIdx, i) => indexMap.set(oldIdx, i + 1));
-
-  // Convert [1] → [1](#cite-0-{occurrence})
-  const occurrenceTracker: Record<number, number> = {};
-  const processedContent = message.content.replace(/\[(\d+)\]/g, (_, p1) => {
-    const oldIdx = parseInt(p1, 10) - 1;
-    const occ = occurrenceTracker[oldIdx] ?? 0;
-    occurrenceTracker[oldIdx] = occ + 1;
-    const newIdx = indexMap.get(oldIdx) || (oldIdx + 1);
-    return `[${newIdx}](#cite-${oldIdx}-${occ})`;
-  });
-
-  const activeCitations = (message.citations || []).filter((_, i) => usedIndices.has(i));
-
-  if (isUser) {
-    return (
-      <div className="flex justify-end mb-4 animate-fade-in">
-        <div className="max-w-[72%] px-4 py-2.5 rounded-2xl rounded-br-sm bg-accent text-white text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap">
-          {message.content}
-        </div>
-      </div>
-    );
-  }
-
-  if (message.isCancelled) {
-    return (
-      <div className="flex gap-2.5 mb-4 animate-fade-in">
-        <img src="/logo.png" alt="AI" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 mt-0.5 shadow-sm opacity-40" />
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-elevated text-text-muted text-[12px] italic">
-          <span className="opacity-60">◼</span>
-          <span>Đã dừng sinh câu trả lời. Bạn có thể chỉnh sửa và gửi lại câu hỏi.</span>
-        </div>
-      </div>
-    );
-  }
-
+  // === Hooks declared unconditionally at top to satisfy Rules of Hooks ===
   const [popupState, setPopupState] = useState<{ citation: Citation; rect: DOMRect; sourceLine?: string } | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(message.content);
+  const [copiedUser, setCopiedUser] = useState(false);
   const reasoningScrollRef = useRef<HTMLDivElement>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
   const steps = message.thinkingSteps ?? [];
   const hasReasoning = !!(message.reasoningContent && message.reasoningContent.length > 0);
   const showPanel = message.isStreaming || steps.length > 0 || hasReasoning || message.isReasoning;
 
-  // Tự mở khi bắt đầu suy luận
+  // Auto-open panel khi bắt đầu suy luận
   useEffect(() => {
     if (steps.length > 0 || message.isReasoning) setPanelOpen(true);
   }, [steps.length, message.isReasoning]);
 
-  // Ẩn panel khi token đầu tiên xuất hiện (đang trả lời, không còn suy luận)
+  // Ẩn panel khi token đầu tiên xuất hiện
   useEffect(() => {
     if (message.isStreaming && message.content !== '' && !message.isReasoning) {
       setPanelOpen(false);
@@ -97,7 +61,38 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   }, [message.reasoningContent, message.isReasoning]);
 
-  // Strip leading emoji/special chars từ backend step text
+  // Resize editor + focus khi vào edit mode
+  useEffect(() => {
+    if (isEditing && editRef.current) {
+      editRef.current.focus();
+      editRef.current.style.height = 'auto';
+      editRef.current.style.height = Math.min(editRef.current.scrollHeight, 240) + 'px';
+    }
+  }, [isEditing, editValue]);
+
+  // Memoize parsing/regex — tránh chạy lại mỗi token streaming
+  const { processedContent, activeCitations, indexMap } = useMemo(() => {
+    const usedIndices = new Set<number>();
+    if (!isUser && message.content) {
+      Array.from(message.content.matchAll(/\[(\d+)\]/g)).forEach(m =>
+        usedIndices.add(parseInt(m[1], 10) - 1)
+      );
+    }
+    const usedArr = Array.from(usedIndices).sort((a, b) => a - b);
+    const map = new Map<number, number>();
+    usedArr.forEach((oldIdx, i) => map.set(oldIdx, i + 1));
+    const occ: Record<number, number> = {};
+    const processed = (message.content || '').replace(/\[(\d+)\]/g, (_, p1) => {
+      const oldIdx = parseInt(p1, 10) - 1;
+      const o = occ[oldIdx] ?? 0;
+      occ[oldIdx] = o + 1;
+      const newIdx = map.get(oldIdx) || (oldIdx + 1);
+      return `[${newIdx}](#cite-${oldIdx}-${o})`;
+    });
+    const active = (message.citations || []).filter((_, i) => usedIndices.has(i));
+    return { processedContent: processed, activeCitations: active, indexMap: map };
+  }, [message.content, message.citations, isUser]);
+
   const stripEmoji = (text: string) => text.replace(/^[\p{Emoji}\s✓✔⚡📄🔍🧠💬📝⚠️]+/u, '').trim();
 
   const getStepIcon = (text: string) => {
@@ -107,6 +102,115 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     return Cpu;
   };
 
+  const handleCopyUser = async () => {
+    if (!message.content) return;
+    await navigator.clipboard.writeText(message.content);
+    setCopiedUser(true);
+    setTimeout(() => setCopiedUser(false), 1500);
+  };
+
+  const submitEdit = () => {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed === message.content) {
+      setIsEditing(false);
+      setEditValue(message.content);
+      return;
+    }
+    setIsEditing(false);
+    onEditUserMessage?.(message.id, trimmed);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditValue(message.content);
+  };
+
+  // === User message ===
+  if (isUser) {
+    if (isEditing) {
+      return (
+        <div className="flex justify-end mb-4 animate-fade-in">
+          <div className="w-full max-w-[72%] bg-elevated border border-accent/40 rounded-2xl rounded-br-sm shadow-sm overflow-hidden">
+            <textarea
+              ref={editRef}
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitEdit(); }
+                if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+              }}
+              className="w-full bg-transparent border-none outline-none text-[14px] text-text-primary leading-relaxed resize-none px-4 py-2.5 placeholder:text-text-muted"
+              placeholder="Chỉnh sửa câu hỏi..."
+            />
+            <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-border/40 bg-surface/40">
+              <span className="text-[11px] text-text-muted">Ctrl+Enter để gửi · Esc để huỷ</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={cancelEdit}
+                  className="px-2.5 py-1 rounded-md text-[12px] text-text-secondary hover:bg-hover transition-colors cursor-pointer"
+                >
+                  Huỷ
+                </button>
+                <button
+                  onClick={submitEdit}
+                  disabled={!editValue.trim() || editValue.trim() === message.content}
+                  className="px-3 py-1 rounded-md text-[12px] bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Gửi lại
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="group flex justify-end mb-4 animate-fade-in">
+        <div className="flex items-end gap-1.5 max-w-[80%]">
+          {/* Hover actions */}
+          <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pb-1">
+            {onEditUserMessage && (
+              <button
+                onClick={() => { setEditValue(message.content); setIsEditing(true); }}
+                title="Chỉnh sửa & gửi lại"
+                aria-label="Chỉnh sửa tin nhắn"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-accent hover:bg-elevated transition-colors cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={handleCopyUser}
+              title="Sao chép"
+              aria-label="Sao chép tin nhắn"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted hover:text-accent hover:bg-elevated transition-colors cursor-pointer"
+            >
+              {copiedUser ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+          <div className="px-4 py-2.5 rounded-2xl rounded-br-sm bg-accent text-white text-[14px] leading-relaxed shadow-sm whitespace-pre-wrap">
+            {message.content}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === Cancelled assistant ===
+  if (message.isCancelled) {
+    return (
+      <div className="flex gap-2.5 mb-4 animate-fade-in">
+        <img src="/logo.png" alt="AI" className="w-8 h-8 rounded-lg object-cover flex-shrink-0 mt-0.5 shadow-sm opacity-40" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-elevated text-text-muted text-[12px] italic">
+          <span className="opacity-60">◼</span>
+          <span>Đã dừng sinh câu trả lời. Bạn có thể chỉnh sửa và gửi lại câu hỏi.</span>
+        </div>
+      </div>
+    );
+  }
+
+  // === Assistant message ===
   return (
     <>
     <div className="flex gap-2.5 mb-5 animate-fade-in">
@@ -124,9 +228,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <button
               onClick={() => setPanelOpen(o => !o)}
               disabled={message.isStreaming && message.content !== ''}
+              aria-expanded={panelOpen}
+              aria-label="Xem chi tiết các bước suy luận"
               className="group w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl border border-border/60 bg-elevated hover:bg-hover hover:border-border transition-all duration-200 disabled:cursor-not-allowed disabled:hover:bg-elevated disabled:hover:border-border/60"
             >
-              {/* Icon trạng thái */}
               <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
                 {message.isStreaming ? (
                   <Loader2 className="w-4 h-4 text-accent animate-spin" />
@@ -135,7 +240,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
               </div>
 
-              {/* Label */}
               <span className="text-[13px] font-medium text-text-secondary flex-1 text-left truncate">
                 {message.isStreaming
                   ? (message.isReasoning
@@ -146,7 +250,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                       : `Đã xử lý · ${steps.length} bước`)}
               </span>
 
-              {/* Badge số bước */}
               {!message.isStreaming && steps.length > 0 && (
                 <span className="flex-shrink-0 text-[11px] text-text-muted bg-border/40 px-1.5 py-0.5 rounded-full">
                   {steps.length}
@@ -158,10 +261,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               />
             </button>
 
-            {/* Expanded content */}
             {panelOpen && (steps.length > 0 || message.isReasoning || hasReasoning) && (
               <div className="mt-1.5 rounded-2xl border border-border/60 bg-elevated overflow-hidden">
-                {/* Pipeline steps */}
                 {steps.length > 0 && (
                   <div className="px-3.5 py-3 space-y-2.5">
                     {steps.map((step, i) => {
@@ -186,7 +287,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   </div>
                 )}
 
-                {/* Reasoning text stream */}
                 {(message.isReasoning || hasReasoning) && (
                   <>
                     {steps.length > 0 && <div className="mx-3.5 border-t border-border/40" />}
@@ -215,14 +315,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         )}
 
-        {/* Bubble — ẩn khi panel đang chạy và chưa có content */}
+        {/* Bubble */}
         {(message.content || !message.isStreaming || !showPanel) && <div className="card-ai">
-          {/* Text + inline citations */}
-          <div className="text-[14px] leading-relaxed text-text-primary">
+          <div
+            className="text-[14px] leading-relaxed text-text-primary"
+            aria-live={message.isStreaming ? 'polite' : undefined}
+          >
             {message.isStreaming && message.content === '' ? (
-              /* Chỉ hiện "..." khi không có panel (edge case) */
               !showPanel ? (
-                <div className="flex items-center gap-1.5 h-5 px-1 py-1 opacity-70">
+                <div className="flex items-center gap-1.5 h-5 px-1 py-1 opacity-70" aria-label="Đang xử lý">
                   <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                   <span className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -262,21 +363,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
           </div>
 
-          {/* ★ NotebookLM-style Source Footer ★ */}
           {!message.isStreaming && activeCitations.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-border/50">
               <p className="text-[11px] text-text-muted uppercase tracking-wider mb-2 font-semibold">Theo {activeCitations.length > 1 ? `${activeCitations.length} nguồn` : '1 nguồn'}</p>
               <div className="flex flex-wrap gap-1.5">
                 {activeCitations.map((c, i) => {
-                  // Tên file rút gọn
-                  const shortName = c.sourceFile.length > 28 
-                    ? c.sourceFile.slice(0, 25) + '…' 
+                  const shortName = c.sourceFile.length > 28
+                    ? c.sourceFile.slice(0, 25) + '…'
                     : c.sourceFile;
                   return (
                     <button
                       key={c.id}
                       onClick={() => onCitationClick(c)}
-                      className="inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full bg-accent/8 border border-accent/20 
+                      aria-label={`Nguồn ${i + 1}: ${c.sourceFile}, trang ${c.page}`}
+                      className="inline-flex items-center gap-1.5 pl-1.5 pr-2.5 py-1 rounded-full bg-accent/8 border border-accent/20
                                  hover:bg-accent/20 hover:border-accent/40 transition-all duration-200 cursor-pointer group"
                       title={`${c.sourceFile} – Trang ${c.page}`}
                     >
@@ -296,22 +396,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
           )}
 
-          {/* Actions */}
           {!message.isStreaming && (
-            <>
-              <ChatActions messageId={message.id} feedback={message.feedback} onFeedback={onFeedback} onReport={onReport} content={message.content} />
-            </>
+            <ChatActions
+              messageId={message.id}
+              feedback={message.feedback}
+              onFeedback={onFeedback}
+              onReport={onReport}
+              content={message.content}
+              onRegenerate={isLastAssistant ? onRegenerate : undefined}
+            />
           )}
         </div>}
 
-        {/* Contextual Suggestions - chỉ hiển thị cho tin nhắn assistant cuối cùng */}
         {showSuggestions && !message.isStreaming && message.suggestions && message.suggestions.length > 0 && (
           <div className="flex flex-col gap-2 mt-3 pl-1">
             {message.suggestions.map((suggestion, index) => (
               <button
                 key={index}
                 onClick={() => onSuggestionClick?.(suggestion)}
-                className="text-left w-fit max-w-[90%] px-4 py-2.5 rounded-2xl bg-hover border border-border/50 text-[13px] text-text-primary 
+                className="text-left w-fit max-w-[90%] px-4 py-2.5 rounded-2xl bg-hover border border-border/50 text-[13px] text-text-primary
                            hover:bg-accent/10 hover:border-accent/30 hover:text-accent transition-colors duration-200"
               >
                 {suggestion}

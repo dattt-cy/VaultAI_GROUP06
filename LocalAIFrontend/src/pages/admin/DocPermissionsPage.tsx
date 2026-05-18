@@ -5,6 +5,11 @@ import {
 } from 'lucide-react';
 import { apiGet, apiPut } from '../../utils/apiClient';
 import { cn } from '../../lib/utils';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
+import { FileKey } from 'lucide-react';
 
 interface Department {
   id: number; name: string; description: string | null;
@@ -70,6 +75,8 @@ const DocPermissionsPage: React.FC = () => {
   const [savedDept, setSavedDept] = useState<number | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [docSearch, setDocSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const toast = useToast();
 
   // Group docs by category
   const categories = useMemo(() => {
@@ -100,11 +107,14 @@ const DocPermissionsPage: React.FC = () => {
     Promise.all([
       apiGet('/api/admin/dept-doc-permissions/departments').then(r => r.json()),
       apiGet('/api/admin/dept-doc-permissions/documents').then(r => r.json()),
-    ]).then(([depts, docsData]: [Department[], DocRow[]]) => {
-      setDepartments(depts);
-      setDocs(docsData);
-      if (depts.length > 0) selectDeptById(depts[0]);
-    });
+    ])
+      .then(([depts, docsData]: [Department[], DocRow[]]) => {
+        setDepartments(depts);
+        setDocs(docsData);
+        if (depts.length > 0) selectDeptById(depts[0]);
+      })
+      .catch(err => toast.error('Không tải được dữ liệu phân quyền', String(err)))
+      .finally(() => setIsLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,26 +175,29 @@ const DocPermissionsPage: React.FC = () => {
     if (!selectedDept) return;
     setSaving(true);
     const doc_ids = Array.from(deptPerm(selectedDept.id));
-    await apiPut('/api/admin/dept-doc-permissions', { department_id: selectedDept.id, doc_ids });
-    setSaving(false);
-    setSavedDept(selectedDept.id);
-    // refresh dept list doc_count
-    setDepartments(prev =>
-      prev.map(d => d.id === selectedDept.id ? { ...d, doc_count: doc_ids.length } : d)
-    );
+    try {
+      await apiPut('/api/admin/dept-doc-permissions', { department_id: selectedDept.id, doc_ids });
+      setSavedDept(selectedDept.id);
+      setDepartments(prev =>
+        prev.map(d => d.id === selectedDept.id ? { ...d, doc_count: doc_ids.length } : d)
+      );
+      toast.success(`Đã cập nhật ${doc_ids.length} tài liệu cho "${selectedDept.name}"`);
+    } catch (err) {
+      toast.error('Lưu phân quyền thất bại', String(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const totalAllowed = selectedDept ? deptPerm(selectedDept.id).size : 0;
 
   return (
     <div className="flex flex-col gap-4 animate-fade-in" style={{ height: 'calc(100vh - 7rem)' }}>
-      {/* Header */}
-      <div>
-        <h1 className="text-[20px] font-bold text-text-primary">Phân quyền Tài liệu</h1>
-        <p className="text-[13px] text-text-muted mt-0.5">
-          Cấp quyền truy cập tài liệu theo phòng ban — nhân viên thuộc phòng ban sẽ tự động có quyền
-        </p>
-      </div>
+      <PageHeader
+        title="Phân quyền Tài liệu"
+        subtitle="Cấp quyền truy cập tài liệu theo phòng ban — nhân viên thuộc phòng ban sẽ tự động có quyền"
+        icon={<FileKey className="w-5 h-5 text-text-secondary" />}
+      />
 
       {/* Info banner */}
       <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-accent/5 border border-accent/20 text-[12px] text-text-secondary">
@@ -201,13 +214,13 @@ const DocPermissionsPage: React.FC = () => {
             <p className="text-[12px] font-semibold text-text-primary uppercase tracking-wide">Phòng ban</p>
           </div>
           <div className="divide-y divide-border overflow-y-auto flex-1">
-            {departments.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-                <Building2 className="w-8 h-8 text-text-muted/30 mb-2" />
-                <p className="text-[12px] text-text-muted">Chưa có phòng ban</p>
-              </div>
+            {isLoading && Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="px-4 py-3.5"><Skeleton className="h-9 w-full" rounded="lg" /></div>
+            ))}
+            {!isLoading && departments.length === 0 && (
+              <EmptyState icon={Building2} title="Chưa có phòng ban" compact />
             )}
-            {departments.map(dept => {
+            {!isLoading && departments.map(dept => {
               const active = selectedDept?.id === dept.id;
               const docCount = permissions[dept.id]?.size ?? dept.doc_count;
               return (

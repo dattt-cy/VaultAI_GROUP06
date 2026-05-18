@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, ClipboardList, FileX } from 'lucide-react';
 import { apiGet } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface AuditLog {
   id: number;
@@ -28,16 +32,24 @@ const AuditLogsPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [filterAction, setFilterAction] = useState('');
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const toast = useToast();
 
   const fetchLogs = useCallback(async () => {
-    const params = new URLSearchParams({ limit: '200' });
-    if (filterAction) params.set('action', filterAction);
-    if (search) params.set('username', search);
-    const res = await apiGet(`/api/admin/audit-logs?${params}`);
-    const data = await res.json();
-    setLogs(data.items ?? []);
-    setTotal(data.total ?? 0);
-  }, [filterAction, search]);
+    try {
+      const params = new URLSearchParams({ limit: '200' });
+      if (filterAction) params.set('action', filterAction);
+      if (search) params.set('username', search);
+      const res = await apiGet(`/api/admin/audit-logs?${params}`);
+      const data = await res.json();
+      setLogs(data.items ?? []);
+      setTotal(data.total ?? 0);
+    } catch (err) {
+      toast.error('Không tải được nhật ký', String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filterAction, search, toast]);
 
   useEffect(() => {
     const t = setTimeout(fetchLogs, 300);
@@ -52,10 +64,11 @@ const AuditLogsPage: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="text-[20px] font-bold text-text-primary">Nhật ký hoạt động</h1>
-        <p className="text-[13px] text-text-muted mt-0.5">{logs.length} / {total} bản ghi</p>
-      </div>
+      <PageHeader
+        title="Nhật ký hoạt động"
+        subtitle={`${logs.length.toLocaleString('vi-VN')} / ${total.toLocaleString('vi-VN')} bản ghi`}
+        icon={<ClipboardList className="w-5 h-5 text-text-secondary" />}
+      />
 
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-52">
@@ -64,10 +77,16 @@ const AuditLogsPage: React.FC = () => {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Tìm theo username..."
+            aria-label="Tìm theo username"
             className="input-base pl-9 py-2"
           />
         </div>
-        <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="input-base w-auto py-2">
+        <select
+          value={filterAction}
+          onChange={e => setFilterAction(e.target.value)}
+          aria-label="Lọc theo hành động"
+          className="input-base w-auto py-2"
+        >
           <option value="">Tất cả hành động</option>
           {allActions.map(a => <option key={a} value={a}>{a}</option>)}
         </select>
@@ -83,7 +102,14 @@ const AuditLogsPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {logs.map(log => (
+            {isLoading && Array.from({ length: 6 }).map((_, i) => (
+              <tr key={`skel-${i}`} className="border-b border-border last:border-0">
+                {Array.from({ length: 6 }).map((_, j) => (
+                  <td key={j} className="px-4 py-3"><Skeleton className="h-3 w-full" /></td>
+                ))}
+              </tr>
+            ))}
+            {!isLoading && logs.map(log => (
               <React.Fragment key={log.id}>
                 <tr
                   className="border-b border-border hover:bg-hover/50 transition-colors cursor-pointer"
@@ -115,8 +141,17 @@ const AuditLogsPage: React.FC = () => {
                 )}
               </React.Fragment>
             ))}
-            {logs.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-[13px] text-text-muted">Chưa có bản ghi nào</td></tr>
+            {!isLoading && logs.length === 0 && (
+              <tr>
+                <td colSpan={6}>
+                  <EmptyState
+                    icon={FileX}
+                    title="Chưa có bản ghi nào"
+                    description={search || filterAction ? 'Thử bỏ bộ lọc để xem toàn bộ.' : 'Hệ thống sẽ ghi lại các hành động tại đây.'}
+                    compact
+                  />
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

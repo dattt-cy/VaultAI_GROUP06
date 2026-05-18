@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Cpu, Zap, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { Cpu, Zap, RefreshCw, Wifi, WifiOff, Activity } from 'lucide-react';
 import { apiGet } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { SkeletonStatCard, SkeletonPanel } from '../../components/admin/ui/Skeleton';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface MetricsData {
   cpu_percent: number;
@@ -36,6 +39,7 @@ const SystemMetricsPage: React.FC = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [loading, setLoading] = useState(false);
 
+  const toast = useToast();
   const fetchMetrics = useCallback(async () => {
     setLoading(true);
     try {
@@ -53,11 +57,11 @@ const SystemMetricsPage: React.FC = () => {
         return [...prev.slice(-11), point];
       });
     } catch (e) {
-      console.error(e);
+      toast.error('Không tải được số liệu hệ thống', String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 
@@ -68,29 +72,47 @@ const SystemMetricsPage: React.FC = () => {
   }, [autoRefresh, fetchMetrics]);
 
   if (!metrics) {
-    return <div className="flex items-center justify-center h-48 text-text-muted text-[13px]">Đang tải...</div>;
+    return (
+      <div className="space-y-5 animate-fade-in">
+        <PageHeader title="Tài nguyên hệ thống" subtitle="Theo dõi CPU / RAM / GPU thời gian thực" icon={<Activity className="w-5 h-5 text-text-secondary" />} />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonStatCard key={i} />)}
+        </div>
+        <SkeletonPanel rows={3} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[20px] font-bold text-text-primary">Tài nguyên hệ thống</h1>
-          <p className="text-[13px] text-text-muted mt-0.5">Cập nhật lúc {lastRefresh.toLocaleTimeString('vi-VN')}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={fetchMetrics} disabled={loading} className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-[12px] text-text-muted hover:bg-hover transition-colors">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin-fast' : ''}`} /> Refresh
-          </button>
-          <button
-            onClick={() => setAutoRefresh(a => !a)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-[12px] font-medium transition-colors ${autoRefresh ? 'border-success/40 text-success bg-success/10' : 'border-border text-text-muted hover:bg-hover'}`}
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${autoRefresh ? 'animate-spin-fast' : ''}`} />
-            {autoRefresh ? 'Auto refresh ON' : 'Auto refresh OFF'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Tài nguyên hệ thống"
+        subtitle={`Cập nhật lúc ${lastRefresh.toLocaleTimeString('vi-VN')}`}
+        icon={<Activity className="w-5 h-5 text-text-secondary" />}
+        actions={
+          <>
+            <button
+              onClick={fetchMetrics}
+              disabled={loading}
+              aria-label="Làm mới"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-elevated border border-border text-text-secondary hover:text-text-primary hover:border-border/80 text-[12px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Làm mới
+            </button>
+            <button
+              onClick={() => setAutoRefresh(a => !a)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-medium transition-colors cursor-pointer
+                ${autoRefresh
+                  ? 'border-success/40 text-success bg-success/10'
+                  : 'border-border bg-elevated text-text-muted hover:bg-hover hover:text-text-primary'}`}
+              aria-pressed={autoRefresh}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${autoRefresh ? 'bg-success animate-pulse' : 'bg-text-muted'}`} />
+              {autoRefresh ? 'Tự động (5s)' : 'Tự động: Tắt'}
+            </button>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-elevated border border-border rounded-xl p-4 flex items-center gap-4">

@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Save, RefreshCw, LogOut, User } from 'lucide-react';
 import { apiGet, apiPut, apiDelete } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton, SkeletonPanel } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 type Tab = 'policy' | 'sessions';
 
@@ -32,11 +36,10 @@ const SecuritySettingsPage: React.FC = () => {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [forceLogoutTarget, setForceLogoutTarget] = useState<ActiveSession | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const toast = useToast();
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    if (type === 'success') toast.success(msg); else toast.error(msg);
   };
 
   const fetchSettings = useCallback(async () => {
@@ -120,17 +123,12 @@ const SecuritySettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-          {toast.msg}
-        </div>
-      )}
-
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Cài đặt Bảo mật</h1>
-        <p className="text-sm text-text-muted mt-1">Quản lý chính sách bảo mật và phiên đăng nhập</p>
-      </div>
+    <div className="space-y-5 animate-fade-in">
+      <PageHeader
+        title="Cài đặt Bảo mật"
+        subtitle="Quản lý chính sách bảo mật và phiên đăng nhập"
+        icon={<ShieldCheck className="w-5 h-5 text-text-secondary" />}
+      />
 
       {/* Tabs */}
       <div className="flex gap-1 bg-elevated border border-border rounded-lg p-1 w-fit">
@@ -144,6 +142,14 @@ const SecuritySettingsPage: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {/* Policy Tab — loading */}
+      {tab === 'policy' && !form && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SkeletonPanel rows={2} />
+          <SkeletonPanel rows={3} />
+        </div>
+      )}
 
       {/* Policy Tab */}
       {tab === 'policy' && form && (
@@ -241,14 +247,11 @@ const SecuritySettingsPage: React.FC = () => {
             </button>
           </div>
           {loadingSessions ? (
-            <div className="flex items-center justify-center h-32 text-text-muted text-sm">
-              <RefreshCw size={16} className="animate-spin mr-2" /> Đang tải...
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" rounded="lg" />)}
             </div>
           ) : sessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-text-muted text-sm gap-2">
-              <User size={28} className="opacity-30" />
-              <p>Không có phiên nào.</p>
-            </div>
+            <EmptyState icon={User} title="Không có phiên nào" compact />
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -270,14 +273,14 @@ const SecuritySettingsPage: React.FC = () => {
                     <td className="px-4 py-3 font-mono text-xs text-text-muted">{s.ip_address || '—'}</td>
                     <td className="px-4 py-3 text-text-muted text-xs">{formatDate(s.last_login)}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${s.is_active ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
-                        {s.is_active ? 'Hoạt động' : 'Bị khóa'}
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${s.is_active ? 'bg-success/15 text-success border-success/30' : 'bg-danger/15 text-danger border-danger/30'}`}>
+                        {s.is_active ? 'Hoạt động' : 'Bị khoá'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => setForceLogoutTarget(s)}
-                        className="flex items-center gap-1.5 ml-auto px-2.5 py-1.5 text-xs rounded-lg text-text-muted hover:text-orange-400 hover:bg-orange-400/10"
+                        className="flex items-center gap-1.5 ml-auto px-2.5 py-1.5 text-xs rounded-lg text-text-muted hover:text-warning hover:bg-warning/10 transition-colors cursor-pointer"
                       >
                         <LogOut size={11} />
                         Force logout
@@ -293,17 +296,22 @@ const SecuritySettingsPage: React.FC = () => {
 
       {/* Force Logout Confirm */}
       {forceLogoutTarget && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
-          <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl">
-            <h2 className="text-lg font-semibold text-text-primary mb-2">Xác nhận Force Logout</h2>
-            <p className="text-sm text-text-secondary mb-4">
-              Bạn muốn force logout <span className="font-medium text-text-primary">{forceLogoutTarget.full_name}</span> (@{forceLogoutTarget.username})?
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => !loggingOut && setForceLogoutTarget(null)}
+        >
+          <div className="bg-surface border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+            <h2 className="text-[15px] font-semibold text-text-primary mb-2">Xác nhận Force Logout</h2>
+            <p className="text-[13px] text-text-secondary mb-4">
+              Bạn muốn force logout <span className="font-semibold text-text-primary">{forceLogoutTarget.full_name}</span> (@{forceLogoutTarget.username})?
               <br />
-              <span className="text-xs text-text-muted mt-1 block">Token hiện tại sẽ hết hạn tự nhiên (JWT stateless).</span>
+              <span className="text-[11px] text-text-muted mt-1 block">Token hiện tại sẽ hết hạn tự nhiên (JWT stateless).</span>
             </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setForceLogoutTarget(null)} disabled={loggingOut} className="px-4 py-2 text-sm rounded-lg border border-border text-text-secondary hover:bg-elevated">Hủy</button>
-              <button onClick={handleForceLogout} disabled={loggingOut} className="px-4 py-2 text-sm rounded-lg bg-orange-600 text-white font-medium hover:bg-orange-700 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={() => setForceLogoutTarget(null)} disabled={loggingOut} className="px-4 py-2 text-[13px] rounded-lg border border-border text-text-secondary hover:bg-hover transition-colors cursor-pointer">Huỷ</button>
+              <button onClick={handleForceLogout} disabled={loggingOut} className="px-4 py-2 text-[13px] rounded-lg bg-warning text-white font-semibold hover:bg-warning/85 disabled:opacity-50 flex items-center gap-2 cursor-pointer">
                 {loggingOut && <RefreshCw size={12} className="animate-spin" />}
                 Force Logout
               </button>

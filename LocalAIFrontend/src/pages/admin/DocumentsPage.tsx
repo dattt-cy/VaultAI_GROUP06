@@ -10,6 +10,10 @@ import { useDocumentUpload } from '../../hooks/useDocumentUpload';
 import { useDocumentContent } from '../../hooks/useDocumentContent';
 import { UploadQueuePanel } from '../../components/admin/UploadQueuePanel';
 import { apiGet, API_BASE } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface AdminDoc {
   id: number; title: string; file_type: string; scope: string;
@@ -23,6 +27,7 @@ const DocumentsPage: React.FC = () => {
   const [categories, setCategories] = useState<AdminCat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const refetch = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -138,13 +143,27 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    await deleteDocument(id);
-    setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    const doc = allDocs.find(d => d.id === id);
+    if (!window.confirm(`Xoá tài liệu "${doc?.title ?? id}"? Hành động này không thể hoàn tác.`)) return;
+    try {
+      await deleteDocument(id);
+      setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+      toast.success('Đã xoá tài liệu');
+    } catch (err) {
+      toast.error('Xoá thất bại', String(err));
+    }
   };
 
   const bulkDelete = async () => {
-    await Promise.all([...selectedIds].map(id => deleteDocument(id)));
-    setSelectedIds(new Set());
+    const count = selectedIds.size;
+    if (!window.confirm(`Xoá ${count} tài liệu đã chọn?`)) return;
+    try {
+      await Promise.all([...selectedIds].map(id => deleteDocument(id)));
+      setSelectedIds(new Set());
+      toast.success(`Đã xoá ${count} tài liệu`);
+    } catch (err) {
+      toast.error('Xoá hàng loạt thất bại', String(err));
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -207,29 +226,35 @@ const DocumentsPage: React.FC = () => {
       {/* ── Main Area ──────────────────────────────────────────────────────── */}
       <div className="flex-1 min-w-0 flex flex-col space-y-4 pl-5">
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-[20px] font-bold text-text-primary">Quản lý tài liệu</h1>
-            <p className="text-[13px] text-text-muted mt-0.5">
-              {loading ? 'Đang tải...' : `${filtered.length} / ${allDocs.length} tài liệu`}
-              {selectedCategoryId !== null && (
-                <span className="ml-1 text-accent">· {getCatName(selectedCategoryId)}</span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={refetch} className="btn-icon w-8 h-8" title="Làm mới">
-              <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-            </button>
-            <button
-              onClick={() => { setShowUpload(true); setUploadFiles_state([]); setIsDragging(false); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors"
-            >
-              <Plus className="w-4 h-4" /> Upload mới
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          title="Quản lý tài liệu"
+          subtitle={
+            loading
+              ? 'Đang tải...'
+              : `${filtered.length.toLocaleString('vi-VN')} / ${allDocs.length.toLocaleString('vi-VN')} tài liệu${
+                  selectedCategoryId !== null ? ` · ${getCatName(selectedCategoryId)}` : ''
+                }`
+          }
+          actions={
+            <>
+              <button
+                onClick={() => refetch()}
+                disabled={loading}
+                aria-label="Làm mới"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-elevated border border-border text-text-secondary hover:text-text-primary text-[12px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
+                <span className="hidden sm:inline">Làm mới</span>
+              </button>
+              <button
+                onClick={() => { setShowUpload(true); setUploadFiles_state([]); setIsDragging(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Upload mới
+              </button>
+            </>
+          }
+        />
 
         {/* Error */}
         {error && (
@@ -277,16 +302,24 @@ const DocumentsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={7} className="text-center py-10">
-                    <Loader2 className="w-5 h-5 animate-spin text-accent mx-auto" />
-                  </td>
+              {loading && Array.from({ length: 5 }).map((_, i) => (
+                <tr key={`skel-${i}`} className="border-b border-border last:border-0">
+                  <td className="px-3 py-3"><Skeleton className="w-4 h-4" /></td>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3"><Skeleton className="h-3 w-full" /></td>
+                  ))}
                 </tr>
-              )}
+              ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-[13px] text-text-muted">Không tìm thấy tài liệu</td>
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={search || filterStatus || selectedCategoryId !== null ? Search : Upload}
+                      title="Không tìm thấy tài liệu"
+                      description={search || filterStatus || selectedCategoryId !== null ? 'Thử bỏ bộ lọc để xem toàn bộ.' : 'Upload tài liệu để bắt đầu.'}
+                      compact
+                    />
+                  </td>
                 </tr>
               )}
               {!loading && filtered.map(doc => (

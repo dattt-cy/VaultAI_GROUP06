@@ -10,6 +10,8 @@ interface ChatPanelProps {
   isGenerating: boolean;
   onSend: (t: string) => void;
   onCancel: () => void;
+  onRegenerate?: () => void;
+  onEditUserMessage?: (id: string, newText: string) => void;
   onCitationClick: (c: Citation) => void;
   onFeedback: (id: string, type: 'like' | 'dislike', comment?: string) => void;
   onReport: (id: string, reportType: string, comment: string) => void;
@@ -21,39 +23,72 @@ interface ChatPanelProps {
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
-  messages, isGenerating, onSend, onCancel, onCitationClick, onFeedback, onReport, prefill, onPrefillConsumed,
+  messages, isGenerating, onSend, onCancel, onRegenerate, onEditUserMessage,
+  onCitationClick, onFeedback, onReport, prefill, onPrefillConsumed,
   checkedCount, checkedIds, selectedDocNames = [],
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevLenRef = useRef(messages.length);
+  const isAtBottomRef = useRef(true);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMsgCount, setNewMsgCount] = useState(0);
+  const [editPrefill, setEditPrefill] = useState<string | undefined>();
 
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Keep ref in sync to avoid stale closure inside the effect below
+  useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    setNewMsgCount(0);
   }, []);
 
-  // Auto-scroll only when user is already at bottom
+  // Auto-scroll only when user is already at bottom; use 'auto' during streaming for perf
   useEffect(() => {
-    if (isAtBottom) scrollToBottom();
-  }, [messages, isAtBottom, scrollToBottom]);
+    if (isAtBottomRef.current) {
+      scrollToBottom(!isGenerating);
+    } else if (messages.length > prevLenRef.current) {
+      // Track new messages while user scrolled up
+      setNewMsgCount(c => c + (messages.length - prevLenRef.current));
+    }
+    prevLenRef.current = messages.length;
+  }, [messages, isGenerating, scrollToBottom]);
 
   // Track whether user is at bottom via IntersectionObserver
   useEffect(() => {
     const sentinel = bottomRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
-      ([entry]) => setIsAtBottom(entry.isIntersecting),
+      ([entry]) => {
+        setIsAtBottom(entry.isIntersecting);
+        if (entry.isIntersecting) setNewMsgCount(0);
+      },
       { root: scrollContainerRef.current, threshold: 0.1 }
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, []);
 
+  // Keyboard: ↑ at empty input → edit last user message
+  const handleEditLast = useCallback(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') {
+        setEditPrefill(messages[i].content);
+        return;
+      }
+    }
+  }, [messages]);
+
   const noSources = checkedCount === 0;
 
-  const lastCompletedAssistantId = [...messages].reverse().find(m => m.role === 'assistant' && !m.isStreaming)?.id;
+  const lastCompletedAssistantId = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant' && !m.isStreaming && !m.isCancelled && m.id !== 'welcome') return m.id;
+    }
+    return undefined;
+  })();
 
-  // Build source label: show up to 2 names + "+N khác"
   const sourceLabel = (() => {
     if (checkedCount === 0) return null;
     if (selectedDocNames.length === 0) return `${checkedCount} nguồn`;
@@ -72,7 +107,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <span className="badge bg-elevated text-text-muted border border-border">{messages.length} tin</span>
         </div>
         <div className="flex items-center gap-2">
-          {/* Source badge */}
           {checkedCount > 0 ? (
             <div
               className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-accent/10 border border-accent/20 max-w-[200px]"
@@ -97,11 +131,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-5 pt-5 pb-2 flex flex-col">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-5 pt-5 pb-2 flex flex-col"
+        role="log"
+        aria-live="polite"
+        aria-label="Lịch sử cuộc trò chuyện"
+      >
         {noSources ? (
           /* ── Empty: no source selected ── */
           <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center">
-            {/* Animated rings */}
             <div className="relative flex items-center justify-center">
               <div className="absolute w-24 h-24 rounded-full border-2 border-warning/20 animate-ping" style={{ animationDuration: '2.5s' }} />
               <div className="absolute w-16 h-16 rounded-full border-2 border-warning/30 animate-ping" style={{ animationDuration: '2s' }} />
@@ -122,7 +161,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 <span className="text-warning font-semibold">Kho cá nhân</span>.
               </p>
             </div>
-            {/* Step indicators */}
             <div className="flex flex-col gap-2 text-left w-full max-w-xs">
               {[
                 { step: '1', text: 'Mở mục "Nguồn tài liệu" bên trái' },
@@ -139,7 +177,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           </div>
         ) : messages.length === 0 ? (
-          /* ── Empty: sources selected but no messages ── */
           <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-fade-in">
             <div className="flex flex-col items-center gap-3 text-center">
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg">
@@ -152,7 +189,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 </p>
               </div>
             </div>
-            {/* Inline smart suggestions */}
             <div className="w-full max-w-sm bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
               <SampleQuestions onSelect={onSend} checkedDocIds={checkedIds} />
             </div>
@@ -166,6 +202,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onFeedback={onFeedback}
               onReport={onReport}
               onSuggestionClick={onSend}
+              onRegenerate={onRegenerate}
+              onEditUserMessage={onEditUserMessage}
+              isLastAssistant={msg.id === lastCompletedAssistantId}
               showSuggestions={msg.id === lastCompletedAssistantId}
             />
           ))
@@ -177,11 +216,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       {!isAtBottom && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
           <button
-            onClick={scrollToBottom}
+            onClick={() => scrollToBottom(true)}
+            aria-label="Cuộn xuống tin nhắn mới nhất"
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface border border-border shadow-lg text-text-secondary hover:text-text-primary hover:bg-elevated transition-all text-[12px] font-medium animate-fade-in"
           >
             {isGenerating && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
-            <span>{isGenerating ? 'Tin mới' : 'Cuộn xuống'}</span>
+            <span>
+              {newMsgCount > 0
+                ? `${newMsgCount} tin mới`
+                : (isGenerating ? 'Đang trả lời' : 'Cuộn xuống')}
+            </span>
             <ChevronDown className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -191,10 +235,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         onSend={onSend}
         disabled={isGenerating || noSources}
         noSources={noSources}
-        prefill={prefill}
-        onPrefillConsumed={onPrefillConsumed}
+        prefill={editPrefill ?? prefill}
+        onPrefillConsumed={() => { setEditPrefill(undefined); onPrefillConsumed?.(); }}
         isGenerating={isGenerating}
         onCancel={onCancel}
+        onEditLast={handleEditLast}
       />
     </div>
   );

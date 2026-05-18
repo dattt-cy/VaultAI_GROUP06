@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, ChevronRight, MessageSquare, Search, ChevronLeft } from 'lucide-react';
+import { X, ChevronRight, MessageSquare, Search, ChevronLeft, Inbox } from 'lucide-react';
 import { apiGet } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { Skeleton } from '../../components/admin/ui/Skeleton';
+import { EmptyState } from '../../components/admin/ui/EmptyState';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface Session {
   id: number;
@@ -36,6 +40,7 @@ const ChatMonitorPage: React.FC = () => {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
@@ -50,15 +55,21 @@ const ChatMonitorPage: React.FC = () => {
       const data = await res.json();
       setSessions(data.items ?? []);
       setTotal(data.total ?? 0);
+    } catch (err) {
+      toast.error('Không tải được danh sách phiên', String(err));
     } finally {
       setLoading(false);
     }
-  }, [page, filterArchived, search]);
+  }, [page, filterArchived, search, toast]);
 
   const fetchMessages = useCallback(async (sessionId: number) => {
-    const res = await apiGet(`/api/admin/chat/sessions/${sessionId}/messages`);
-    setMessages(await res.json());
-  }, []);
+    try {
+      const res = await apiGet(`/api/admin/chat/sessions/${sessionId}/messages`);
+      setMessages(await res.json());
+    } catch (err) {
+      toast.error('Không tải được tin nhắn', String(err));
+    }
+  }, [toast]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
@@ -81,11 +92,11 @@ const ChatMonitorPage: React.FC = () => {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-[20px] font-bold text-text-primary">Giám sát Chat</h1>
-        <p className="text-[13px] text-text-muted mt-0.5">{total} phiên trò chuyện</p>
-      </div>
+      <PageHeader
+        title="Giám sát Chat"
+        subtitle={`${total.toLocaleString('vi-VN')} phiên trò chuyện`}
+        icon={<MessageSquare className="w-5 h-5 text-text-secondary" />}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -133,12 +144,22 @@ const ChatMonitorPage: React.FC = () => {
 
           <div className="divide-y divide-border flex-1">
             {loading ? (
-              <div className="flex items-center justify-center py-10 text-[13px] text-text-muted gap-2">
-                <div className="w-3.5 h-3.5 border border-accent border-t-transparent rounded-full animate-spin" />
-                Đang tải...
-              </div>
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3 w-3/5" />
+                    <Skeleton className="h-2.5 w-2/5" />
+                  </div>
+                  <Skeleton className="w-4 h-4" />
+                </div>
+              ))
             ) : sessions.length === 0 ? (
-              <p className="text-center py-10 text-[13px] text-text-muted">Không có phiên nào</p>
+              <EmptyState
+                icon={Inbox}
+                title="Không có phiên nào"
+                description={search || filterArchived ? 'Thử bỏ bộ lọc để xem toàn bộ.' : 'Chưa có phiên trò chuyện nào.'}
+                compact
+              />
             ) : (
               sessions.map(session => (
                 <button
@@ -245,7 +266,7 @@ const ChatMonitorPage: React.FC = () => {
                 </div>
               ))}
               {messages.length === 0 && (
-                <p className="text-center py-6 text-[13px] text-text-muted">Không có tin nhắn</p>
+                <EmptyState icon={Inbox} title="Không có tin nhắn" compact />
               )}
             </div>
           </div>

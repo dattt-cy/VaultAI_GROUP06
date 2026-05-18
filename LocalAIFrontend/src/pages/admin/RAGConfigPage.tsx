@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Sliders, Save, RefreshCw, AlertTriangle } from 'lucide-react';
 import { apiGet, apiPut } from '../../utils/apiClient';
+import { PageHeader } from '../../components/admin/ui/PageHeader';
+import { SkeletonPanel } from '../../components/admin/ui/Skeleton';
+import { useToast } from '../../components/admin/ui/Toast';
 
 interface RAGConfig {
   parent_chunk_size: number;
@@ -18,12 +21,11 @@ const RAGConfigPage: React.FC = () => {
   const [form, setForm] = useState<RAGConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [chunkChanged, setChunkChanged] = useState(false);
+  const toast = useToast();
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    if (type === 'success') toast.success(msg); else toast.error(msg);
   };
 
   const fetchConfig = useCallback(async () => {
@@ -87,41 +89,44 @@ const RAGConfigPage: React.FC = () => {
 
   if (loading || !form) {
     return (
-      <div className="flex items-center justify-center h-64 text-text-muted text-sm">
-        <RefreshCw size={16} className="animate-spin mr-2" /> Đang tải...
+      <div className="space-y-5 animate-fade-in">
+        <PageHeader
+          title="Cấu hình RAG"
+          subtitle="Điều chỉnh chunking, embedding và retrieval"
+          icon={<Sliders className="w-5 h-5 text-text-secondary" />}
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SkeletonPanel rows={4} />
+          <SkeletonPanel rows={4} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>
-          {toast.msg}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Cấu hình RAG</h1>
-          <p className="text-sm text-text-muted mt-1">Điều chỉnh chunking, embedding và retrieval</p>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
-        >
-          {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-          Lưu cấu hình
-        </button>
-      </div>
+    <div className="space-y-5 animate-fade-in">
+      <PageHeader
+        title="Cấu hình RAG"
+        subtitle="Điều chỉnh chunking, embedding và retrieval"
+        icon={<Sliders className="w-5 h-5 text-text-secondary" />}
+        actions={
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white text-[13px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+          >
+            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            Lưu cấu hình
+          </button>
+        }
+      />
 
       {chunkChanged && (
-        <div className="flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-400">
+        <div className="flex items-start gap-3 bg-warning/10 border border-warning/30 rounded-lg p-4 text-[13px] text-warning">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <div>
-            <p className="font-medium">Lưu ý quan trọng</p>
-            <p className="text-yellow-400/80 mt-0.5">Thay đổi chunk size hoặc embedding model yêu cầu reindex lại toàn bộ tài liệu. Chất lượng tìm kiếm sẽ bị ảnh hưởng cho đến khi reindex hoàn tất.</p>
+            <p className="font-semibold">Lưu ý quan trọng</p>
+            <p className="text-warning/80 mt-0.5">Thay đổi chunk size hoặc embedding model yêu cầu reindex lại toàn bộ tài liệu. Chất lượng tìm kiếm sẽ bị ảnh hưởng cho đến khi reindex hoàn tất.</p>
           </div>
         </div>
       )}
