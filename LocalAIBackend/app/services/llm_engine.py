@@ -31,6 +31,8 @@ def _base_options() -> dict:
         "temperature": settings.LLM_TEMPERATURE,
         "num_predict": settings.LLM_NUM_PREDICT,
         "num_ctx": settings.LLM_NUM_CTX,
+        "num_gpu": settings.LLM_NUM_GPU,    # offload toàn bộ layers lên GPU
+        "num_batch": settings.LLM_NUM_BATCH, # batch size lớn hơn = GPU throughput cao hơn
     }
 
 def _messages(user_content: str) -> list:
