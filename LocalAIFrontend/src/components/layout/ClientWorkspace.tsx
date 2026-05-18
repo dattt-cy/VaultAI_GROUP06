@@ -31,7 +31,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
 
   const { sharedDocs, privateDocs } = useDocumentTree(currentSessionId);
   const allDocs = [...sharedDocs, ...privateDocs]
-    .filter(d => d.ingestion_status === 'COMPLETED')
+    .filter(d => !['PENDING', 'PROCESSING', 'FAILED'].includes(d.ingestion_status))
     .map(d => ({ id: d.id, name: d.title }));
 
   // Load session từ URL param khi workspace mở

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Send, Square, BookOpen, X, FileText, AtSign } from 'lucide-react';
 
@@ -77,8 +77,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Tính vị trí fixed cho dropdown — thoát khỏi overflow:hidden của ChatPanel
-  useEffect(() => {
+  // useLayoutEffect để tính vị trí TRƯỚC khi browser paint — không bị flicker
+  useLayoutEffect(() => {
     if (mentionQuery !== null && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       setDropdownPos({
@@ -92,7 +92,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [mentionQuery]);
 
   const mentionFiltered = useMemo(() => {
-    if (mentionQuery === null || availableDocs.length === 0) return [];
+    if (mentionQuery === null) return [];
+    console.log('[ChatInput @-tag] availableDocs:', availableDocs.length, 'query:', mentionQuery);
+    if (availableDocs.length === 0) return [];
     const q = mentionQuery.toLowerCase();
     return availableDocs
       .filter(d => !taggedDocs.some(t => t.id === d.id))
