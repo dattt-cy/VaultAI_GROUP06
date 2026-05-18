@@ -19,6 +19,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const [prefill, setPrefill] = useState<string | undefined>();
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [selectedDocNames, setSelectedDocNames] = useState<string[]>([]);
+  const [checkedDocsList, setCheckedDocsList] = useState<{ id: number; name: string }[]>([]);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
 
@@ -43,6 +44,8 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const handleSelectionChange = useCallback((ids: Set<number>, names: string[]) => {
     setCheckedIds(new Set(ids));
     setSelectedDocNames(names);
+    const idsArr = Array.from(ids);
+    setCheckedDocsList(idsArr.map((id, i) => ({ id, name: names[i] ?? `Tài liệu ${id}` })));
   }, []);
 
   const leftWidth = leftOpen ? '320px' : '0px';
@@ -76,7 +79,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
           <ChatPanel
             messages={messages}
             isGenerating={isGenerating}
-            onSend={(text) => sendMessage(text, Array.from(checkedIds))}
+            onSend={(text, taggedDocIds) => sendMessage(text, taggedDocIds ?? Array.from(checkedIds))}
             onCancel={cancelMessage}
             onRegenerate={() => regenerateLast(Array.from(checkedIds))}
             onEditUserMessage={(id, text) => editAndResend(id, text, Array.from(checkedIds))}
@@ -88,6 +91,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             checkedCount={checkedIds.size}
             checkedIds={checkedIds}
             selectedDocNames={selectedDocNames}
+            availableDocs={checkedDocsList}
           />
 
           {/* RIGHT: Document viewer */}

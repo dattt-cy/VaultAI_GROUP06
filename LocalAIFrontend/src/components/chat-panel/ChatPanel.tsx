@@ -8,7 +8,7 @@ import { SampleQuestions } from '../left-panel/SampleQuestions';
 interface ChatPanelProps {
   messages: Message[];
   isGenerating: boolean;
-  onSend: (t: string) => void;
+  onSend: (t: string, taggedDocIds?: number[]) => void;
   onCancel: () => void;
   onRegenerate?: () => void;
   onEditUserMessage?: (id: string, newText: string) => void;
@@ -20,12 +20,13 @@ interface ChatPanelProps {
   checkedCount: number;
   checkedIds?: Set<number>;
   selectedDocNames?: string[];
+  availableDocs?: { id: number; name: string }[];
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   messages, isGenerating, onSend, onCancel, onRegenerate, onEditUserMessage,
   onCitationClick, onFeedback, onReport, prefill, onPrefillConsumed,
-  checkedCount, checkedIds, selectedDocNames = [],
+  checkedCount, checkedIds, selectedDocNames = [], availableDocs = [],
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -233,13 +234,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       <ChatInput
         onSend={onSend}
-        disabled={isGenerating || noSources}
+        disabled={isGenerating}
         noSources={noSources}
         prefill={editPrefill ?? prefill}
         onPrefillConsumed={() => { setEditPrefill(undefined); onPrefillConsumed?.(); }}
         isGenerating={isGenerating}
         onCancel={onCancel}
         onEditLast={handleEditLast}
+        availableDocs={availableDocs}
       />
     </div>
   );
