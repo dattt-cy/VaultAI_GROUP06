@@ -171,11 +171,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
       )}
 
-      {!effectivelyBlocked && availableDocs.length > 0 && taggedDocs.length === 0 && !value && (
+      {availableDocs.length > 0 && taggedDocs.length === 0 && !value && !effectivelyBlocked && (
         <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
           <AtSign className="w-3 h-3 text-text-muted/60" />
           <span className="text-[11px] text-text-muted/70">
-            Gõ <kbd className="px-1 py-0.5 bg-elevated border border-border rounded text-[10px] font-mono">@</kbd> để hỏi riêng 1 tài liệu cụ thể
+            Gõ <kbd className="px-1 py-0.5 bg-elevated border border-border rounded text-[10px] font-mono">@</kbd> để chọn bất kỳ tài liệu nào ({availableDocs.length} tài liệu)
           </span>
         </div>
       )}

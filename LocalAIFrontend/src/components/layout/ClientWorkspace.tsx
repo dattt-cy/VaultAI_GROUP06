@@ -7,6 +7,7 @@ import { ChatPanel } from '../chat-panel/ChatPanel';
 import { DocumentPanel } from '../document-panel/DocumentPanel';
 import { useChatState } from '../../hooks/useChatState';
 import { useDocumentHighlight } from '../../hooks/useDocumentHighlight';
+import { useDocumentTree } from '../../hooks/useDocumentTree';
 import type { Citation } from '../../hooks/useChatState';
 
 interface ClientWorkspaceProps {
@@ -19,7 +20,6 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const [prefill, setPrefill] = useState<string | undefined>();
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
   const [selectedDocNames, setSelectedDocNames] = useState<string[]>([]);
-  const [checkedDocsList, setCheckedDocsList] = useState<{ id: number; name: string }[]>([]);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
 
@@ -28,6 +28,11 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
     sendMessage, cancelMessage, setFeedback, reportMessage, loadSession,
     regenerateLast, editAndResend,
   } = useChatState();
+
+  const { sharedDocs, privateDocs } = useDocumentTree(currentSessionId);
+  const allDocs = [...sharedDocs, ...privateDocs]
+    .filter(d => d.ingestion_status === 'DONE')
+    .map(d => ({ id: d.id, name: d.title }));
 
   // Load session từ URL param khi workspace mở
   useEffect(() => {
@@ -44,8 +49,6 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const handleSelectionChange = useCallback((ids: Set<number>, names: string[]) => {
     setCheckedIds(new Set(ids));
     setSelectedDocNames(names);
-    const idsArr = Array.from(ids);
-    setCheckedDocsList(idsArr.map((id, i) => ({ id, name: names[i] ?? `Tài liệu ${id}` })));
   }, []);
 
   const leftWidth = leftOpen ? '320px' : '0px';
@@ -91,7 +94,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             checkedCount={checkedIds.size}
             checkedIds={checkedIds}
             selectedDocNames={selectedDocNames}
-            availableDocs={checkedDocsList}
+            availableDocs={allDocs}
           />
 
           {/* RIGHT: Document viewer */}
