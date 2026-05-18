@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Send, Square, BookOpen, X, FileText, AtSign } from 'lucide-react';
 
 const CHAR_WARN_THRESHOLD = 200;
@@ -31,7 +32,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [mentionAnchor, setMentionAnchor] = useState(0);
   const [mentionIdx, setMentionIdx] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ bottom: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
     if (prefill !== undefined && prefill !== '') {
@@ -73,6 +76,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Tính vị trí fixed cho dropdown — thoát khỏi overflow:hidden của ChatPanel
+  useEffect(() => {
+    if (mentionQuery !== null && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownPos({
+        bottom: window.innerHeight - rect.top + 6,
+        left: rect.left,
+        width: rect.width,
+      });
+    } else {
+      setDropdownPos(null);
+    }
+  }, [mentionQuery]);
 
   const mentionFiltered = useMemo(() => {
     if (mentionQuery === null || availableDocs.length === 0) return [];
@@ -155,8 +172,73 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return base.length > 20 ? base.slice(0, 18) + '…' : base;
   };
 
+  const dropdownContent = mentionQuery !== null && dropdownPos && (
+    <div
+      ref={dropdownRef}
+      role="listbox"
+      aria-label="Chọn tài liệu để tag"
+      style={{
+        position: 'fixed',
+        bottom: dropdownPos.bottom,
+        left: dropdownPos.left,
+        width: dropdownPos.width,
+        zIndex: 9999,
+      }}
+      className="bg-surface border border-border rounded-xl shadow-2xl overflow-hidden animate-fade-in"
+    >
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-elevated/60">
+        <AtSign className="w-3 h-3 text-accent" />
+        <span className="text-[11px] text-text-muted font-medium">
+          {mentionQuery ? `Tìm "${mentionQuery}"` : 'Chọn tài liệu · ↑↓ điều hướng · Enter chọn · Esc đóng'}
+        </span>
+      </div>
+
+      {mentionFiltered.length > 0 ? (
+        <>
+          {mentionFiltered.map((doc, i) => (
+            <button
+              key={doc.id}
+              role="option"
+              aria-selected={i === mentionIdx}
+              onMouseDown={(e) => { e.preventDefault(); selectMention(doc); }}
+              onMouseEnter={() => setMentionIdx(i)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors cursor-pointer
+                ${i === mentionIdx ? 'bg-accent/10' : 'hover:bg-hover'}`}
+            >
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${i === mentionIdx ? 'bg-accent/15' : 'bg-elevated'}`}>
+                <FileText className={`w-3.5 h-3.5 ${i === mentionIdx ? 'text-accent' : 'text-text-muted'}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className={`text-[13px] font-medium block truncate ${i === mentionIdx ? 'text-accent' : 'text-text-primary'}`}>
+                  {doc.name}
+                </span>
+              </div>
+              {i === mentionIdx && (
+                <kbd className="text-[10px] text-accent/60 font-mono bg-accent/10 px-1.5 py-0.5 rounded flex-shrink-0">Enter</kbd>
+              )}
+            </button>
+          ))}
+          {availableDocs.filter(d => !taggedDocs.some(t => t.id === d.id)).length > 6 && (
+            <div className="px-3 py-1.5 border-t border-border bg-elevated/40 text-center">
+              <span className="text-[11px] text-text-muted">Gõ thêm để lọc chính xác hơn...</span>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2.5">
+          <FileText className="w-3.5 h-3.5 text-text-muted" />
+          <span className="text-[12px] text-text-muted">
+            {taggedDocs.length === availableDocs.length
+              ? 'Đã tag tất cả tài liệu được chọn'
+              : `Không tìm thấy "${mentionQuery}"`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="px-4 pb-4 pt-3 border-t border-border bg-surface flex-shrink-0 relative">
+    <div ref={containerRef} className="px-4 pb-4 pt-3 border-t border-border bg-surface flex-shrink-0">
 
       {effectivelyBlocked && (
         <div className="flex items-center gap-2 mb-2.5 px-3 py-2 rounded-lg bg-warning/8 border border-warning/25 animate-fade-in">
@@ -180,64 +262,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
       )}
 
-      {/* @mention dropdown — floats above */}
-      {mentionQuery !== null && (
-        <div
-          ref={dropdownRef}
-          className="absolute bottom-full mb-1 left-4 right-4 z-50 bg-surface border border-border rounded-xl shadow-xl overflow-hidden animate-fade-in"
-          role="listbox"
-          aria-label="Chọn tài liệu để tag"
-        >
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-elevated/60">
-            <AtSign className="w-3 h-3 text-accent" />
-            <span className="text-[11px] text-text-muted font-medium">
-              {mentionQuery ? `Tìm "${mentionQuery}"` : 'Chọn tài liệu · ↑↓ điều hướng · Enter chọn · Esc đóng'}
-            </span>
-          </div>
-
-          {mentionFiltered.length > 0 ? (
-            <>
-              {mentionFiltered.map((doc, i) => (
-                <button
-                  key={doc.id}
-                  role="option"
-                  aria-selected={i === mentionIdx}
-                  onMouseDown={(e) => { e.preventDefault(); selectMention(doc); }}
-                  onMouseEnter={() => setMentionIdx(i)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors cursor-pointer
-                    ${i === mentionIdx ? 'bg-accent/10' : 'hover:bg-hover'}`}
-                >
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${i === mentionIdx ? 'bg-accent/15' : 'bg-elevated'}`}>
-                    <FileText className={`w-3.5 h-3.5 ${i === mentionIdx ? 'text-accent' : 'text-text-muted'}`} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-[13px] font-medium block truncate ${i === mentionIdx ? 'text-accent' : 'text-text-primary'}`}>
-                      {doc.name}
-                    </span>
-                  </div>
-                  {i === mentionIdx && (
-                    <kbd className="text-[10px] text-accent/60 font-mono bg-accent/10 px-1.5 py-0.5 rounded flex-shrink-0">Enter</kbd>
-                  )}
-                </button>
-              ))}
-              {availableDocs.filter(d => !taggedDocs.some(t => t.id === d.id)).length > 6 && (
-                <div className="px-3 py-1.5 border-t border-border bg-elevated/40 text-center">
-                  <span className="text-[11px] text-text-muted">Gõ thêm để lọc chính xác hơn...</span>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-2.5">
-              <FileText className="w-3.5 h-3.5 text-text-muted" />
-              <span className="text-[12px] text-text-muted">
-                {taggedDocs.length === availableDocs.length
-                  ? 'Đã tag tất cả tài liệu được chọn'
-                  : `Không tìm thấy "${mentionQuery}"`}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      {/* dropdown được render qua portal để thoát khỏi overflow:hidden của ChatPanel */}
+      {dropdownContent && createPortal(dropdownContent, document.body)}
 
       {/* Main input box */}
       <div
