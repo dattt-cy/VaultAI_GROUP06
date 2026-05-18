@@ -99,7 +99,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     return availableDocs
       .filter(d => !taggedDocs.some(t => t.id === d.id))
       .filter(d => d.name.toLowerCase().includes(q))
-      .slice(0, 6);
+      .slice(0, 20);
   }, [mentionQuery, availableDocs, taggedDocs]);
 
   const hasTaggedDocs = taggedDocs.length > 0;
@@ -185,19 +185,24 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         left: dropdownPos.left,
         width: dropdownPos.width,
         zIndex: 9999,
+        maxHeight: '320px',
+        display: 'flex',
+        flexDirection: 'column',
       }}
-      className="bg-surface border border-border rounded-xl shadow-2xl overflow-hidden animate-fade-in"
+      className="bg-surface border border-border rounded-xl shadow-2xl animate-fade-in"
     >
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-elevated/60">
+      {/* Header cố định */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-elevated/60 flex-shrink-0 rounded-t-xl">
         <AtSign className="w-3 h-3 text-accent" />
         <span className="text-[11px] text-text-muted font-medium">
           {mentionQuery ? `Tìm "${mentionQuery}"` : 'Chọn tài liệu · ↑↓ điều hướng · Enter chọn · Esc đóng'}
         </span>
       </div>
 
-      {mentionFiltered.length > 0 ? (
-        <>
-          {mentionFiltered.map((doc, i) => (
+      {/* Danh sách scrollable */}
+      <div className="overflow-y-auto flex-1 min-h-0">
+        {mentionFiltered.length > 0 ? (
+          mentionFiltered.map((doc, i) => (
             <button
               key={doc.id}
               role="option"
@@ -219,21 +224,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <kbd className="text-[10px] text-accent/60 font-mono bg-accent/10 px-1.5 py-0.5 rounded flex-shrink-0">Enter</kbd>
               )}
             </button>
-          ))}
-          {availableDocs.filter(d => !taggedDocs.some(t => t.id === d.id)).length > 6 && (
-            <div className="px-3 py-1.5 border-t border-border bg-elevated/40 text-center">
-              <span className="text-[11px] text-text-muted">Gõ thêm để lọc chính xác hơn...</span>
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2.5">
-          <FileText className="w-3.5 h-3.5 text-text-muted" />
-          <span className="text-[12px] text-text-muted">
-            {taggedDocs.length === availableDocs.length
-              ? 'Đã tag tất cả tài liệu được chọn'
-              : `Không tìm thấy "${mentionQuery}"`}
-          </span>
+          ))
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2.5">
+            <FileText className="w-3.5 h-3.5 text-text-muted" />
+            <span className="text-[12px] text-text-muted">
+              {taggedDocs.length >= availableDocs.length && availableDocs.length > 0
+                ? 'Đã tag tất cả tài liệu'
+                : `Không tìm thấy "${mentionQuery}"`}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Footer hint khi có nhiều kết quả */}
+      {mentionFiltered.length >= 20 && (
+        <div className="px-3 py-1.5 border-t border-border bg-elevated/40 text-center flex-shrink-0 rounded-b-xl">
+          <span className="text-[11px] text-text-muted">Gõ thêm để lọc chính xác hơn...</span>
         </div>
       )}
     </div>
