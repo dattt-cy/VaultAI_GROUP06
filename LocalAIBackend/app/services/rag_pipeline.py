@@ -1,5 +1,7 @@
 import re
 import json
+import queue
+import threading
 from typing import Generator
 from sqlalchemy.orm import Session
 from .hybrid_retriever import (
@@ -233,6 +235,33 @@ Câu trả lời trước đó:
 3 câu hỏi tiếp theo:"""
 )
 
+
+
+def _detect_article_ambiguity(query: str, chunks: list) -> list[dict] | None:
+    """
+    Kiểm tra xem query có hỏi về một điều khoản cụ thể (VD: "điều 4") mà
+    xuất hiện trong nhiều văn bản khác nhau không.
+
+    Trả về list các văn bản nếu mơ hồ, None nếu không mơ hồ.
+    """
+    match = re.search(r'điều\s+(\d+)', query, re.IGNORECASE)
+    if not match:
+        return None
+    article_num = match.group(1)
+    article_pattern = re.compile(rf'điều\s+{article_num}\b', re.IGNORECASE)
+
+    # Gom các source file có chứa "điều X" trong content chunk
+    sources: dict[int, str] = {}  # document_id → source file name
+    for chunk in chunks:
+        if article_pattern.search(chunk.content):
+            doc_id = chunk.document_id
+            if doc_id not in sources:
+                sources[doc_id] = chunk.page_metadata.get("source", f"Tài liệu {doc_id}")
+
+    if len(sources) < 2:
+        return None
+
+    return [{"document_id": doc_id, "name": name} for doc_id, name in sources.items()]
 
 
 def _generate_suggestions(context: str, answer: str) -> list:
@@ -598,6 +627,17 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
             "suggestions": []
         }
 
+    # 2a. Kiểm tra mơ hồ điều khoản — nếu nhiều văn bản có cùng "điều X", hỏi lại user
+    ambiguous_sources = _detect_article_ambiguity(query, chunks)
+    if ambiguous_sources:
+        names = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
+        return {
+            "answer": f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong nhiều văn bản khác nhau:\n{names}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?",
+            "citations": [],
+            "suggestions": [s['name'] for s in ambiguous_sources],
+            "clarify": True,
+        }
+
     # 2. Ghép ngữ cảnh — chunk liên tiếp cùng doc được merge thành 1 block
     context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
@@ -737,6 +777,17 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     doc_ids = {c.document_id for c in chunks}
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
+
+    # Kiểm tra mơ hồ điều khoản — nếu nhiều văn bản có cùng "điều X", hỏi lại user
+    ambiguous_sources = _detect_article_ambiguity(query, chunks)
+    if ambiguous_sources:
+        names_md = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
+        clarify_text = f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong **{len(ambiguous_sources)} văn bản** khác nhau:\n{names_md}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?"
+        yield _sse({"type": "token", "content": clarify_text})
+        yield _sse({"type": "suggestions", "data": [s['name'] for s in ambiguous_sources]})
+        yield _sse({"type": "done", "citations": []})
+        return
+
     yield _sse({"type": "thinking", "step": "🧠 Đang tổng hợp câu trả lời..."})
 
     context_parts = _build_context_parts(chunks)
@@ -822,6 +873,19 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             "source_lines": citation_source_lines.get(c_idx, []),
         })
 
-    yield _sse({"type": "done", "citations": citations, "suggestions": []})
+    yield _sse({"type": "done", "citations": citations})
 
-    # _generate_suggestions tắt: thêm 1 LLM call sau done → Ollama bận, request tiếp bị queue
+    # Generate suggestions sau khi đã yield done — chạy trong thread riêng để không block Ollama
+    suggestion_queue: queue.Queue = queue.Queue()
+
+    def _run_suggestions():
+        result = _generate_suggestions(merged_context, safe_response)
+        suggestion_queue.put(result)
+
+    t = threading.Thread(target=_run_suggestions, daemon=True)
+    t.start()
+    t.join(timeout=15)
+
+    suggestions = suggestion_queue.get() if not suggestion_queue.empty() else []
+    if suggestions:
+        yield _sse({"type": "suggestions", "data": suggestions})
