@@ -899,8 +899,4 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             "source_lines": citation_source_lines.get(c_idx, []),
         })
 
-    # Generate suggestions trước khi yield done — gọi thẳng, fast_llm_invoke đủ nhanh
-    suggestions = _generate_suggestions(merged_context, safe_response)
     yield _sse({"type": "done", "citations": citations})
-    if suggestions:
-        yield _sse({"type": "suggestions", "data": suggestions})
