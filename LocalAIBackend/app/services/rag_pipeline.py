@@ -1,7 +1,5 @@
 import re
 import json
-import queue
-import threading
 from typing import Generator
 from sqlalchemy.orm import Session
 from .hybrid_retriever import (
@@ -901,19 +899,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             "source_lines": citation_source_lines.get(c_idx, []),
         })
 
+    # Generate suggestions trước khi yield done — gọi thẳng, fast_llm_invoke đủ nhanh
+    suggestions = _generate_suggestions(merged_context, safe_response)
     yield _sse({"type": "done", "citations": citations})
-
-    # Generate suggestions sau khi đã yield done — chạy trong thread riêng để không block Ollama
-    suggestion_queue: queue.Queue = queue.Queue()
-
-    def _run_suggestions():
-        result = _generate_suggestions(merged_context, safe_response)
-        suggestion_queue.put(result)
-
-    t = threading.Thread(target=_run_suggestions, daemon=True)
-    t.start()
-    t.join(timeout=45)
-
-    suggestions = suggestion_queue.get() if not suggestion_queue.empty() else []
     if suggestions:
         yield _sse({"type": "suggestions", "data": suggestions})
