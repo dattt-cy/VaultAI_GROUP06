@@ -360,6 +360,26 @@ def hybrid_retrieve(
     # Re-sort sau parent swap vì _swap_children_for_parents không bảo toàn thứ tự điểm
     context_pages.sort(key=lambda p: score_map.get(p.vector_id, getattr(p, "_temp_rerank_score", 0.0)), reverse=True)
 
+    # 5b. Forward-expand: thêm chunk liền sau mỗi parent để tránh nội dung bị cắt giữa chừng
+    existing_ids = {p.id for p in context_pages}
+    forward_pages: list[DocumentPage] = []
+    for page in context_pages:
+        if getattr(page, "chunk_type", "flat") in ("parent", "flat"):
+            nxt = (
+                db.query(DocumentPage)
+                .filter(
+                    DocumentPage.document_id == page.document_id,
+                    DocumentPage.chunk_index == page.chunk_index + 1,
+                    DocumentPage.chunk_type.in_(["parent", "flat"]),
+                )
+                .first()
+            )
+            if nxt and nxt.id not in existing_ids:
+                nxt._temp_rerank_score = score_map.get(page.vector_id, 0.0) - 0.1
+                forward_pages.append(nxt)
+                existing_ids.add(nxt.id)
+    context_pages.extend(forward_pages)
+
     # 6. Build kết quả trả về
     result: list[RetrievedChunk] = []
     for page in context_pages:

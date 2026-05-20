@@ -47,13 +47,30 @@ def _extract_text(file_path: str, file_type: str) -> str:
                 continue
         raise ValueError("Không thể đọc file TXT: encoding không hỗ trợ")
 
-    if ft in ("docx", "doc"):
+    if ft == "docx":
         try:
             import docx
             doc = docx.Document(file_path)
             return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
         except ImportError:
             raise ValueError("Cần cài: pip install python-docx")
+
+    if ft == "doc":
+        try:
+            import mammoth
+            with open(file_path, "rb") as f:
+                result = mammoth.extract_raw_text(f)
+            return result.value
+        except ImportError:
+            raise ValueError("Cần cài: pip install mammoth")
+        except Exception:
+            # fallback: thử python-docx (chỉ hoạt động nếu file thực ra là docx đổi tên)
+            try:
+                import docx
+                doc = docx.Document(file_path)
+                return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            except Exception as e2:
+                raise ValueError(f"Không thể đọc file .doc: {e2}")
 
     if ft in ("xlsx", "xls"):
         try:

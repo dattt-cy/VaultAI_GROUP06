@@ -16,6 +16,40 @@ from .context_manager import (
     expand_query, is_yes_no_query, extract_yes_no_topic,
 )
 from app.core.config import settings
+from app.api.routes.admin_rag_config import get_top_k
+
+
+def _build_context_parts(chunks: list) -> list[str]:
+    """
+    Ghép các chunk liên tiếp (cùng document, chunk_index liền nhau) thành 1 block.
+    Giúp LLM thấy nội dung liên tục thay vì nhiều tài liệu rời rạc.
+    """
+    if not chunks:
+        return []
+
+    # Sắp xếp theo (document_id, chunk_index) để nhóm dễ hơn
+    ordered = sorted(chunks, key=lambda c: (c.document_id, c.chunk_index))
+
+    groups: list[list] = []
+    current_group = [ordered[0]]
+    for c in ordered[1:]:
+        prev = current_group[-1]
+        if c.document_id == prev.document_id and c.chunk_index == prev.chunk_index + 1:
+            current_group.append(c)
+        else:
+            groups.append(current_group)
+            current_group = [c]
+    groups.append(current_group)
+
+    parts = []
+    letter_idx = 0
+    for group in groups:
+        letter = chr(65 + (letter_idx % 26))
+        letter_idx += 1
+        source_name = group[0].page_metadata.get("source", f"Tài liệu {group[0].document_id}")
+        merged_text = "\n".join(c.content for c in group)
+        parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{merged_text}")
+    return parts
 from langchain_core.prompts import PromptTemplate
 
 
@@ -30,10 +64,87 @@ _SUMMARY_KEYWORDS = [
     "summarize", "summary", "overview",
 ]
 
+_TABLE_KEYWORDS = [
+    "lập bảng", "tạo bảng", "liệt kê", "danh sách", "thống kê",
+    "bảng tổng hợp", "bảng so sánh", "liệt kê tất cả", "danh sách tất cả",
+    "bảng danh sách", "tổng hợp danh sách", "bảng thống kê",
+    "list all", "tabulate", "make a table",
+]
+
 
 def _is_summary_intent(query: str) -> bool:
     lower = query.lower()
     return any(k in lower for k in _SUMMARY_KEYWORDS)
+
+
+def _is_table_intent(query: str) -> bool:
+    lower = query.lower()
+    return any(k in lower for k in _TABLE_KEYWORDS)
+
+
+TABLE_EXTRACTION_PROMPT = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""Bạn là chuyên gia trích xuất dữ liệu có cấu trúc từ tài liệu nội bộ.
+
+--- NỘI DUNG TÀI LIỆU ---
+{context}
+--------------------------
+
+Yêu cầu của người dùng: {question}
+
+Nhiệm vụ: Trích xuất tất cả thực thể/mục phù hợp từ tài liệu thành bảng JSON có cấu trúc.
+
+QUY TẮC:
+- Chỉ trích xuất thông tin CÓ TRONG tài liệu, không bịa thêm bất kỳ thông tin nào.
+- Nếu một ô không có thông tin → điền "—"
+- Tự xác định tên cột phù hợp với nội dung và yêu cầu của người dùng.
+- Mỗi thực thể riêng biệt là một hàng.
+- Tên cột viết ngắn gọn, rõ ràng bằng tiếng Việt.
+- Tiêu đề bảng mô tả nội dung bảng trong 5-8 từ.
+
+Trả về ĐÚNG FORMAT JSON sau đây, KHÔNG thêm bất kỳ text giải thích nào:
+
+{{
+  "title": "Tiêu đề bảng ngắn gọn",
+  "columns": ["Tên cột 1", "Tên cột 2", "Tên cột 3"],
+  "rows": [
+    ["giá trị 1", "giá trị 2", "giá trị 3"],
+    ["giá trị 1", "giá trị 2", "giá trị 3"]
+  ]
+}}"""
+)
+
+
+def _extract_table_from_llm(context: str, query: str) -> dict | None:
+    """
+    Gọi LLM với TABLE_EXTRACTION_PROMPT, parse JSON trả về.
+    Trả về dict {title, columns, rows} hoặc None nếu thất bại.
+    """
+    try:
+        prompt = TABLE_EXTRACTION_PROMPT.format(context=context, question=query)
+        raw = safe_llm_invoke(prompt)
+        # Tìm block JSON đầu tiên trong response
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            print(f"[TableExtract] Không tìm thấy JSON trong response")
+            return None
+        data = json.loads(match.group())
+        if not isinstance(data.get("columns"), list) or not isinstance(data.get("rows"), list):
+            print(f"[TableExtract] JSON thiếu trường columns/rows")
+            return None
+        if not data["columns"] or not data["rows"]:
+            return None
+        return {
+            "title": data.get("title", "Bảng dữ liệu"),
+            "columns": data["columns"],
+            "rows": data["rows"],
+        }
+    except json.JSONDecodeError as e:
+        print(f"[TableExtract JSON ERROR] {e}")
+        return None
+    except Exception as e:
+        print(f"[TableExtract ERROR] {e}")
+        return None
 
 
 SUMMARY_PROMPT = PromptTemplate(
@@ -69,7 +180,9 @@ Câu hỏi: {question}
 QUY TẮC:
 - TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
 - CHỈ TRẢ LỜI ĐÚNG NHỮNG GÌ ĐƯỢC HỎI. Nếu câu hỏi hỏi về X, chỉ trả lời về X — không tự thêm thông tin về Y, Z dù chúng xuất hiện trong tài liệu gần đó.
+- DANH SÁCH ĐẦY ĐỦ: Nếu NGỮ CẢNH chứa nhiều mục/điểm liên quan đến câu hỏi (dù có đánh số hay không, dù là bullet hay đoạn văn riêng biệt), PHẢI liệt kê TẤT CẢ — không được bỏ sót, không được gộp, không được viết "..." hay "và các mục khác". Ví dụ: câu hỏi về "nội dung hợp đồng" và tài liệu liệt kê 9 điểm → phải trả lời đủ 9 điểm.
 - ƯU TIÊN SỬ DỤNG suy luận logic: Nếu NGỮ CẢNH đề cập đến chủ đề liên quan (dù dùng từ ngữ khác nhau), hãy suy luận và trả lời. Ví dụ: tài liệu nói "IT thực hiện backup" → có thể trả lời "IT chịu trách nhiệm khôi phục".
+- SUY LUẬN DANH SÁCH ĐÓNG: Nếu NGỮ CẢNH liệt kê rõ những gì được phép/khuyến nghị (VD: "chỉ dùng A hoặc B"), và câu hỏi hỏi về X không có trong danh sách đó → kết luận dứt khoát "Không được phép" và giải thích chỉ A, B mới được phép. KHÔNG được nói "không đề cập trong tài liệu" khi đã có danh sách rõ ràng.
 - Chỉ từ chối khi NGỮ CẢNH HOÀN TOÀN KHÔNG ĐỀ CẬP đến chủ đề câu hỏi. Nếu có thông tin liên quan dù gián tiếp, hãy trả lời và giải thích suy luận.
 - Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết duy nhất: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." KHÔNG được viết câu này kèm với nội dung trả lời khác.
 - Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
@@ -440,29 +553,32 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
         }
 
     history = conversation_history or []
+    top_k = get_top_k(db)
 
-    # 0. Query rewriting: viết lại câu hỏi mơ hồ trước khi retrieval
+    # 0. Query rewriting: rewrite bằng history trước, sau đó áp yes/no extraction
     retrieval_query = query
-    if is_yes_no_query(query):
-        # Trích topic từ câu hỏi Yes/No để retrieval match keyword tốt hơn
-        retrieval_query = extract_yes_no_topic(query)
-        print(f"[YesNoExtract] '{query}' → '{retrieval_query}'")
-    elif history and needs_rewrite(query, history):
+    if history and needs_rewrite(query, history):
+        # Rewrite với context hội thoại để câu hỏi mơ hồ có đầy đủ thông tin
         retrieval_query = rewrite_query(query, history, safe_llm_invoke)
         if retrieval_query != query:
             print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
+    if is_yes_no_query(retrieval_query):
+        # Trích topic từ câu hỏi Yes/No để retrieval match keyword tốt hơn
+        retrieval_query = extract_yes_no_topic(retrieval_query)
+        print(f"[YesNoExtract] → '{retrieval_query}'")
 
-    # 1. Retrieval — dùng summary scan nếu user yêu cầu tóm tắt, ngược lại dùng hybrid
-    if _is_summary_intent(query):
-        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
+    # 1. Retrieval — table/summary dùng retrieve_for_summary để lấy nhiều chunk hơn
+    is_table = _is_table_intent(query)
+    if _is_summary_intent(query) or is_table:
+        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
     else:
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=6, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
         # Câu hỏi Yes/No luôn expand để tìm quy định liên quan dù retrieval có vẻ confident
         if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
             print(f"[AdaptiveRAG] Confidence thấp, thử expand query...")
             expanded = expand_query(retrieval_query, safe_llm_invoke)
             if len(expanded) > 1:
-                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=6, allowed_doc_ids=allowed_doc_ids)
+                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
                 if multi_chunks:
                     # Merge thay vì replace để không mất chunks tốt từ lần đầu
                     seen = {c.vector_id for c in chunks}
@@ -473,7 +589,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
                             if c.rerank_score is None:
                                 c.rerank_score = reranker.predict([(retrieval_query, c.content)])
                         merged.sort(key=lambda c: c.rerank_score or 0, reverse=True)
-                    chunks = merged[:6]
+                    chunks = merged[:top_k]
 
     if not chunks:
         return {
@@ -482,24 +598,35 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
             "suggestions": []
         }
 
-    # 2. Ghép ngữ cảnh
-    context_parts = []
-    for i, chunk in enumerate(chunks):
-        letter = chr(65 + (i % 26))
-        source_name = chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}")
-        context_parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{chunk.content}")
-
+    # 2. Ghép ngữ cảnh — chunk liên tiếp cùng doc được merge thành 1 block
+    context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
 
-    # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM (bỏ qua khi tóm tắt vì context luôn có nội dung)
-    if not _is_summary_intent(query) and check_hallucination(merged_context, retrieval_query):
+    # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM (bỏ qua khi tóm tắt/bảng vì context luôn có nội dung)
+    if not _is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
         return {
             "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
             "citations": [],
             "suggestions": []
         }
 
-    # 4. Gọi LLM — dùng SUMMARY_PROMPT cho yêu cầu tóm tắt để tránh LLM trigger "không tìm thấy"
+    # 4a. Table extraction — bypass QA pipeline, trích xuất JSON thành bảng
+    if is_table:
+        table_data = _extract_table_from_llm(merged_context, query)
+        if table_data:
+            row_count = len(table_data["rows"])
+            answer = f"Đã trích xuất **{row_count} mục** từ tài liệu nội bộ."
+            suggestions = _generate_suggestions(merged_context, answer)
+            return {
+                "answer": answer,
+                "citations": [],
+                "suggestions": suggestions,
+                "table_data": table_data,
+            }
+        # Fallback về QA thường nếu extraction thất bại
+        print("[TableExtract] Thất bại, fallback về QA thường")
+
+    # 4b. Gọi LLM — dùng SUMMARY_PROMPT cho yêu cầu tóm tắt để tránh LLM trigger "không tìm thấy"
     if _is_summary_intent(query):
         prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
     else:
@@ -563,30 +690,35 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
     """
     history = conversation_history or []
+    top_k = get_top_k(db)
 
-    # 0. Query rewriting nếu câu hỏi mơ hồ
+    # 0. Query rewriting: rewrite bằng history trước, sau đó áp yes/no extraction
     retrieval_query = query
-    if is_yes_no_query(query):
-        retrieval_query = extract_yes_no_topic(query)
-        print(f"[YesNoExtract] '{query}' → '{retrieval_query}'")
-    elif history and needs_rewrite(query, history):
+    if history and needs_rewrite(query, history):
         yield _sse({"type": "thinking", "step": "💬 Đang phân tích ngữ cảnh hội thoại..."})
         retrieval_query = rewrite_query(query, history, safe_llm_invoke)
         if retrieval_query != query:
             print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
             yield _sse({"type": "thinking", "step": f"🔄 Đã làm rõ câu hỏi: {retrieval_query[:60]}..."})
+    if is_yes_no_query(retrieval_query):
+        retrieval_query = extract_yes_no_topic(retrieval_query)
+        print(f"[YesNoExtract] → '{retrieval_query}'")
 
+    is_table = _is_table_intent(query)
     if _is_summary_intent(query):
         yield _sse({"type": "thinking", "step": "📄 Đang đọc toàn bộ nội dung tài liệu để tóm tắt..."})
-        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=10)
+        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
+    elif is_table:
+        yield _sse({"type": "thinking", "step": "📋 Đang quét tài liệu để trích xuất dữ liệu bảng..."})
+        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
     else:
         yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=6, allowed_doc_ids=allowed_doc_ids)
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
         if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
             yield _sse({"type": "thinking", "step": "🔄 Đang mở rộng câu hỏi để tìm kiếm sâu hơn..."})
             expanded = expand_query(retrieval_query, safe_llm_invoke)
             if len(expanded) > 1:
-                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=6, allowed_doc_ids=allowed_doc_ids)
+                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
                 if multi_chunks:
                     seen = {c.vector_id for c in chunks}
                     merged = chunks + [c for c in multi_chunks if c.vector_id not in seen]
@@ -596,7 +728,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
                             if c.rerank_score is None:
                                 c.rerank_score = reranker.predict([(retrieval_query, c.content)])
                         merged.sort(key=lambda c: c.rerank_score or 0, reverse=True)
-                    chunks = merged[:6]
+                    chunks = merged[:top_k]
 
     if not chunks:
         yield _sse({"type": "thinking", "step": "⚠️ Không tìm thấy tài liệu phù hợp"})
@@ -607,16 +739,26 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
     yield _sse({"type": "thinking", "step": "🧠 Đang tổng hợp câu trả lời..."})
 
-    context_parts = []
-    for i, chunk in enumerate(chunks):
-        letter = chr(65 + i % 26)
-        source_name = chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}")
-        context_parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{chunk.content}")
+    context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
 
-    if not _is_summary_intent(query) and check_hallucination(merged_context, retrieval_query):
+    if not _is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
+
+    # Table extraction branch — không stream token, yield table event
+    if is_table:
+        yield _sse({"type": "thinking", "step": "🔢 Đang trích xuất dữ liệu có cấu trúc..."})
+        table_data = _extract_table_from_llm(merged_context, query)
+        if table_data:
+            row_count = len(table_data["rows"])
+            answer = f"Đã trích xuất **{row_count} mục** từ tài liệu nội bộ."
+            yield _sse({"type": "token", "content": answer})
+            yield _sse({"type": "table", "table_data": table_data})
+            yield _sse({"type": "done", "citations": [], "suggestions": []})
+            return
+        # Fallback về QA nếu extraction thất bại
+        print("[TableExtract] Thất bại, fallback về QA stream")
 
     if _is_summary_intent(query):
         qa_prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)

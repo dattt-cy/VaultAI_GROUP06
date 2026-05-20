@@ -12,6 +12,7 @@ from app.models import user_model, doc_model, chat_model, sys_model  # noqa: F40
 # Routers
 from app.api.routes import documents, chat, admin, auth
 from app.api.routes import admin_ollama, admin_rag_config, admin_backup, admin_security
+from app.api.routes import admin_legal_import
 from app.api.dependencies import require_min_level
 
 Base.metadata.create_all(bind=engine)
@@ -61,6 +62,7 @@ app.include_router(admin_ollama.router, prefix="/api/admin", tags=["Admin - Olla
 app.include_router(admin_rag_config.router, prefix="/api/admin", tags=["Admin - RAG Config"])
 app.include_router(admin_backup.router, prefix="/api/admin", tags=["Admin - Backup"])
 app.include_router(admin_security.router, prefix="/api/admin", tags=["Admin - Security"])
+app.include_router(admin_legal_import.router, prefix="/api/admin", tags=["Admin - Legal Import"], dependencies=[Depends(require_min_level(5))])
 
 
 @app.on_event("startup")

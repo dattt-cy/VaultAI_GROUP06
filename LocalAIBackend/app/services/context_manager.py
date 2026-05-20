@@ -66,6 +66,7 @@ def format_history_block(history: list[dict]) -> str:
 _AMBIGUOUS_STARTS = (
     "còn", "vậy", "thế", "cụ thể", "ví dụ", "và ", "nhưng", "nếu vậy",
     "thế thì", "vậy thì", "ý bạn", "ý là",
+    "nếu ", "nếu như ", "còn nếu ", "thế còn ",
 )
 
 _AMBIGUOUS_CONTAINS = (

@@ -40,6 +40,16 @@ def _ensure_table(db: Session):
     db.commit()
 
 
+def get_top_k(db: Session) -> int:
+    """Đọc top_k_retrieval từ rag_config, fallback về 10."""
+    try:
+        _ensure_table(db)
+        row = db.execute(text("SELECT `value` FROM rag_config WHERE `key` = 'top_k_retrieval'")).fetchone()
+        return int(row[0]) if row else 10
+    except Exception:
+        return 10
+
+
 def _get_all(db: Session) -> dict:
     _ensure_table(db)
     rows = db.execute(text("SELECT `key`, `value` FROM rag_config")).fetchall()
