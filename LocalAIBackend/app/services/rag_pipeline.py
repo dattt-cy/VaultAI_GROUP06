@@ -240,28 +240,58 @@ Câu trả lời trước đó:
 def _detect_article_ambiguity(query: str, chunks: list) -> list[dict] | None:
     """
     Kiểm tra xem query có hỏi về một điều khoản cụ thể (VD: "điều 4") mà
-    xuất hiện trong nhiều văn bản khác nhau không.
+    xuất hiện trong nhiều ngữ cảnh khác nhau (nhiều văn bản hoặc nhiều thông tư
+    trong cùng VBHN hợp nhất).
 
-    Trả về list các văn bản nếu mơ hồ, None nếu không mơ hồ.
+    Trả về list các văn bản/thông tư nếu mơ hồ, None nếu không mơ hồ.
     """
     match = re.search(r'điều\s+(\d+)', query, re.IGNORECASE)
     if not match:
         return None
     article_num = match.group(1)
-    article_pattern = re.compile(rf'điều\s+{article_num}\b', re.IGNORECASE)
+    # Chỉ match khi "Điều X" đứng đầu dòng hoặc sau dấu chấm/xuống dòng — tránh match "khoản X Điều Y"
+    article_heading = re.compile(rf'(?:^|\n)\s*[Đđ]iều\s+{article_num}[\.\s]', re.MULTILINE)
 
-    # Gom các source file có chứa "điều X" trong content chunk
-    sources: dict[int, str] = {}  # document_id → source file name
+    # Tên thông tư/quyết định thường có dạng XX/YYYY/TT-NHNN hoặc số/năm/QĐ-...
+    tt_pattern = re.compile(
+        r'(?:Thông tư|Quyết định|Nghị định)\s+(?:số\s+)?(\d+[\/\-]\d+[\/\-][A-Z\-]+)',
+        re.IGNORECASE
+    )
+
+    # Case 1: nhiều document_id khác nhau
+    by_doc: dict[int, str] = {}
     for chunk in chunks:
-        if article_pattern.search(chunk.content):
+        if article_heading.search(chunk.content):
             doc_id = chunk.document_id
-            if doc_id not in sources:
-                sources[doc_id] = chunk.page_metadata.get("source", f"Tài liệu {doc_id}")
+            if doc_id not in by_doc:
+                by_doc[doc_id] = chunk.page_metadata.get("source", f"Tài liệu {doc_id}")
 
-    if len(sources) < 2:
-        return None
+    if len(by_doc) >= 2:
+        return [{"document_id": doc_id, "name": name} for doc_id, name in by_doc.items()]
 
-    return [{"document_id": doc_id, "name": name} for doc_id, name in sources.items()]
+    # Case 2: cùng document (VBHN hợp nhất) nhưng "Điều X" thuộc các thông tư khác nhau
+    # → tìm tên thông tư gần nhất trong mỗi chunk chứa heading "Điều X"
+    seen_tt: dict[str, str] = {}  # tt_code → label hiển thị
+    for chunk in chunks:
+        if not article_heading.search(chunk.content):
+            continue
+        tt_matches = tt_pattern.findall(chunk.content)
+        if tt_matches:
+            for code in tt_matches:
+                if code not in seen_tt:
+                    # Lấy tên đầy đủ từ context
+                    full = tt_pattern.search(chunk.content)
+                    label = full.group(0).strip() if full else code
+                    seen_tt[code] = label
+        else:
+            # Không tìm được tên thông tư cụ thể — dùng source file
+            src = chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}")
+            seen_tt[f"__src_{chunk.document_id}"] = src
+
+    if len(seen_tt) >= 2:
+        return [{"document_id": None, "name": label} for label in seen_tt.values()]
+
+    return None
 
 
 def _generate_suggestions(context: str, answer: str) -> list:
@@ -779,7 +809,11 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
 
     # Kiểm tra mơ hồ điều khoản — nếu nhiều văn bản có cùng "điều X", hỏi lại user
+    print(f"[Ambiguity] Checking {len(chunks)} chunks for article ambiguity in: '{query[:60]}'")
+    for i, c in enumerate(chunks[:5]):
+        print(f"  chunk[{i}] doc={c.document_id} preview={c.content[:80].replace(chr(10),' ')!r}")
     ambiguous_sources = _detect_article_ambiguity(query, chunks)
+    print(f"[Ambiguity] Result: {ambiguous_sources}")
     if ambiguous_sources:
         names_md = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
         clarify_text = f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong **{len(ambiguous_sources)} văn bản** khác nhau:\n{names_md}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?"
