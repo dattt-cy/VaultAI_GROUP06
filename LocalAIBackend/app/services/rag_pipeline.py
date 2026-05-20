@@ -270,26 +270,22 @@ def _detect_article_ambiguity(query: str, chunks: list) -> list[dict] | None:
         return [{"document_id": doc_id, "name": name} for doc_id, name in by_doc.items()]
 
     # Case 2: cùng document (VBHN hợp nhất) nhưng "Điều X" thuộc các thông tư khác nhau
-    # → tìm tên thông tư gần nhất trong mỗi chunk chứa heading "Điều X"
-    seen_tt: dict[str, str] = {}  # tt_code → label hiển thị
+    # → tìm tên thông tư trong mỗi chunk chứa heading "Điều X", dedup theo code
+    seen_tt: dict[str, str] = {}  # tt_code (chuẩn hóa) → label hiển thị đầy đủ
     for chunk in chunks:
         if not article_heading.search(chunk.content):
             continue
-        tt_matches = tt_pattern.findall(chunk.content)
-        if tt_matches:
-            for code in tt_matches:
-                if code not in seen_tt:
-                    # Lấy tên đầy đủ từ context
-                    full = tt_pattern.search(chunk.content)
-                    label = full.group(0).strip() if full else code
-                    seen_tt[code] = label
-        else:
-            # Không tìm được tên thông tư cụ thể — dùng source file
-            src = chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}")
-            seen_tt[f"__src_{chunk.document_id}"] = src
+        # Lấy tất cả (label_đầy_đủ, code) trong chunk
+        for full_match in tt_pattern.finditer(chunk.content):
+            code = full_match.group(1).upper().strip()  # chuẩn hóa key
+            if code not in seen_tt:
+                seen_tt[code] = full_match.group(0).strip()
 
-    if len(seen_tt) >= 2:
-        return [{"document_id": None, "name": label} for label in seen_tt.values()]
+    # Loại bỏ trùng lặp theo label (2 chunk cùng tên TT → chỉ giữ 1)
+    unique_labels = list(dict.fromkeys(seen_tt.values()))
+
+    if len(unique_labels) >= 2:
+        return [{"document_id": None, "name": label} for label in unique_labels]
 
     return None
 
@@ -809,11 +805,9 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
 
     # Kiểm tra mơ hồ điều khoản — nếu nhiều văn bản có cùng "điều X", hỏi lại user
-    print(f"[Ambiguity] Checking {len(chunks)} chunks for article ambiguity in: '{query[:60]}'")
-    for i, c in enumerate(chunks[:5]):
-        print(f"  chunk[{i}] doc={c.document_id} preview={c.content[:80].replace(chr(10),' ')!r}")
     ambiguous_sources = _detect_article_ambiguity(query, chunks)
-    print(f"[Ambiguity] Result: {ambiguous_sources}")
+    if ambiguous_sources:
+        print(f"[Ambiguity] '{query[:50]}' → {[s['name'] for s in ambiguous_sources]}")
     if ambiguous_sources:
         names_md = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
         clarify_text = f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong **{len(ambiguous_sources)} văn bản** khác nhau:\n{names_md}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?"
