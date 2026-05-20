@@ -23,6 +23,7 @@ const ModelManagementPage   = lazy(() => import('./pages/admin/ModelManagementPa
 const RAGConfigPage         = lazy(() => import('./pages/admin/RAGConfigPage'));
 const BackupPage            = lazy(() => import('./pages/admin/BackupPage'));
 const SecuritySettingsPage  = lazy(() => import('./pages/admin/SecuritySettingsPage'));
+const LegalImportPage       = lazy(() => import('./pages/admin/LegalImportPage'));
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center bg-base">
@@ -63,6 +64,7 @@ function AppRoutes() {
           <Route path="rag-config"       element={<RAGConfigPage />} />
           <Route path="backup"           element={<BackupPage />} />
           <Route path="security"         element={<SecuritySettingsPage />} />
+          <Route path="legal-import"     element={<LegalImportPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

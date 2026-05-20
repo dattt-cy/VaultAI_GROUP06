@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Shield, FileKey, FileText,
   FolderOpen, Settings2, MessageSquare, ThumbsUp,
   ClipboardList, Activity, Building2,
-  Cpu, Sliders, HardDrive, ShieldCheck,
+  Cpu, Sliders, HardDrive, ShieldCheck, Scale,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiGet } from '../../utils/apiClient';
@@ -26,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Vai trò & Quyền',     path: '/admin/roles',             icon: Shield,          minLevel: 10 },
   { label: 'Phân quyền Tài liệu', path: '/admin/doc-permissions',   icon: FileKey,         minLevel: 5  },
   { label: 'Tài liệu',            path: '/admin/documents',         icon: FileText,        minLevel: 5,  badgeKey: 'failed_ingestion' },
+  { label: 'Import Pháp luật',   path: '/admin/legal-import',      icon: Scale,           minLevel: 5  },
   { label: 'Danh mục',            path: '/admin/categories',        icon: FolderOpen,      minLevel: 5  },
   { label: 'Cấu hình AI',         path: '/admin/ai-config',         icon: Settings2,       minLevel: 9  },
   { label: 'Quản lý Model',       path: '/admin/model-management',  icon: Cpu,             minLevel: 9  },
@@ -42,7 +43,7 @@ const SECTION_CONFIG: { title: string; paths: string[] }[] = [
   { title: 'Tổng quan', paths: ['/admin/overview'] },
   { title: 'Quản lý', paths: [
     '/admin/users', '/admin/departments', '/admin/roles',
-    '/admin/doc-permissions', '/admin/documents', '/admin/categories',
+    '/admin/doc-permissions', '/admin/documents', '/admin/legal-import', '/admin/categories',
   ]},
   { title: 'Hệ thống', paths: [
     '/admin/ai-config', '/admin/model-management', '/admin/rag-config',

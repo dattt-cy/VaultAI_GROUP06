@@ -5,6 +5,7 @@ import type { Message, Citation } from '../../hooks/useChatState';
 import { CitationTag } from './CitationTag';
 import { CitationPopup } from './CitationPopup';
 import { ChatActions } from './ChatActions';
+import { DataTable } from './DataTable';
 
 interface MessageBubbleProps {
   message: Message;
@@ -362,6 +363,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               </div>
             )}
           </div>
+
+          {message.tableData && (
+            <DataTable data={message.tableData} />
+          )}
 
           {!message.isStreaming && activeCitations.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-border/50">

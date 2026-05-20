@@ -11,6 +11,12 @@ export interface Citation {
   source_lines?: string[];
 }
 
+export interface TableData {
+  title: string;
+  columns: string[];
+  rows: string[][];
+}
+
 export interface Message {
   id: string;
   backendId?: number;
@@ -26,6 +32,7 @@ export interface Message {
   reasoningContent?: string;
   reasoningTime?: number;
   isReasoning?: boolean;
+  tableData?: TableData;
 }
 
 export interface ChatSession {
@@ -225,6 +232,10 @@ export function useChatState() {
             } else if (data.type === 'suggestions') {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, suggestions: data.suggestions || [] } : m
+              ));
+            } else if (data.type === 'table') {
+              setMessages(prev => prev.map(m =>
+                m.id === assistantId ? { ...m, tableData: data.table_data } : m
               ));
             } else if (data.type === 'corrected_text') {
               setMessages(prev => prev.map(m =>
