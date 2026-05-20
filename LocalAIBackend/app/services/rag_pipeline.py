@@ -11,7 +11,7 @@ from .hybrid_retriever import (
     get_reranker,
     retrieve_for_summary,
 )
-from .llm_engine import safe_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
+from .llm_engine import safe_llm_invoke, fast_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
 from .context_manager import (
     format_history_block,
     needs_rewrite, rewrite_query,
@@ -297,7 +297,7 @@ def _generate_suggestions(context: str, answer: str) -> list:
     """
     try:
         prompt = SUGGESTIONS_PROMPT.format(context=context[:2000], answer=answer[:500])
-        raw = safe_llm_invoke(prompt)
+        raw = fast_llm_invoke(prompt, num_predict=150)
         lines = []
         for line in raw.strip().splitlines():
             line = line.strip()
@@ -912,7 +912,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     t = threading.Thread(target=_run_suggestions, daemon=True)
     t.start()
-    t.join(timeout=15)
+    t.join(timeout=45)
 
     suggestions = suggestion_queue.get() if not suggestion_queue.empty() else []
     if suggestions:

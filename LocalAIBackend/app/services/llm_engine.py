@@ -67,6 +67,25 @@ def safe_llm_invoke(user_content: str) -> str:
         raise
 
 
+def fast_llm_invoke(user_content: str, num_predict: int = 120) -> str:
+    """Gọi Ollama với num_predict thấp — dùng cho tác vụ ngắn như sinh suggestions."""
+    options = _base_options()
+    options["num_predict"] = num_predict
+    payload = {
+        "model": settings.LLM_MODEL_NAME,
+        "messages": _messages(user_content),
+        "stream": False,
+        "options": options,
+    }
+    try:
+        resp = requests.post(_chat_url(), json=payload, timeout=45)
+        resp.raise_for_status()
+        return resp.json().get("message", {}).get("content", "")
+    except Exception as e:
+        print(f"[LLM ERROR] fast_llm_invoke thất bại: {e}")
+        raise
+
+
 def stream_llm_invoke(user_content: str) -> Generator[str, None, None]:
     """Gọi Ollama HTTP API (stream=True). Yield từng token khi LLM sinh ra."""
     payload = {
