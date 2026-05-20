@@ -263,7 +263,7 @@ export function useChatState() {
               }));
               setMessages(prev => prev.map(m =>
                 m.id === assistantId
-                  ? { ...m, citations, suggestions: data.suggestions || [], isStreaming: false, backendId: data.message_id }
+                  ? { ...m, citations, isStreaming: false, backendId: data.message_id }
                   : m
               ));
               // Update session tracking + auto-name if first exchange
@@ -281,6 +281,13 @@ export function useChatState() {
                 loadSessions();
               }
               setIsGenerating(false);
+            } else if (data.type === 'suggestions') {
+              const suggestions: string[] = data.data || [];
+              if (suggestions.length > 0) {
+                setMessages(prev => prev.map(m =>
+                  m.id === assistantId ? { ...m, suggestions } : m
+                ));
+              }
             }
           } catch { /* malformed SSE line */ }
         }
