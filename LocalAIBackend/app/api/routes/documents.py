@@ -437,6 +437,22 @@ async def update_document(
                 raise HTTPException(status_code=404, detail=f"Danh mục id={new_cat_id} không tồn tại")
         doc.category_id = new_cat_id
 
+    if "title" in body:
+        new_title = (body["title"] or "").strip()
+        if not new_title:
+            raise HTTPException(status_code=400, detail="Tên tài liệu không được để trống")
+        if new_title != doc.title:
+            # Đổi tên file vật lý trên disk nếu tồn tại
+            if doc.file_path and os.path.exists(doc.file_path):
+                ext = os.path.splitext(doc.file_path)[1]
+                new_filename = new_title if new_title.endswith(ext) else f"{new_title}{ext}"
+                new_filename = new_filename.replace(" ", "_")
+                new_file_path = os.path.join(os.path.dirname(doc.file_path), new_filename)
+                if not os.path.exists(new_file_path):
+                    os.rename(doc.file_path, new_file_path)
+                    doc.file_path = new_file_path
+            doc.title = new_title
+
     db.commit()
     db.refresh(doc)
 
@@ -450,5 +466,6 @@ async def update_document(
     return {
         "success": True,
         "id": doc.id,
+        "title": doc.title,
         "category_id": doc.category_id,
     }
