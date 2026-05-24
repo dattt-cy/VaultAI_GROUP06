@@ -1,0 +1,138 @@
+QUY TRÌNH QUẢN LÝ DỰ ÁN CÔNG NGHỆ THÔNG TIN
+Công ty TNHH Công nghệ Minh Phát
+Mã tài liệu: IT-QT-001 | Phiên bản: 2.2 | Ngày hiệu lực: 15/02/2024
+
+PHẦN 1: TỔNG QUAN PHƯƠNG PHÁP QUẢN LÝ DỰ ÁN
+
+1.1 Khung phương pháp áp dụng
+Công ty áp dụng phương pháp quản lý dự án kết hợp (Hybrid Methodology) dựa trên:
+- PMBOK (Project Management Body of Knowledge) phiên bản 7 – cho dự án quy mô lớn (trên 500 giờ công hoặc trên 500.000.000 đồng).
+- Scrum Framework – cho các dự án phát triển phần mềm và sản phẩm số có tính lặp lại cao.
+- Kanban – cho công việc vận hành và bảo trì hệ thống liên tục.
+
+1.2 Phân loại dự án
+Dự án được phân thành 3 loại:
+- Dự án Chiến lược (Strategic): ảnh hưởng trực tiếp đến định hướng kinh doanh, giá trị trên 2 tỷ đồng. CEO trực tiếp là Sponsor.
+- Dự án Cải tiến (Improvement): nâng cấp hệ thống, quy trình hiện có, giá trị từ 200 triệu đến 2 tỷ đồng. Giám đốc bộ phận là Sponsor.
+- Dự án Vận hành (Operational): bảo trì, sửa lỗi, tối ưu nhỏ, giá trị dưới 200 triệu đồng. Trưởng phòng là Sponsor.
+
+PHẦN 2: CÁC GIAI ĐOẠN DỰ ÁN
+
+Giai đoạn 1: Khởi động dự án (Project Initiation)
+1.1 Lập Tài liệu Khởi động Dự án (Project Charter):
+- Mô tả bài toán kinh doanh và mục tiêu cần đạt.
+- Phạm vi cấp cao (high-level scope).
+- Ước tính sơ bộ ngân sách và thời gian.
+- Danh sách các bên liên quan chính (stakeholders).
+- Các rủi ro tiên lượng ban đầu.
+- Chữ ký phê duyệt của Sponsor và PMO (Project Management Office).
+
+1.2 Bổ nhiệm Quản lý Dự án (PM):
+- Dự án Chiến lược: PM cấp Senior, có chứng chỉ PMP hoặc tương đương.
+- Dự án Cải tiến: PM cấp Middle, có kinh nghiệm quản lý dự án tối thiểu 2 năm.
+- Dự án Vận hành: Trưởng nhóm kiêm PM.
+
+Giai đoạn 2: Lập kế hoạch (Planning)
+2.1 Kế hoạch Phạm vi (Scope Plan):
+- Phân rã công việc (Work Breakdown Structure – WBS) đến cấp task.
+- Ma trận trách nhiệm (RACI Matrix): ai Responsible, Accountable, Consulted, Informed cho từng deliverable.
+- Tài liệu đặc tả yêu cầu (Requirements Specification Document – RSD).
+
+2.2 Kế hoạch Thời gian (Schedule Plan):
+- Biểu đồ Gantt với các mốc (milestones) chính.
+- Xác định đường găng (Critical Path) và buffer thời gian.
+- Sprint Planning (nếu áp dụng Scrum): sprint 2 tuần, mỗi sprint có Sprint Goal rõ ràng.
+
+2.3 Kế hoạch Ngân sách (Budget Plan):
+- Dự toán chi tiết theo WBS (bottom-up estimation).
+- Dự phòng rủi ro ngân sách: 10% tổng ngân sách cho dự án thông thường, 15% cho dự án có nhiều yếu tố không chắc chắn.
+- Baseline ngân sách được khóa sau khi Sponsor phê duyệt; mọi thay đổi phải qua Change Control.
+
+2.4 Kế hoạch Rủi ro (Risk Plan):
+Đăng ký rủi ro (Risk Register) bao gồm:
+- Mô tả rủi ro, danh mục (kỹ thuật, tài chính, nhân sự, pháp lý, v.v.).
+- Đánh giá: xác suất (1-5) × tác động (1-5) = mức độ rủi ro (1-25).
+- Rủi ro có điểm từ 15 trở lên: phải có kế hoạch ứng phó cụ thể.
+- PM cập nhật Risk Register hàng tuần.
+
+Giai đoạn 3: Thực thi (Execution)
+3.1 Họp Kickoff Dự án:
+- Tổ chức trong vòng 5 ngày làm việc sau khi kế hoạch được phê duyệt.
+- Thành phần: toàn bộ team dự án, đại diện các bên liên quan chính, Sponsor.
+- Nội dung: mục tiêu, phạm vi, lịch trình, quy tắc làm việc nhóm, kênh liên lạc.
+
+3.2 Báo cáo tiến độ:
+- Daily Standup (15 phút): áp dụng cho dự án Scrum – mỗi thành viên báo cáo: đã làm gì, sẽ làm gì, có vướng mắc gì.
+- Báo cáo tuần: PM gửi Weekly Status Report cho Sponsor mỗi thứ Sáu, bao gồm: % hoàn thành, ngân sách thực tế vs kế hoạch, vấn đề tồn đọng, rủi ro mới phát sinh.
+- Báo cáo tháng: PM trình bày Dashboard dự án tại cuộc họp PMO hàng tháng.
+
+3.3 Quản lý thay đổi (Change Control):
+Mọi thay đổi so với baseline (phạm vi, thời gian, ngân sách) phải qua Change Control Process:
+- Lập Change Request (CR) Form mô tả thay đổi, lý do, tác động đến triple constraint.
+- CR được đánh giá tác động trong vòng 3 ngày làm việc.
+- Phê duyệt CR: Trưởng phòng (thay đổi ảnh hưởng ≤5% baseline); CFO + Sponsor (thay đổi >5%).
+- Sau phê duyệt, cập nhật lại tài liệu kế hoạch và thông báo toàn team.
+
+Giai đoạn 4: Kiểm soát chất lượng (Quality Control)
+4.1 Tiêu chuẩn chất lượng:
+- Phần mềm: code coverage bởi unit test tối thiểu 70%; không có lỗi Critical/High chưa xử lý trước khi release.
+- Tài liệu: hoàn chỉnh theo checklist, đã qua peer review.
+- Hệ thống: thời gian phản hồi API < 500ms ở tải bình thường (≤100 concurrent users).
+
+4.2 Quy trình kiểm thử:
+Unit Testing → Integration Testing → System Testing → User Acceptance Testing (UAT)
+
+UAT phải có ít nhất 3 người dùng cuối tham gia, thực hiện các kịch bản kiểm thử (test cases) đã được phê duyệt. Tỷ lệ test case pass tối thiểu 95% mới được phép go-live.
+
+4.3 Review Code:
+- Bắt buộc Code Review cho mọi Pull Request trước khi merge vào nhánh chính.
+- Tối thiểu 2 reviewer (1 Senior Developer và 1 Tech Lead).
+- Checklist review: logic đúng, bảo mật không có lỗ hổng rõ ràng, hiệu năng, readability, test coverage.
+
+Giai đoạn 5: Đóng dự án (Project Closure)
+5.1 Điều kiện đóng dự án:
+- UAT được ký nghiệm thu bởi đại diện bên sử dụng.
+- Toàn bộ deliverable bàn giao đầy đủ theo hợp đồng/phạm vi.
+- Tài liệu kỹ thuật và hướng dẫn sử dụng hoàn chỉnh.
+- Đào tạo người dùng cuối hoàn thành.
+- Hệ thống vận hành ổn định sau ít nhất 10 ngày làm việc.
+
+5.2 Hồ sơ đóng dự án bao gồm:
+- Báo cáo Tổng kết Dự án (Project Closure Report): mục tiêu đạt được, bài học kinh nghiệm (lessons learned), đề xuất cải tiến.
+- Biên bản Bàn giao và Nghiệm thu.
+- Hồ sơ lưu trữ trên hệ thống DMS, tối thiểu 5 năm.
+
+5.3 Retrospective (bắt buộc cho dự án Scrum):
+Cuộc họp retrospective cuối sprint/cuối dự án để đội ngũ cùng nhìn lại: điều gì tốt, điều gì cần cải thiện, hành động cụ thể cho sprint/dự án tiếp theo.
+
+PHẦN 3: CÔNG CỤ VÀ HỆ THỐNG
+
+3.1 Công cụ quản lý dự án
+- Jira: quản lý backlog, sprint, task, bug tracking.
+- Confluence: lưu trữ tài liệu dự án, wiki kỹ thuật.
+- Microsoft Teams: giao tiếp nhóm, họp trực tuyến.
+- Git (GitLab nội bộ): quản lý mã nguồn, branching strategy theo GitFlow.
+
+3.2 Quy tắc đặt tên và phân loại task
+Task trong Jira phải có:
+- Title rõ ràng, bắt đầu bằng động từ hành động (Thêm, Sửa, Xóa, Tích hợp...).
+- Story Points ước tính theo Fibonacci (1, 2, 3, 5, 8, 13, 21).
+- Label phân loại: Feature, Bug, Technical Debt, Documentation.
+- Assigned to: chỉ 1 người chịu trách nhiệm chính.
+- Due date rõ ràng.
+
+PHẦN 4: QUẢN LÝ NHÂN LỰC DỰ ÁN
+
+4.1 Phân bổ nguồn lực
+- PM lập Resource Plan trước khi dự án chính thức bắt đầu, thống nhất với Trưởng bộ phận kỹ thuật.
+- Nhân viên không được phân công quá 2 dự án song song; nếu cần phải có phê duyệt của Giám đốc bộ phận.
+- Tỷ lệ sử dụng (utilization rate) mục tiêu: 80% thời gian làm việc của nhân viên kỹ thuật.
+
+4.2 Thưởng dự án
+Dự án hoàn thành trước hạn và trong ngân sách được thưởng:
+- Hoàn thành sớm 10-20%: thưởng 1 tháng lương phân chia cho team.
+- Hoàn thành sớm trên 20%: thưởng 2 tháng lương phân chia cho team.
+- Công thức phân chia: PM 20%, Tech Lead 15%, Developers chia đều phần còn lại theo số giờ đóng góp.
+
+                                            PMO Director: Vũ Minh Tuấn
+                                            Ngày phê duyệt: 10/02/2024
