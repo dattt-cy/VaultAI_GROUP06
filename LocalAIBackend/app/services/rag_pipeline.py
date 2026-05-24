@@ -9,7 +9,7 @@ from .hybrid_retriever import (
     get_reranker,
     retrieve_for_summary,
 )
-from .llm_engine import safe_llm_invoke, fast_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, apply_pii_masking, log_english_leakage
+from .llm_engine import safe_llm_invoke, fast_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, check_response_grounding, apply_pii_masking, log_english_leakage, trim_to_token_budget, estimate_tokens
 from .context_manager import (
     format_history_block,
     needs_rewrite, rewrite_query,
@@ -17,6 +17,10 @@ from .context_manager import (
 )
 from app.core.config import settings
 from app.api.routes.admin_rag_config import get_top_k
+from app.services.config_loader import get_active_system_prompt, get_active_llm_options
+
+# Budget: 8192 ctx - 300 system prompt - 4096 output - 200 safety margin = ~3596 tokens cho context+history+question
+_MAX_CONTEXT_TOKENS = 3500
 
 
 def _build_context_parts(chunks: list) -> list[str]:
@@ -189,6 +193,7 @@ QUY TẮC:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
   - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
 - Nhãn nguồn [A]/[B]/[C]: đặt DUY NHẤT một nhãn ở cuối câu hoặc cuối dòng bullet, không xếp chồng [A][B][C]
+- Khi trích dẫn điều khoản, PHẢI nêu rõ tên tài liệu nguồn (VD: "Theo Điều 2.2 trong **Quy_che_lao_dong_2024.txt**"). KHÔNG viết "trong tài liệu" mà không kèm tên cụ thể. Tên tài liệu lấy từ phần header [TÀI LIỆU X — tên_file] trong NGỮ CẢNH.
 
 VÍ DỤ — câu trả lời nhiều ý:
 Quy trình thanh toán gồm các bước sau:
@@ -674,6 +679,17 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
             "suggestions": []
         }
 
+    # Load config từ DB (cached 60s)
+    sys_prompt = get_active_system_prompt(db)
+    llm_options = get_active_llm_options(db)
+
+    # Trim context để tránh overflow context window
+    num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
+    num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
+    # Budget: num_ctx - num_predict - ước tính system+history+question overhead
+    ctx_budget = max(500, num_ctx - num_predict - 600)
+    merged_context = trim_to_token_budget(merged_context, ctx_budget)
+
     # 4a. Table extraction — bypass QA pipeline, trích xuất JSON thành bảng
     if is_table:
         table_data = _extract_table_from_llm(merged_context, query)
@@ -696,7 +712,16 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     else:
         history_block = format_history_block(history)
         prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
-    raw_response = safe_llm_invoke(prompt)
+    raw_response = safe_llm_invoke(prompt, system_prompt=sys_prompt, options_override=llm_options)
+
+    # Post-gen grounding check — phát hiện hallucination sau khi có response
+    if not _is_summary_intent(query) and check_response_grounding(raw_response, chunks):
+        return {
+            "answer": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này.",
+            "citations": [],
+            "suggestions": []
+        }
+
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
 
@@ -823,6 +848,16 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
+    # Load config từ DB (cached 60s)
+    sys_prompt = get_active_system_prompt(db)
+    llm_options = get_active_llm_options(db)
+
+    # Trim context để tránh overflow context window
+    num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
+    num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
+    ctx_budget = max(500, num_ctx - num_predict - 600)
+    merged_context = trim_to_token_budget(merged_context, ctx_budget)
+
     # Table extraction branch — không stream token, yield table event
     if is_table:
         yield _sse({"type": "thinking", "step": "🔢 Đang trích xuất dữ liệu có cấu trúc..."})
@@ -864,9 +899,15 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         if not reasoning_done_sent:
             yield _sse({"type": "reasoning_done"})
     else:
-        for token in stream_llm_invoke(qa_prompt):
+        for token in stream_llm_invoke(qa_prompt, system_prompt=sys_prompt, options_override=llm_options):
             full_response += token
             yield _sse({"type": "token", "content": token})
+
+    # Post-gen grounding check — phát hiện hallucination sau khi stream xong
+    if not _is_summary_intent(query) and check_response_grounding(full_response, chunks):
+        yield _sse({"type": "corrected_text", "content": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này."})
+        yield _sse({"type": "done", "citations": [], "suggestions": []})
+        return
 
     # Post-process
     safe_response = apply_pii_masking(full_response)
