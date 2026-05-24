@@ -37,8 +37,8 @@ DOC_FOLDERS = [
 ]
 
 SUPPORTED_EXTENSIONS = {".pdf", ".txt", ".docx", ".doc", ".xlsx", ".xls"}
-SYSTEM_USER_ID = 1
-CATEGORY_ID = 1
+SYSTEM_USER_ID = 2   # admin
+CATEGORY_ID = 2      # NHÂN SỰ (category đầu tiên tồn tại)
 
 
 def clear_all(db):

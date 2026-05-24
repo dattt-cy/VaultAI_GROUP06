@@ -9,7 +9,7 @@ from .hybrid_retriever import (
     get_reranker,
     retrieve_for_summary,
 )
-from .llm_engine import safe_llm_invoke, fast_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, check_response_grounding, apply_pii_masking, log_english_leakage, trim_to_token_budget, estimate_tokens
+from .llm_engine import safe_llm_invoke, fast_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, check_response_grounding, apply_pii_masking, log_english_leakage, trim_to_token_budget
 from .context_manager import (
     format_history_block,
     needs_rewrite, rewrite_query,
@@ -184,7 +184,8 @@ Câu hỏi: {question}
 QUY TẮC:
 - TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
 - CHỈ TRẢ LỜI ĐÚNG NHỮNG GÌ ĐƯỢC HỎI. Nếu câu hỏi hỏi về X, chỉ trả lời về X — không tự thêm thông tin về Y, Z dù chúng xuất hiện trong tài liệu gần đó.
-- DANH SÁCH ĐẦY ĐỦ: Nếu NGỮ CẢNH chứa nhiều mục/điểm liên quan đến câu hỏi (dù có đánh số hay không, dù là bullet hay đoạn văn riêng biệt), PHẢI liệt kê TẤT CẢ — không được bỏ sót, không được gộp, không được viết "..." hay "và các mục khác". Ví dụ: câu hỏi về "nội dung hợp đồng" và tài liệu liệt kê 9 điểm → phải trả lời đủ 9 điểm.
+- Ý ĐỊNH NGẮN GỌN: Nếu câu hỏi dùng từ như "chỉ cần", "ngắn gọn", "tóm tắt", "tại điều mấy", "ở đâu", "là gì" theo nghĩa định vị — chỉ trả lời đúng phần được hỏi (VD: tên điều khoản, số điều, tên tài liệu), KHÔNG liệt kê nội dung chi tiết bên trong.
+- DANH SÁCH ĐẦY ĐỦ: Nếu NGỮ CẢNH chứa nhiều mục/điểm liên quan đến câu hỏi (dù có đánh số hay không, dù là bullet hay đoạn văn riêng biệt), PHẢI liệt kê TẤT CẢ — không được bỏ sót, không được gộp, không được viết "..." hay "và các mục khác". Ví dụ: câu hỏi về "nội dung hợp đồng" và tài liệu liệt kê 9 điểm → phải trả lời đủ 9 điểm. NGOẠI LỆ: nếu câu hỏi kích hoạt quy tắc Ý ĐỊNH NGẮN GỌN ở trên, bỏ qua quy tắc này.
 - ƯU TIÊN SỬ DỤNG suy luận logic: Nếu NGỮ CẢNH đề cập đến chủ đề liên quan (dù dùng từ ngữ khác nhau), hãy suy luận và trả lời. Ví dụ: tài liệu nói "IT thực hiện backup" → có thể trả lời "IT chịu trách nhiệm khôi phục".
 - SUY LUẬN DANH SÁCH ĐÓNG: Nếu NGỮ CẢNH liệt kê rõ những gì được phép/khuyến nghị (VD: "chỉ dùng A hoặc B"), và câu hỏi hỏi về X không có trong danh sách đó → kết luận dứt khoát "Không được phép" và giải thích chỉ A, B mới được phép. KHÔNG được nói "không đề cập trong tài liệu" khi đã có danh sách rõ ràng.
 - Chỉ từ chối khi NGỮ CẢNH HOÀN TOÀN KHÔNG ĐỀ CẬP đến chủ đề câu hỏi. Nếu có thông tin liên quan dù gián tiếp, hãy trả lời và giải thích suy luận.
@@ -194,6 +195,8 @@ QUY TẮC:
   - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
 - Nhãn nguồn [A]/[B]/[C]: đặt DUY NHẤT một nhãn ở cuối câu hoặc cuối dòng bullet, không xếp chồng [A][B][C]
 - Khi trích dẫn điều khoản, PHẢI nêu rõ tên tài liệu nguồn (VD: "Theo Điều 2.2 trong **Quy_che_lao_dong_2024.txt**"). KHÔNG viết "trong tài liệu" mà không kèm tên cụ thể. Tên tài liệu lấy từ phần header [TÀI LIỆU X — tên_file] trong NGỮ CẢNH.
+- TRÍCH DẪN CHÍNH XÁC CẤP CON: Khi NGỮ CẢNH có cả tiêu đề cấp cha (VD: "PHẦN 5", "Chương 3") lẫn mục con có số thập phân (VD: "5.1", "5.2", "3.2.1"), PHẢI trích dẫn số mục con cụ thể nhất chứa thông tin — KHÔNG được chỉ nêu cấp cha. Ví dụ: tài liệu có "PHẦN 5" và "5.1 Công tác trong nước" → trích dẫn là "mục 5.1" hoặc "Điều 5.1", KHÔNG phải "Phần 5". Tương tự: có "3.2.1" thì dùng "3.2.1", không dùng "3.2" hay "3".
+- CÂU HỎI KÉP (nội dung + vị trí): Nếu câu hỏi hỏi cả "nội dung/có được không" LẪN "tại điều mấy/ở đâu", PHẢI trả lời ĐẦY ĐỦ CẢ HAI — vừa nêu nội dung, vừa chỉ rõ số điều và tên tài liệu. KHÔNG được bỏ qua phần nào.
 
 VÍ DỤ — câu trả lời nhiều ý:
 Quy trình thanh toán gồm các bước sau:

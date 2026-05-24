@@ -26,34 +26,61 @@ def _chat_url() -> str:
         _OLLAMA_CHAT_URL = f"{settings.OLLAMA_BASE_URL}/api/chat"
     return _OLLAMA_CHAT_URL
 
-def _base_options() -> dict:
-    return {
+def _base_options(options_override: dict = None) -> dict:
+    base = {
         "temperature": settings.LLM_TEMPERATURE,
         "num_predict": settings.LLM_NUM_PREDICT,
         "num_ctx": settings.LLM_NUM_CTX,
-        "num_gpu": settings.LLM_NUM_GPU,    # offload toàn bộ layers lên GPU
-        "num_batch": settings.LLM_NUM_BATCH, # batch size lớn hơn = GPU throughput cao hơn
+        "num_gpu": settings.LLM_NUM_GPU,
+        "num_batch": settings.LLM_NUM_BATCH,
     }
+    if options_override:
+        base.update(options_override)
+    return base
 
-def _messages(user_content: str) -> list:
+def _messages(user_content: str, system_prompt: str = None) -> list:
+    sys = system_prompt if system_prompt else VIETNAMESE_SYSTEM_PROMPT
     wrapped = (
         "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
         + user_content
         + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
     )
     return [
-        {"role": "system", "content": VIETNAMESE_SYSTEM_PROMPT},
+        {"role": "system", "content": sys},
         {"role": "user", "content": wrapped},
     ]
 
 
-def safe_llm_invoke(user_content: str) -> str:
+# ---------------------------------------------------------------------------
+# Token budget — ước tính thô (1 token ≈ 4 chars với tiếng Việt)
+# ---------------------------------------------------------------------------
+_CHARS_PER_TOKEN = 4
+
+def estimate_tokens(text: str) -> int:
+    return max(1, len(text) // _CHARS_PER_TOKEN)
+
+
+def trim_to_token_budget(text: str, max_tokens: int) -> str:
+    """Cắt text để vừa trong max_tokens (ước tính)."""
+    max_chars = max_tokens * _CHARS_PER_TOKEN
+    if len(text) <= max_chars:
+        return text
+    # Cắt ở ranh giới câu gần nhất
+    truncated = text[:max_chars]
+    last_break = max(truncated.rfind('\n'), truncated.rfind('. '))
+    if last_break > max_chars // 2:
+        truncated = truncated[:last_break + 1]
+    print(f"[TokenBudget] Context trimmed: {len(text)} → {len(truncated)} chars")
+    return truncated
+
+
+def safe_llm_invoke(user_content: str, system_prompt: str = None, options_override: dict = None) -> str:
     """Gọi Ollama HTTP API (non-stream). Trả về toàn bộ câu trả lời dạng string."""
     payload = {
         "model": settings.LLM_MODEL_NAME,
-        "messages": _messages(user_content),
+        "messages": _messages(user_content, system_prompt),
         "stream": False,
-        "options": _base_options(),
+        "options": _base_options(options_override),
     }
     try:
         resp = requests.post(_chat_url(), json=payload, timeout=120)
@@ -67,13 +94,13 @@ def safe_llm_invoke(user_content: str) -> str:
         raise
 
 
-def fast_llm_invoke(user_content: str, num_predict: int = 120) -> str:
+def fast_llm_invoke(user_content: str, num_predict: int = 120, system_prompt: str = None) -> str:
     """Gọi Ollama với num_predict thấp — dùng cho tác vụ ngắn như sinh suggestions."""
     options = _base_options()
     options["num_predict"] = num_predict
     payload = {
         "model": settings.LLM_MODEL_NAME,
-        "messages": _messages(user_content),
+        "messages": _messages(user_content, system_prompt),
         "stream": False,
         "options": options,
     }
@@ -86,13 +113,13 @@ def fast_llm_invoke(user_content: str, num_predict: int = 120) -> str:
         raise
 
 
-def stream_llm_invoke(user_content: str) -> Generator[str, None, None]:
+def stream_llm_invoke(user_content: str, system_prompt: str = None, options_override: dict = None) -> Generator[str, None, None]:
     """Gọi Ollama HTTP API (stream=True). Yield từng token khi LLM sinh ra."""
     payload = {
         "model": settings.LLM_MODEL_NAME,
-        "messages": _messages(user_content),
+        "messages": _messages(user_content, system_prompt),
         "stream": True,
-        "options": _base_options(),
+        "options": _base_options(options_override),
     }
     print(f"[LLM DEBUG] prompt length: {len(user_content)} chars")
     try:
@@ -126,6 +153,49 @@ def check_hallucination(context: str, query: str = "") -> bool:  # noqa: ARG001
     """Anti-hallucination: trả về True nếu context rỗng."""
     if not context or context.strip() == "":
         return True
+    return False
+
+
+def check_response_grounding(response: str, chunks: list, threshold: float = -5.0) -> bool:
+    """
+    Kiểm tra sau khi generate: có ít nhất 1 câu trong response được grounded
+    vào retrieved chunks không (cross-encoder score >= threshold).
+
+    Trả về True nếu response có vẻ hallucinated (không có câu nào grounded).
+    Chỉ gọi khi reranker đã được load (tránh cold-start penalty).
+    threshold mặc định -5.0 rộng hơn citation threshold (-1.5) vì chỉ cần
+    xác nhận có liên quan, không cần exact match.
+    """
+    if not response or not chunks:
+        return False
+    try:
+        from app.services.hybrid_retriever import get_reranker
+        reranker = get_reranker()
+        if not reranker:
+            return False
+    except Exception:
+        return False
+
+    # Lấy tối đa 5 câu đầu tiên từ response để kiểm tra nhanh
+    sentences = [
+        s.strip() for s in re.split(r'(?<=[.!?\n])\s+', response)
+        if len(s.strip()) > 20
+    ][:5]
+    if not sentences:
+        return False
+
+    # Score mỗi câu với top 3 chunks (đã là best candidates)
+    top_chunks = chunks[:3]
+    pairs = [[sent, chunk.content] for sent in sentences for chunk in top_chunks]
+    try:
+        scores = reranker.predict(pairs)
+        score_list = scores.tolist() if hasattr(scores, 'tolist') else list(scores)
+        best_score = max(score_list)
+        if best_score < threshold:
+            print(f"[Grounding] Response có thể hallucinated — best_score={best_score:.3f} < {threshold}")
+            return True
+    except Exception as e:
+        print(f"[Grounding ERROR] {e}")
     return False
 
 
