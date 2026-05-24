@@ -194,7 +194,7 @@ QUY TẮC:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
   - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
 - Nhãn nguồn [A]/[B]/[C]: đặt DUY NHẤT một nhãn ở cuối câu hoặc cuối dòng bullet, không xếp chồng [A][B][C]
-- Khi trích dẫn điều khoản, PHẢI nêu rõ tên tài liệu nguồn (VD: "Theo Điều 2.2 trong **Quy_che_lao_dong_2024.txt**"). KHÔNG viết "trong tài liệu" mà không kèm tên cụ thể. Tên tài liệu lấy từ phần header [TÀI LIỆU X — tên_file] trong NGỮ CẢNH.
+- KHÔNG viết tên file tài liệu vào trong câu trả lời. Nguồn gốc sẽ được hiển thị tự động qua nhãn [A]/[B]/[C].
 - TRÍCH DẪN CHÍNH XÁC CẤP CON: Khi NGỮ CẢNH có cả tiêu đề cấp cha (VD: "PHẦN 5", "Chương 3") lẫn mục con có số thập phân (VD: "5.1", "5.2", "3.2.1"), PHẢI trích dẫn số mục con cụ thể nhất chứa thông tin — KHÔNG được chỉ nêu cấp cha. Ví dụ: tài liệu có "PHẦN 5" và "5.1 Công tác trong nước" → trích dẫn là "mục 5.1" hoặc "Điều 5.1", KHÔNG phải "Phần 5". Tương tự: có "3.2.1" thì dùng "3.2.1", không dùng "3.2" hay "3".
 - CÂU HỎI KÉP (nội dung + vị trí): Nếu câu hỏi hỏi cả "nội dung/có được không" LẪN "tại điều mấy/ở đâu", PHẢI trả lời ĐẦY ĐỦ CẢ HAI — vừa nêu nội dung, vừa chỉ rõ số điều và tên tài liệu. KHÔNG được bỏ qua phần nào.
 
@@ -750,9 +750,10 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = apply_pii_masking(raw_response)
     log_english_leakage(safe_response)
 
-    # 5. Xóa context labels thừa + marker [A][B][C] thô + câu "không tìm thấy" giả
+    # 5. Xóa context labels thừa + marker [A][B][C] thô + tên file + câu "không tìm thấy" giả
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
     safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
+    safe_response = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', safe_response, flags=re.IGNORECASE).strip()
     safe_response = _strip_spurious_not_found(safe_response)
 
     # 6. Post-hoc citation verification — rerank từng câu với chunk thực tế
@@ -939,6 +940,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = apply_pii_masking(full_response)
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
     safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
+    safe_response = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', safe_response, flags=re.IGNORECASE).strip()
     safe_response = _strip_spurious_not_found(safe_response)
     log_english_leakage(safe_response)
 
