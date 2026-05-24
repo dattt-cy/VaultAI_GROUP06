@@ -373,9 +373,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <p className="text-[11px] text-text-muted uppercase tracking-wider mb-2 font-semibold">Theo {activeCitations.length > 1 ? `${activeCitations.length} nguồn` : '1 nguồn'}</p>
               <div className="flex flex-wrap gap-1.5">
                 {activeCitations.map((c, i) => {
-                  const shortName = c.sourceFile.length > 28
-                    ? c.sourceFile.slice(0, 25) + '…'
-                    : c.sourceFile;
+                  const baseName = c.sourceFile.replace(/\.[a-z]{2,5}$/i, '');
+                  const shortName = baseName.length > 28
+                    ? baseName.slice(0, 25) + '…'
+                    : baseName;
                   return (
                     <button
                       key={c.id}

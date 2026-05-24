@@ -40,9 +40,10 @@ export const CitationPopup: React.FC<CitationPopupProps> = ({
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [onClose]);
 
-  const shortName = citation.sourceFile.length > 36
-    ? citation.sourceFile.slice(0, 33) + '…'
-    : citation.sourceFile;
+  const baseName = citation.sourceFile.replace(/\.[a-z]{2,5}$/i, '');
+  const shortName = baseName.length > 36
+    ? baseName.slice(0, 33) + '…'
+    : baseName;
 
   // Strip markdown: **bold**, *italic*, - bullets, # headers
   const stripMd = (s: string) =>
