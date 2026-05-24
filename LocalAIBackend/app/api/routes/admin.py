@@ -17,6 +17,7 @@ from app.models.user_model import User, Role, Department
 from app.models.chat_model import ChatSession, Message, Feedback
 from app.models.sys_model import LlmConfig, SystemPrompt, AuditLog
 from app.services.vector_store import get_vector_store
+from app.services.config_loader import invalidate_cache as _invalidate_config_cache
 from app.core.config import settings
 
 router = APIRouter()
@@ -808,6 +809,7 @@ def update_ai_config(body: LlmConfigUpdateRequest, db: Session = Depends(get_db)
     if body.max_new_tokens is not None:
         cfg.max_new_tokens = body.max_new_tokens
     db.commit()
+    _invalidate_config_cache()
     return {"ok": True}
 
 
@@ -845,6 +847,7 @@ def update_system_prompt(prompt_id: int, body: SystemPromptUpdateRequest, db: Se
         raise HTTPException(status_code=404, detail="Prompt không tồn tại")
     prompt.prompt_content = body.prompt_content
     db.commit()
+    _invalidate_config_cache()
     return {"ok": True}
 
 
@@ -856,6 +859,7 @@ def activate_system_prompt(prompt_id: int, db: Session = Depends(get_db)):
     db.query(SystemPrompt).update({"is_active": False})
     prompt.is_active = True
     db.commit()
+    _invalidate_config_cache()
     return {"ok": True}
 
 
