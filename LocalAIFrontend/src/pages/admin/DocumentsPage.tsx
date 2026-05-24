@@ -336,6 +336,59 @@ const DocumentsPage: React.FC = () => {
           </select>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {selectedIds.size > 0 && (
+          <div className="bg-elevated border border-border rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-3 animate-fade-in">
+            <span className="text-[13px] text-text-secondary">
+              Đã chọn <span className="font-semibold text-text-primary">{selectedIds.size}</span> tài liệu
+            </span>
+            <div className="flex-1" />
+
+            {/* Bulk Move */}
+            {showBulkMove ? (
+              <div className="flex items-center gap-2">
+                <select
+                  value={bulkMoveTargetId}
+                  onChange={e => setBulkMoveTargetId(Number(e.target.value))}
+                  className="input-base py-1 text-[12px]"
+                >
+                  <option value={0}>Chọn danh mục...</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button
+                  onClick={bulkMove}
+                  disabled={!bulkMoveTargetId}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-[13px] rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Check className="w-3.5 h-3.5" /> Xác nhận
+                </button>
+                <button onClick={() => setShowBulkMove(false)} className="btn-icon w-7 h-7">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setShowBulkMove(true); setBulkMoveTargetId(0); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text-secondary text-[13px] rounded-lg hover:bg-hover transition-colors"
+              >
+                <FolderInput className="w-3.5 h-3.5" />
+                Chuyển danh mục
+              </button>
+            )}
+
+            <button
+              onClick={bulkDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-danger/40 text-danger text-[13px] rounded-lg hover:bg-danger/10 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Xóa {selectedIds.size} mục
+            </button>
+            <button onClick={() => { setSelectedIds(new Set()); setShowBulkMove(false); }} className="btn-icon w-7 h-7">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Table */}
         <div className="overflow-x-auto rounded-xl border border-border flex-1">
           <table className="w-full text-left border-collapse">
@@ -482,58 +535,6 @@ const DocumentsPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Bulk Actions Bar */}
-        {selectedIds.size > 0 && (
-          <div className="bg-elevated border border-border rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-3 animate-fade-in">
-            <span className="text-[13px] text-text-secondary">
-              Đã chọn <span className="font-semibold text-text-primary">{selectedIds.size}</span> tài liệu
-            </span>
-            <div className="flex-1" />
-
-            {/* Bulk Move */}
-            {showBulkMove ? (
-              <div className="flex items-center gap-2">
-                <select
-                  value={bulkMoveTargetId}
-                  onChange={e => setBulkMoveTargetId(Number(e.target.value))}
-                  className="input-base py-1 text-[12px]"
-                >
-                  <option value={0}>Chọn danh mục...</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <button
-                  onClick={bulkMove}
-                  disabled={!bulkMoveTargetId}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-[13px] rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <Check className="w-3.5 h-3.5" /> Xác nhận
-                </button>
-                <button onClick={() => setShowBulkMove(false)} className="btn-icon w-7 h-7">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => { setShowBulkMove(true); setBulkMoveTargetId(0); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text-secondary text-[13px] rounded-lg hover:bg-hover transition-colors"
-              >
-                <FolderInput className="w-3.5 h-3.5" />
-                Chuyển danh mục
-              </button>
-            )}
-
-            <button
-              onClick={bulkDelete}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-danger/40 text-danger text-[13px] rounded-lg hover:bg-danger/10 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Xóa {selectedIds.size} mục
-            </button>
-            <button onClick={() => { setSelectedIds(new Set()); setShowBulkMove(false); }} className="btn-icon w-7 h-7">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── Chunk Drawer ───────────────────────────────────────────────────── */}
