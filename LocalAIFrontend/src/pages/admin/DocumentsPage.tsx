@@ -353,14 +353,17 @@ const DocumentsPage: React.FC = () => {
                   className="input-base py-1 text-[12px]"
                 >
                   <option value={0}>Chọn danh mục...</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {categories
+                    .filter(c => c.id !== selectedCategoryId)
+                    .map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <button
                   onClick={bulkMove}
                   disabled={!bulkMoveTargetId}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-[13px] rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-[13px] font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  <Check className="w-3.5 h-3.5" /> Xác nhận
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  Xác nhận
                 </button>
                 <button onClick={() => setShowBulkMove(false)} className="btn-icon w-7 h-7">
                   <X className="w-3 h-3" />
