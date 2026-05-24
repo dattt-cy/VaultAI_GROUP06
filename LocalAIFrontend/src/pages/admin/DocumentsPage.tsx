@@ -397,20 +397,26 @@ const DocumentsPage: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">
                     {movingDocId === doc.id ? (
-                      <select
-                        autoFocus
-                        defaultValue={doc.category_id ?? ''}
-                        onBlur={() => setMovingDocId(null)}
-                        onChange={e => {
-                          const val = Number(e.target.value);
-                          if (val) handleMoveCategory(doc.id, val);
-                        }}
-                        className="input-base py-0.5 text-[12px] w-full"
-                      >
-                        {categories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1">
+                        <select
+                          autoFocus
+                          defaultValue={doc.category_id ?? ''}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            if (val) handleMoveCategory(doc.id, val);
+                            else setMovingDocId(null);
+                          }}
+                          className="input-base py-0.5 text-[12px] flex-1"
+                        >
+                          <option value="">-- Chọn --</option>
+                          {categories.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => setMovingDocId(null)} className="btn-icon w-6 h-6 shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => setMovingDocId(doc.id)}
@@ -433,7 +439,7 @@ const DocumentsPage: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      {doc.ingestion_status === 'COMPLETED' ? (
+                      {['COMPLETED', 'SUCCESS'].includes(doc.ingestion_status) ? (
                         <button
                           onClick={() => setDrawerDocTitle(doc.title)}
                           className="btn-icon w-7 h-7 hover:text-accent hover:border-accent/50"
