@@ -1,10 +1,12 @@
 """
 Documents API
 =============
-- POST /upload     : Nhận file, lưu disk, chạy ingestion trong background
-- GET  /list       : Danh sách tài liệu thật từ SQLite (có filter scope/category)
-- GET  /categories : Danh sách category
-- DELETE /{doc_id} : Xoá tài liệu
+- POST /upload            : Nhận file, lưu disk, chạy ingestion trong background
+- GET  /list              : Danh sách tài liệu thật từ SQLite (có filter scope/category)
+- GET  /categories        : Danh sách category
+- DELETE /{doc_id}        : Xoá tài liệu
+- GET  /{doc_id}/download : Tải file gốc về máy
+- PATCH /{doc_id}         : Cập nhật metadata (category_id)
 """
 
 import os
@@ -12,6 +14,7 @@ import shutil
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
 from sqlalchemy import text
@@ -376,4 +379,76 @@ async def get_document_content(
         "ingestion_status": doc.ingestion_status,
         "total_tokens": doc.total_tokens,
         "total_chunks": len(result),
+    }
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# GET /{doc_id}/download
+# ────────────────────────────────────────────────────────────────────────────
+@router.get("/{doc_id}/download")
+async def download_document(
+    doc_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Trả về file gốc để trình duyệt tải xuống."""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
+
+    # Kiểm tra quyền: admin xem tất, user chỉ xem doc của mình
+    if current_user.role.name != "admin" and doc.uploaded_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Không có quyền tải tài liệu này")
+
+    file_path = doc.file_path
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File vật lý không tồn tại trên server")
+
+    return FileResponse(
+        path=file_path,
+        filename=doc.title,
+        media_type="application/octet-stream",
+    )
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# PATCH /{doc_id}
+# ────────────────────────────────────────────────────────────────────────────
+@router.patch("/{doc_id}")
+async def update_document(
+    doc_id: int,
+    body: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cập nhật metadata tài liệu (hiện tại: category_id). Chỉ admin."""
+    if current_user.role.name != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ admin mới có thể chuyển danh mục")
+
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Tài liệu không tồn tại")
+
+    if "category_id" in body:
+        new_cat_id = body["category_id"]
+        if new_cat_id is not None:
+            cat = db.query(Category).filter(Category.id == new_cat_id).first()
+            if not cat:
+                raise HTTPException(status_code=404, detail=f"Danh mục id={new_cat_id} không tồn tại")
+        doc.category_id = new_cat_id
+
+    db.commit()
+    db.refresh(doc)
+
+    write_audit_log(
+        db, action="UPDATE_DOC",
+        username=current_user.username, user_id=current_user.id,
+        entity_type="document", entity_id=str(doc_id),
+        details={"updated": body},
+    )
+
+    return {
+        "success": True,
+        "id": doc.id,
+        "category_id": doc.category_id,
     }
