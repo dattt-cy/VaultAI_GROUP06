@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, X, Eye, Trash2, RefreshCw, Upload,
-  FolderOpen, Folder, Plus, Check, Loader2, Download, FolderInput,
+  FolderOpen, Folder, Plus, Check, Loader2, Download, FolderInput, Pencil,
 } from 'lucide-react';
 import { StatusBadge } from '../../components/admin/AdminTable';
 import { cn } from '../../lib/utils';
@@ -126,6 +126,36 @@ const DocumentsPage: React.FC = () => {
     a.click();
     document.body.removeChild(a);
   }, []);
+
+  // Rename
+  const [renamingDocId, setRenamingDocId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const startRename = useCallback((doc: AdminDoc) => {
+    setRenamingDocId(doc.id);
+    setRenameValue(doc.title);
+  }, []);
+
+  const commitRename = useCallback(async (docId: number) => {
+    const newTitle = renameValue.trim();
+    const original = allDocs.find(d => d.id === docId)?.title ?? '';
+    if (!newTitle || newTitle === original) { setRenamingDocId(null); return; }
+    try {
+      const res = await fetch(`${API_BASE}/api/documents/${docId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await refetch(true);
+      toast.success('Đã đổi tên tài liệu');
+    } catch (err) {
+      toast.error('Đổi tên thất bại', String(err));
+    } finally {
+      setRenamingDocId(null);
+    }
+  }, [renameValue, allDocs, refetch, toast]);
 
   // Move category
   const [movingDocId, setMovingDocId] = useState<number | null>(null);
@@ -446,9 +476,43 @@ const DocumentsPage: React.FC = () => {
                     />
                   </td>
                   <td className="px-4 py-3">
-                    <span className="font-medium text-text-primary text-[13px]">{doc.title}</span>
-                    {doc.file_type && (
-                      <span className="ml-1.5 text-[10px] text-text-muted font-mono uppercase">{doc.file_type}</span>
+                    {renamingDocId === doc.id ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') commitRename(doc.id);
+                            if (e.key === 'Escape') setRenamingDocId(null);
+                          }}
+                          className="input-base py-0.5 text-[13px] flex-1 min-w-0"
+                        />
+                        <button
+                          onClick={() => commitRename(doc.id)}
+                          className="btn-icon w-6 h-6 shrink-0 hover:text-success hover:border-success/50"
+                          title="Lưu"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button onClick={() => setRenamingDocId(null)} className="btn-icon w-6 h-6 shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 group">
+                        <span className="font-medium text-text-primary text-[13px]">{doc.title}</span>
+                        {doc.file_type && (
+                          <span className="text-[10px] text-text-muted font-mono uppercase">{doc.file_type}</span>
+                        )}
+                        <button
+                          onClick={() => startRename(doc)}
+                          className="btn-icon w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity hover:text-accent hover:border-accent/50"
+                          title="Đổi tên"
+                        >
+                          <Pencil className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
                     )}
                   </td>
                   <td className="px-4 py-3">
@@ -495,6 +559,13 @@ const DocumentsPage: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => startRename(doc)}
+                        className="btn-icon w-7 h-7 hover:text-accent hover:border-accent/50"
+                        title="Đổi tên"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                       {['COMPLETED', 'SUCCESS'].includes(doc.ingestion_status) ? (
                         <button
                           onClick={() => setDrawerDocTitle(doc.title)}
