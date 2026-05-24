@@ -754,6 +754,9 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
     safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
     safe_response = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', safe_response, flags=re.IGNORECASE).strip()
+    # Xóa "Tài liệu X —" và đuôi file extension khỏi text
+    safe_response = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', safe_response).strip()
+    safe_response = re.sub(r'\b(\w[\w\-().,]+)\.(txt|pdf|docx?|xlsx?)\b\.?', r'\1', safe_response, flags=re.IGNORECASE)
     safe_response = _strip_spurious_not_found(safe_response)
 
     # 6. Post-hoc citation verification — rerank từng câu với chunk thực tế
@@ -941,6 +944,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
     safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
     safe_response = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', safe_response, flags=re.IGNORECASE).strip()
+    safe_response = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', safe_response).strip()
+    safe_response = re.sub(r'\b(\w[\w\-().,]+)\.(txt|pdf|docx?|xlsx?)\b\.?', r'\1', safe_response, flags=re.IGNORECASE)
     safe_response = _strip_spurious_not_found(safe_response)
     log_english_leakage(safe_response)
 
