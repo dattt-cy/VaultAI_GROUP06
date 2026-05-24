@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, X, Eye, Trash2, RefreshCw, Upload,
-  FolderOpen, Folder, Plus, Check, Loader2,
+  FolderOpen, Folder, Plus, Check, Loader2, Download, FolderInput,
 } from 'lucide-react';
 import { StatusBadge } from '../../components/admin/AdminTable';
 import { cn } from '../../lib/utils';
@@ -116,6 +116,60 @@ const DocumentsPage: React.FC = () => {
   }, [replaceDoc, deleteDocument, uploadReplaceFile]);
 
   const { data: chunkData, loading: chunkLoading, error: chunkError } = useDocumentContent(drawerDocTitle);
+
+  // Download
+  const handleDownload = useCallback((doc: AdminDoc) => {
+    const a = document.createElement('a');
+    a.href = `${API_BASE}/api/documents/${doc.id}/download`;
+    a.download = doc.title;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, []);
+
+  // Move category
+  const [movingDocId, setMovingDocId] = useState<number | null>(null);
+  const [showBulkMove, setShowBulkMove] = useState(false);
+  const [bulkMoveTargetId, setBulkMoveTargetId] = useState<number>(0);
+
+  const handleMoveCategory = useCallback(async (docId: number, newCategoryId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/documents/${docId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category_id: newCategoryId }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await refetch(true);
+      toast.success('Đã chuyển danh mục');
+    } catch (err) {
+      toast.error('Chuyển danh mục thất bại', String(err));
+    } finally {
+      setMovingDocId(null);
+    }
+  }, [refetch, toast]);
+
+  const bulkMove = useCallback(async () => {
+    if (!bulkMoveTargetId) return;
+    const count = selectedIds.size;
+    try {
+      await Promise.all([...selectedIds].map(id =>
+        fetch(`${API_BASE}/api/documents/${id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category_id: bulkMoveTargetId }),
+        })
+      ));
+      await refetch(true);
+      setSelectedIds(new Set());
+      setShowBulkMove(false);
+      toast.success(`Đã chuyển ${count} tài liệu`);
+    } catch (err) {
+      toast.error('Chuyển hàng loạt thất bại', String(err));
+    }
+  }, [selectedIds, bulkMoveTargetId, refetch, toast]);
 
   const getCatName = (id: number | null) => categories.find(c => c.id === id)?.name ?? '—';
 
@@ -341,7 +395,32 @@ const DocumentsPage: React.FC = () => {
                       <span className="ml-1.5 text-[10px] text-text-muted font-mono uppercase">{doc.file_type}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-[13px] text-text-secondary">{getCatName(doc.category_id)}</td>
+                  <td className="px-4 py-3">
+                    {movingDocId === doc.id ? (
+                      <select
+                        autoFocus
+                        defaultValue={doc.category_id ?? ''}
+                        onBlur={() => setMovingDocId(null)}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          if (val) handleMoveCategory(doc.id, val);
+                        }}
+                        className="input-base py-0.5 text-[12px] w-full"
+                      >
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        onClick={() => setMovingDocId(doc.id)}
+                        title="Click để chuyển danh mục"
+                        className="text-[13px] text-text-secondary hover:text-accent hover:underline text-left"
+                      >
+                        {getCatName(doc.category_id)}
+                      </button>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-[12px] font-mono text-text-muted">{doc.scope}</td>
                   <td className="px-4 py-3">
                     {doc.ingestion_status === 'PROCESSING'
@@ -376,6 +455,13 @@ const DocumentsPage: React.FC = () => {
                         </button>
                       )}
                       <button
+                        onClick={() => handleDownload(doc)}
+                        className="btn-icon w-7 h-7 hover:text-success hover:border-success/50"
+                        title="Tải xuống"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
                         onClick={() => handleDelete(doc.id)}
                         className="btn-icon w-7 h-7 hover:text-danger hover:border-danger/50"
                         title="Xóa"
@@ -392,11 +478,44 @@ const DocumentsPage: React.FC = () => {
 
         {/* Bulk Actions Bar */}
         {selectedIds.size > 0 && (
-          <div className="bg-elevated border border-border rounded-xl px-4 py-2.5 flex items-center gap-3 animate-fade-in">
+          <div className="bg-elevated border border-border rounded-xl px-4 py-2.5 flex flex-wrap items-center gap-3 animate-fade-in">
             <span className="text-[13px] text-text-secondary">
               Đã chọn <span className="font-semibold text-text-primary">{selectedIds.size}</span> tài liệu
             </span>
             <div className="flex-1" />
+
+            {/* Bulk Move */}
+            {showBulkMove ? (
+              <div className="flex items-center gap-2">
+                <select
+                  value={bulkMoveTargetId}
+                  onChange={e => setBulkMoveTargetId(Number(e.target.value))}
+                  className="input-base py-1 text-[12px]"
+                >
+                  <option value={0}>Chọn danh mục...</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button
+                  onClick={bulkMove}
+                  disabled={!bulkMoveTargetId}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white text-[13px] rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <Check className="w-3.5 h-3.5" /> Xác nhận
+                </button>
+                <button onClick={() => setShowBulkMove(false)} className="btn-icon w-7 h-7">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setShowBulkMove(true); setBulkMoveTargetId(0); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text-secondary text-[13px] rounded-lg hover:bg-hover transition-colors"
+              >
+                <FolderInput className="w-3.5 h-3.5" />
+                Chuyển danh mục
+              </button>
+            )}
+
             <button
               onClick={bulkDelete}
               className="flex items-center gap-1.5 px-3 py-1.5 border border-danger/40 text-danger text-[13px] rounded-lg hover:bg-danger/10 transition-colors"
@@ -404,7 +523,7 @@ const DocumentsPage: React.FC = () => {
               <Trash2 className="w-3.5 h-3.5" />
               Xóa {selectedIds.size} mục
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="btn-icon w-7 h-7">
+            <button onClick={() => { setSelectedIds(new Set()); setShowBulkMove(false); }} className="btn-icon w-7 h-7">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
