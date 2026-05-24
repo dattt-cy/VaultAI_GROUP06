@@ -533,6 +533,28 @@ _NOT_FOUND_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Pattern: "trong tài liệu ." hoặc "trong tài liệu." (LLM bỏ quên tên file)
+_MISSING_DOC_NAME_PATTERN = re.compile(
+    r'trong tài liệu\s*\.',
+    re.IGNORECASE,
+)
+
+
+def _fix_missing_doc_name(text: str, chunks: list) -> str:
+    """Thay 'trong tài liệu .' bằng tên file thực từ chunk đầu tiên."""
+    if not _MISSING_DOC_NAME_PATTERN.search(text):
+        return text
+    # Lấy tên file từ chunk đầu tiên có source
+    source_name = None
+    for chunk in chunks:
+        name = chunk.page_metadata.get("source", "")
+        if name:
+            source_name = name
+            break
+    if not source_name:
+        return text
+    return _MISSING_DOC_NAME_PATTERN.sub(f'trong **{source_name}**.', text)
+
 
 def _strip_spurious_not_found(text: str) -> str:
     """
@@ -734,6 +756,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
         _verify_citations_post_hoc(safe_response, chunks)
     safe_response = _fix_bullet_indentation(safe_response)
+    safe_response = _fix_missing_doc_name(safe_response, chunks)
 
     # 7. Đóng gói citations — chỉ include chunk được cite thực sự
     citations = []
@@ -920,6 +943,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
         _verify_citations_post_hoc(safe_response, chunks)
     safe_response = _fix_bullet_indentation(safe_response)
+    safe_response = _fix_missing_doc_name(safe_response, chunks)
 
     # Gửi corrected_text để frontend thay thế text đã stream bằng bản có citation
     yield _sse({"type": "corrected_text", "content": safe_response})
