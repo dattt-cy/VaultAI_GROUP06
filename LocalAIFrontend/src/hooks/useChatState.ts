@@ -281,13 +281,6 @@ export function useChatState() {
                 loadSessions();
               }
               setIsGenerating(false);
-            } else if (data.type === 'suggestions') {
-              const suggestions: string[] = data.data || [];
-              if (suggestions.length > 0) {
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantId ? { ...m, suggestions } : m
-                ));
-              }
             }
           } catch { /* malformed SSE line */ }
         }
@@ -353,15 +346,27 @@ export function useChatState() {
   // Edit a user message and re-send: truncate history up to (excluding) that message, then send normally
   const editAndResend = useCallback(async (messageId: string, newContent: string, selectedDocIds: number[] = []) => {
     let canResend = false;
+    let truncateAfterBackendId: number | undefined;
     setMessages(prev => {
       const idx = prev.findIndex(m => m.id === messageId);
       if (idx < 0) return prev;
       canResend = true;
-      return prev.slice(0, idx);
+      // Tìm message cuối cùng trước điểm edit có backendId để làm mốc truncate DB
+      const prevMessages = prev.slice(0, idx);
+      const lastWithId = [...prevMessages].reverse().find(m => m.backendId);
+      truncateAfterBackendId = lastWithId?.backendId;
+      return prevMessages;
     });
     if (!canResend) return;
+    // Dọn DB: xóa tất cả messages sau mốc, tránh duplicate khi reload session
+    if (currentSessionId && truncateAfterBackendId) {
+      await fetch(
+        `${API_BASE}/api/chat/sessions/${currentSessionId}/messages/truncate?after_message_id=${truncateAfterBackendId}`,
+        { method: 'DELETE', credentials: 'include' }
+      ).catch(() => { /* ignore — resend vẫn tiếp tục dù truncate lỗi */ });
+    }
     await sendMessage(newContent, selectedDocIds);
-  }, [sendMessage]);
+  }, [sendMessage, currentSessionId]);
 
   const deleteSession = useCallback(async (sessionId: number) => {
     await fetch(`${API_BASE}/api/chat/sessions/${sessionId}`, {
