@@ -360,6 +360,38 @@ async def update_session(
     return {"success": True, "title": session.session_title}
 
 
+@router.delete("/sessions/{session_id}/messages/truncate")
+async def truncate_session_messages(
+    session_id: int,
+    after_message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Xóa tất cả messages sau message có id = after_message_id trong session.
+    Dùng khi user edit & resend để tránh duplicate history khi reload session.
+    """
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.user_id == current_user.id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session không tồn tại")
+
+    ref_msg = db.query(Message).filter(
+        Message.id == after_message_id,
+        Message.session_id == session_id,
+    ).first()
+    if not ref_msg:
+        raise HTTPException(status_code=404, detail="Message không tồn tại")
+
+    db.query(Message).filter(
+        Message.session_id == session_id,
+        Message.created_at > ref_msg.created_at,
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"success": True}
+
+
 @router.delete("/sessions/{session_id}")
 async def delete_session(
     session_id: int,
