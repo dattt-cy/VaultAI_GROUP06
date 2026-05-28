@@ -10,7 +10,7 @@ import { useToast } from '../../components/admin/ui/Toast';
 interface Role { id: number; name: string; access_level: number; description: string; user_count: number }
 
 const RolesPage: React.FC = () => {
-  const { canAccess } = useAuth();
+  const { canDo } = useAuth();
   const [roles, setRoles] = useState<Role[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Role | null>(null);
@@ -96,7 +96,7 @@ const RolesPage: React.FC = () => {
         subtitle={`${roles.length.toLocaleString('vi-VN')} vai trò trong hệ thống`}
         icon={<Shield className="w-5 h-5 text-text-secondary" />}
         actions={
-          canAccess(10) ? (
+          canDo('admin.roles.create') ? (
             <button
               onClick={() => openModal()}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
@@ -158,7 +158,7 @@ const RolesPage: React.FC = () => {
                   </td>
                   <td className="px-3 py-3.5 text-center">
                     <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                      {canAccess(10) && (
+                      {canDo('admin.roles.edit') && (
                         <button
                           onClick={() => openModal(role)}
                           className="btn-icon w-7 h-7 hover:text-accent hover:border-accent/40"
@@ -167,7 +167,7 @@ const RolesPage: React.FC = () => {
                           <Edit2 className="w-3 h-3" />
                         </button>
                       )}
-                      {!isAdmin && canAccess(10) && (
+                      {!isAdmin && canDo('admin.roles.delete') && (
                         <button
                           onClick={() => setDeleteTarget(role)}
                           className="btn-icon w-7 h-7 hover:text-danger hover:border-danger/40"
@@ -188,7 +188,7 @@ const RolesPage: React.FC = () => {
                   <EmptyState
                     icon={Shield}
                     title="Chưa có vai trò nào"
-                    description={canAccess(10) ? 'Tạo vai trò để gán quyền cho người dùng.' : 'Liên hệ admin để thiết lập vai trò.'}
+                    description={canDo('admin.roles.create') ? 'Tạo vai trò để gán quyền cho người dùng.' : 'Liên hệ admin để thiết lập vai trò.'}
                     compact
                   />
                 </td>

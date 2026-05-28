@@ -18,6 +18,7 @@ export interface AuthUser {
   access_level: number;
   department?: string;
   category_permissions: CategoryPermission[];
+  action_permissions: Record<string, boolean>;
 }
 
 interface AuthContextType {
@@ -25,6 +26,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAdmin: boolean;
   canAccess: (minLevel: number) => boolean;
+  canDo: (actionKey: string) => boolean;
+  refreshUser: () => Promise<void>;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           access_level: data.access_level ?? 1,
           department: data.department,
           category_permissions: data.category_permissions ?? [],
+          action_permissions: data.action_permissions ?? {},
         };
         setUser(u);
         localStorage.setItem(USER_KEY, JSON.stringify(u));
@@ -86,6 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       access_level: data.access_level ?? 1,
       department: data.department,
       category_permissions: data.category_permissions ?? [],
+      action_permissions: data.action_permissions ?? {},
     };
     setUser(u);
     localStorage.setItem(USER_KEY, JSON.stringify(u));
@@ -100,10 +105,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(USER_KEY);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    const u: AuthUser = {
+      id: data.user_id,
+      username: data.username,
+      full_name: data.full_name,
+      role: data.role,
+      access_level: data.access_level ?? 1,
+      department: data.department,
+      category_permissions: data.category_permissions ?? [],
+      action_permissions: data.action_permissions ?? {},
+    };
+    setUser(u);
+    localStorage.setItem(USER_KEY, JSON.stringify(u));
+  }, []);
+
+  // Re-sync permissions when tab regains focus (catches permission changes made elsewhere)
+  useEffect(() => {
+    const onFocus = () => { if (user) refreshUser(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [user, refreshUser]);
+
   const canAccess = (minLevel: number) => (user?.access_level ?? 0) >= minLevel;
+  const canDo = (actionKey: string) => user?.action_permissions?.[actionKey] ?? false;
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAdmin: user?.role === 'admin', canAccess, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, isAdmin: user?.role === 'admin', canAccess, canDo, refreshUser, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

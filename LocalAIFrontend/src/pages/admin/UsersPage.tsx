@@ -66,7 +66,7 @@ const UsersPage: React.FC = () => {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const { user: currentUser, canAccess } = useAuth();
+  const { user: currentUser, canAccess, canDo } = useAuth();
   const toast = useToast();
 
   const showToast = (msg: string, ok = true) => {
@@ -76,6 +76,7 @@ const UsersPage: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     try {
       const res = await apiGet('/api/admin/users');
+      if (!res.ok) throw new Error(res.status === 403 ? 'Không có quyền xem danh sách người dùng' : 'Lỗi tải dữ liệu');
       const data: User[] = await res.json();
       setUsers(data);
       setSelected(prev => prev ? (data.find(u => u.id === prev.id) ?? null) : null);
@@ -88,12 +89,12 @@ const UsersPage: React.FC = () => {
 
   const fetchRoles = useCallback(async () => {
     const res = await apiGet('/api/admin/roles');
-    setRoles(await res.json());
+    if (res.ok) setRoles(await res.json());
   }, []);
 
   const fetchDepartments = useCallback(async () => {
     const res = await apiGet('/api/admin/departments');
-    setDepartments(await res.json());
+    if (res.ok) setDepartments(await res.json());
   }, []);
 
   useEffect(() => { fetchUsers(); fetchRoles(); fetchDepartments(); }, [fetchUsers, fetchRoles, fetchDepartments]);
@@ -200,7 +201,7 @@ const UsersPage: React.FC = () => {
           title="Quản lý người dùng"
           subtitle={`${filtered.length.toLocaleString('vi-VN')} / ${users.length.toLocaleString('vi-VN')} người dùng · ${activeCount.toLocaleString('vi-VN')} đang hoạt động`}
           actions={
-            canAccess(9) ? (
+            canDo('admin.users.create') ? (
               <button
                 onClick={() => { setForm(emptyForm); setShowCreate(true); }}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
@@ -340,7 +341,7 @@ const UsersPage: React.FC = () => {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            {canAccess(9) && (!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
+                            {canDo('admin.users.toggle') && (!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
                               <button
                                 onClick={() => toggleActive(u.id)}
                                 className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors border',
@@ -353,7 +354,7 @@ const UsersPage: React.FC = () => {
                                 {u.is_active ? <ShieldOff className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
                               </button>
                             )}
-                            {canAccess(9) && (
+                            {canDo('admin.users.edit') && (
                               <button
                                 onClick={() => { openEdit(u); setSelected(u); }}
                                 className="w-8 h-8 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent flex items-center justify-center transition-colors border border-accent/20"
@@ -362,7 +363,7 @@ const UsersPage: React.FC = () => {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                             )}
-                            {canAccess(9) && (!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
+                            {canDo('admin.users.delete') && (!['admin'].includes(rname.toLowerCase()) && currentUser?.id !== u.id) && (
                               <button
                                 onClick={() => setShowDeleteId(u.id)}
                                 className="w-8 h-8 rounded-lg bg-danger/10 hover:bg-danger/20 text-danger flex items-center justify-center transition-colors border border-danger/20"

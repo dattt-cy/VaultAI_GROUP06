@@ -26,7 +26,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const {
     messages, isGenerating, cancelledQuestion, currentSessionId, sessionTitle,
     sendMessage, cancelMessage, setFeedback, reportMessage, loadSession,
-    regenerateLast, editAndResend,
+    renameSession, regenerateLast, editAndResend,
   } = useChatState();
 
   const { sharedDocs, privateDocs } = useDocumentTree(currentSessionId);
@@ -63,7 +63,10 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <TopHeader sessionTitle={sessionTitle} />
+      <TopHeader
+        sessionTitle={sessionTitle}
+        onRenameSession={currentSessionId ? (t) => renameSession(currentSessionId, t) : undefined}
+      />
 
       {/* Wrapper relative để đặt toggle buttons lên trên grid */}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>

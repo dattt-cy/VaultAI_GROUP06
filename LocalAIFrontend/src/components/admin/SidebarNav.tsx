@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Shield, FileKey, FileText,
   FolderOpen, Settings2, MessageSquare, ThumbsUp,
   ClipboardList, Activity, Building2,
-  Cpu, Sliders, HardDrive, ShieldCheck, Scale, FlaskConical,
+  Cpu, Sliders, HardDrive, ShieldCheck, Scale, FlaskConical, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiGet } from '../../utils/apiClient';
@@ -15,35 +15,38 @@ interface NavItem {
   path: string;
   icon: typeof LayoutDashboard;
   minLevel: number;
+  /** If set, item is only shown when canDo(actionKey) is true */
+  actionKey?: string;
   /** Optional badge key to fetch counts for */
   badgeKey?: 'pending_feedback' | 'failed_ingestion';
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Tổng quan',           path: '/admin/overview',          icon: LayoutDashboard, minLevel: 5  },
-  { label: 'Người dùng',          path: '/admin/users',             icon: Users,           minLevel: 9  },
-  { label: 'Phòng ban',           path: '/admin/departments',       icon: Building2,       minLevel: 9  },
-  { label: 'Vai trò & Quyền',     path: '/admin/roles',             icon: Shield,          minLevel: 10 },
-  { label: 'Phân quyền Tài liệu', path: '/admin/doc-permissions',   icon: FileKey,         minLevel: 5  },
-  { label: 'Tài liệu',            path: '/admin/documents',         icon: FileText,        minLevel: 5,  badgeKey: 'failed_ingestion' },
-  { label: 'Import Pháp luật',   path: '/admin/legal-import',      icon: Scale,           minLevel: 5  },
-  { label: 'Danh mục',            path: '/admin/categories',        icon: FolderOpen,      minLevel: 5  },
-  { label: 'Cấu hình AI',         path: '/admin/ai-config',         icon: Settings2,       minLevel: 9  },
-  { label: 'Quản lý Model',       path: '/admin/model-management',  icon: Cpu,             minLevel: 9  },
-  { label: 'Cấu hình RAG',        path: '/admin/rag-config',        icon: Sliders,         minLevel: 9  },
-  { label: 'Giám sát Chat',       path: '/admin/chat-monitor',      icon: MessageSquare,   minLevel: 5  },
-  { label: 'Phản hồi',            path: '/admin/feedback',          icon: ThumbsUp,        minLevel: 5,  badgeKey: 'pending_feedback' },
-  { label: 'Nhật ký',             path: '/admin/audit-logs',        icon: ClipboardList,   minLevel: 9  },
-  { label: 'Tài nguyên',          path: '/admin/system-metrics',    icon: Activity,        minLevel: 9  },
-  { label: 'Sao lưu',             path: '/admin/backup',            icon: HardDrive,       minLevel: 9  },
-  { label: 'Bảo mật',             path: '/admin/security',          icon: ShieldCheck,     minLevel: 9  },
-  { label: 'Đánh giá RAG',        path: '/admin/eval',              icon: FlaskConical,    minLevel: 9  },
+  { label: 'Người dùng',          path: '/admin/users',             icon: Users,           minLevel: 9,  actionKey: 'admin.users.view'          },
+  { label: 'Phòng ban',           path: '/admin/departments',       icon: Building2,       minLevel: 9,  actionKey: 'admin.departments.view'    },
+  { label: 'Vai trò & Quyền',     path: '/admin/roles',             icon: Shield,          minLevel: 10, actionKey: 'admin.roles.view'          },
+  { label: 'Quyền thao tác',      path: '/admin/action-permissions',icon: KeyRound,        minLevel: 10, actionKey: 'admin.permissions.edit'    },
+  { label: 'Phân quyền Tài liệu', path: '/admin/doc-permissions',   icon: FileKey,         minLevel: 5,  actionKey: 'admin.doc_perm.manage'     },
+  { label: 'Tài liệu',            path: '/admin/documents',         icon: FileText,        minLevel: 5,  badgeKey: 'failed_ingestion'           },
+  { label: 'Import Pháp luật',    path: '/admin/legal-import',      icon: Scale,           minLevel: 5,  actionKey: 'admin.legal_import'        },
+  { label: 'Danh mục',            path: '/admin/categories',        icon: FolderOpen,      minLevel: 5,  actionKey: 'admin.categories.manage'   },
+  { label: 'Cấu hình AI',         path: '/admin/ai-config',         icon: Settings2,       minLevel: 9,  actionKey: 'admin.ai_config.view'      },
+  { label: 'Quản lý Model',       path: '/admin/model-management',  icon: Cpu,             minLevel: 9,  actionKey: 'admin.ai_config.view'      },
+  { label: 'Cấu hình RAG',        path: '/admin/rag-config',        icon: Sliders,         minLevel: 9,  actionKey: 'admin.rag_config.edit'     },
+  { label: 'Giám sát Chat',       path: '/admin/chat-monitor',      icon: MessageSquare,   minLevel: 5,  actionKey: 'admin.chat_monitor'        },
+  { label: 'Phản hồi',            path: '/admin/feedback',          icon: ThumbsUp,        minLevel: 5,  actionKey: 'admin.feedback.view',      badgeKey: 'pending_feedback' },
+  { label: 'Nhật ký',             path: '/admin/audit-logs',        icon: ClipboardList,   minLevel: 9,  actionKey: 'admin.audit_logs'          },
+  { label: 'Tài nguyên',          path: '/admin/system-metrics',    icon: Activity,        minLevel: 9,  actionKey: 'admin.system_metrics'      },
+  { label: 'Sao lưu',             path: '/admin/backup',            icon: HardDrive,       minLevel: 9,  actionKey: 'admin.backup'              },
+  { label: 'Bảo mật',             path: '/admin/security',          icon: ShieldCheck,     minLevel: 9,  actionKey: 'admin.security'            },
+  { label: 'Đánh giá RAG',        path: '/admin/eval',              icon: FlaskConical,    minLevel: 9,  actionKey: 'admin.eval'                },
 ];
 
 const SECTION_CONFIG: { title: string; paths: string[] }[] = [
   { title: 'Tổng quan', paths: ['/admin/overview'] },
   { title: 'Quản lý', paths: [
-    '/admin/users', '/admin/departments', '/admin/roles',
+    '/admin/users', '/admin/departments', '/admin/roles', '/admin/action-permissions',
     '/admin/doc-permissions', '/admin/documents', '/admin/legal-import', '/admin/categories',
   ]},
   { title: 'Hệ thống', paths: [
@@ -58,7 +61,7 @@ interface SidebarNavProps {
 }
 
 export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false }) => {
-  const { canAccess } = useAuth();
+  const { canAccess, canDo } = useAuth();
   const [badges, setBadges] = useState<{ pending_feedback: number; failed_ingestion: number }>({
     pending_feedback: 0,
     failed_ingestion: 0,
@@ -84,7 +87,9 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ collapsed = false }) => 
     return () => { alive = false; clearInterval(interval); };
   }, []);
 
-  const visible = NAV_ITEMS.filter(item => canAccess(item.minLevel));
+  const visible = NAV_ITEMS.filter(item =>
+    item.actionKey ? canDo(item.actionKey) : canAccess(item.minLevel)
+  );
   const sections = SECTION_CONFIG
     .map(s => ({ title: s.title, items: visible.filter(i => s.paths.includes(i.path)) }))
     .filter(s => s.items.length > 0);

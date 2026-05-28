@@ -10,6 +10,7 @@ import { useDocumentUpload } from '../../hooks/useDocumentUpload';
 import { useDocumentContent } from '../../hooks/useDocumentContent';
 import { UploadQueuePanel } from '../../components/admin/UploadQueuePanel';
 import { apiGet, API_BASE } from '../../utils/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
 import { PageHeader } from '../../components/admin/ui/PageHeader';
 import { Skeleton } from '../../components/admin/ui/Skeleton';
 import { EmptyState } from '../../components/admin/ui/EmptyState';
@@ -23,6 +24,11 @@ interface AdminDoc {
 interface AdminCat { id: number; name: string }
 
 const DocumentsPage: React.FC = () => {
+  const { canDo } = useAuth();
+  const canUpload = canDo('docs.company.upload');
+  const canDelete = canDo('docs.company.delete');
+  const canView   = canDo('docs.company.view');
+
   const [allDocs, setAllDocs] = useState<AdminDoc[]>([]);
   const [categories, setCategories] = useState<AdminCat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -330,12 +336,14 @@ const DocumentsPage: React.FC = () => {
                 <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
                 <span className="hidden sm:inline">Làm mới</span>
               </button>
-              <button
-                onClick={() => { setShowUpload(true); setUploadFiles_state([]); setIsDragging(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> Upload mới
-              </button>
+              {canUpload && (
+                <button
+                  onClick={() => { setShowUpload(true); setUploadFiles_state([]); setIsDragging(false); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-hover text-white rounded-lg text-[13px] font-semibold transition-colors cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Upload mới
+                </button>
+              )}
             </>
           }
         />
@@ -375,7 +383,7 @@ const DocumentsPage: React.FC = () => {
             <div className="flex-1" />
 
             {/* Bulk Move */}
-            {showBulkMove ? (
+            {canUpload && showBulkMove ? (
               <div className="flex items-center gap-2">
                 <select
                   value={bulkMoveTargetId}
@@ -399,7 +407,7 @@ const DocumentsPage: React.FC = () => {
                   <X className="w-3 h-3" />
                 </button>
               </div>
-            ) : (
+            ) : canUpload ? (
               <button
                 onClick={() => { setShowBulkMove(true); setBulkMoveTargetId(0); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text-secondary text-[13px] rounded-lg hover:bg-hover transition-colors"
@@ -407,15 +415,17 @@ const DocumentsPage: React.FC = () => {
                 <FolderInput className="w-3.5 h-3.5" />
                 Chuyển danh mục
               </button>
-            )}
+            ) : null}
 
-            <button
-              onClick={bulkDelete}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-danger/40 text-danger text-[13px] rounded-lg hover:bg-danger/10 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Xóa {selectedIds.size} mục
-            </button>
+            {canDelete && (
+              <button
+                onClick={bulkDelete}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-danger/40 text-danger text-[13px] rounded-lg hover:bg-danger/10 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Xóa {selectedIds.size} mục
+              </button>
+            )}
             <button onClick={() => { setSelectedIds(new Set()); setShowBulkMove(false); }} className="btn-icon w-7 h-7">
               <X className="w-3.5 h-3.5" />
             </button>
@@ -505,13 +515,15 @@ const DocumentsPage: React.FC = () => {
                         {doc.file_type && (
                           <span className="text-[10px] text-text-muted font-mono uppercase">{doc.file_type}</span>
                         )}
-                        <button
-                          onClick={() => startRename(doc)}
-                          className="btn-icon w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity hover:text-accent hover:border-accent/50"
-                          title="Đổi tên"
-                        >
-                          <Pencil className="w-2.5 h-2.5" />
-                        </button>
+                        {canUpload && (
+                          <button
+                            onClick={() => startRename(doc)}
+                            className="btn-icon w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity hover:text-accent hover:border-accent/50"
+                            title="Đổi tên"
+                          >
+                            <Pencil className="w-2.5 h-2.5" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -559,48 +571,56 @@ const DocumentsPage: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => startRename(doc)}
-                        className="btn-icon w-7 h-7 hover:text-accent hover:border-accent/50"
-                        title="Đổi tên"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      {['COMPLETED', 'SUCCESS'].includes(doc.ingestion_status) ? (
+                      {canUpload && (
                         <button
-                          onClick={() => setDrawerDocTitle(doc.title)}
+                          onClick={() => startRename(doc)}
                           className="btn-icon w-7 h-7 hover:text-accent hover:border-accent/50"
-                          title="Xem chunks"
+                          title="Đổi tên"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                      ) : doc.ingestion_status === 'PROCESSING' ? (
-                        <button disabled className="btn-icon w-7 h-7 opacity-40 cursor-not-allowed" title="Đang xử lý">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => refetch()}
-                          className="btn-icon w-7 h-7 hover:text-warning hover:border-warning/50"
-                          title="Làm mới trạng thái"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDownload(doc)}
-                        className="btn-icon w-7 h-7 hover:text-success hover:border-success/50"
-                        title="Tải xuống"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(doc.id)}
-                        className="btn-icon w-7 h-7 hover:text-danger hover:border-danger/50"
-                        title="Xóa"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canView && (
+                        ['COMPLETED', 'SUCCESS'].includes(doc.ingestion_status) ? (
+                          <button
+                            onClick={() => setDrawerDocTitle(doc.title)}
+                            className="btn-icon w-7 h-7 hover:text-accent hover:border-accent/50"
+                            title="Xem chunks"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        ) : doc.ingestion_status === 'PROCESSING' ? (
+                          <button disabled className="btn-icon w-7 h-7 opacity-40 cursor-not-allowed" title="Đang xử lý">
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => refetch()}
+                            className="btn-icon w-7 h-7 hover:text-warning hover:border-warning/50"
+                            title="Làm mới trạng thái"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )}
+                      {canView && (
+                        <button
+                          onClick={() => handleDownload(doc)}
+                          className="btn-icon w-7 h-7 hover:text-success hover:border-success/50"
+                          title="Tải xuống"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(doc.id)}
+                          className="btn-icon w-7 h-7 hover:text-danger hover:border-danger/50"
+                          title="Xóa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

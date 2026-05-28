@@ -59,9 +59,9 @@ const UserAvatar = ({ user, size = 'md' }: { user: DeptUser; size?: 'sm' | 'md' 
 
 // ── Dept list item ──────────────────────────────────────────────────────
 const DeptCard = ({
-  dept, active, onClick, onEdit, onDelete, canEdit,
+  dept, active, onClick, onEdit, onDelete, canEdit, canDelete,
 }: {
-  dept: Department; active: boolean; canEdit: boolean;
+  dept: Department; active: boolean; canEdit: boolean; canDelete: boolean;
   onClick: () => void; onEdit: () => void; onDelete: () => void;
 }) => (
   <button
@@ -86,14 +86,18 @@ const DeptCard = ({
       <ChevronRight className={cn('w-3.5 h-3.5 flex-shrink-0 transition-transform', active ? 'text-accent rotate-0' : 'text-text-muted opacity-0 group-hover:opacity-100')} />
     </div>
     {/* action buttons – appear on hover */}
-    {canEdit && (
+    {(canEdit || canDelete) && (
       <div className="absolute top-2 right-2 hidden group-hover:flex gap-1" onClick={e => e.stopPropagation()}>
-        <button onClick={onEdit} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors" title="Sửa">
-          <Pencil className="w-3 h-3" />
-        </button>
-        <button onClick={onDelete} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-danger hover:border-danger/40 transition-colors" title="Xóa">
-          <Trash2 className="w-3 h-3" />
-        </button>
+        {canEdit && (
+          <button onClick={onEdit} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-accent hover:border-accent/40 transition-colors" title="Sửa">
+            <Pencil className="w-3 h-3" />
+          </button>
+        )}
+        {canDelete && (
+          <button onClick={onDelete} className="w-6 h-6 rounded-md bg-surface border border-border flex items-center justify-center hover:text-danger hover:border-danger/40 transition-colors" title="Xóa">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
       </div>
     )}
   </button>
@@ -101,7 +105,7 @@ const DeptCard = ({
 
 // ── Main Page ───────────────────────────────────────────────────────────
 const DepartmentsPage: React.FC = () => {
-  const { canAccess } = useAuth();
+  const { canDo } = useAuth();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDept, setSelectedDept] = useState<Department | null>(null);
   const [deptUsers, setDeptUsers] = useState<DeptUser[]>([]);
@@ -227,7 +231,7 @@ const DepartmentsPage: React.FC = () => {
             <h1 className="text-[18px] font-bold text-text-primary">Phòng ban</h1>
             <p className="text-[12px] text-text-muted">{departments.length} phòng · {totalUsers} nhân viên</p>
           </div>
-          {canAccess(9) && (
+          {canDo('admin.departments.create') && (
             <button
               onClick={() => { setShowCreate(true); setError(null); }}
               className="w-8 h-8 rounded-lg bg-accent hover:bg-accent-hover text-white flex items-center justify-center transition-colors"
@@ -279,7 +283,7 @@ const DepartmentsPage: React.FC = () => {
             <EmptyState
               icon={Building2}
               title="Chưa có phòng ban"
-              description={canAccess(9) ? 'Bấm + để tạo phòng ban đầu tiên.' : 'Liên hệ admin để được tạo phòng ban.'}
+              description={canDo('admin.departments.create') ? 'Bấm + để tạo phòng ban đầu tiên.' : 'Liên hệ admin để được tạo phòng ban.'}
               compact
             />
           ) : (
@@ -317,7 +321,8 @@ const DepartmentsPage: React.FC = () => {
                   onClick={() => selectDept(dept)}
                   onEdit={() => startEdit(dept)}
                   onDelete={() => setDeleteConfirmId(dept.id)}
-                  canEdit={canAccess(9)}
+                  canEdit={canDo('admin.departments.edit')}
+                  canDelete={canDo('admin.departments.delete')}
                 />
               )
             ))

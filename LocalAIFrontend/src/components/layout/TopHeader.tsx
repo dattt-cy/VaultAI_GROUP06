@@ -1,11 +1,38 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Circle, LogOut, Plus, Shield } from 'lucide-react';
+import { BookOpen, Circle, LogOut, Pencil, Plus, Shield } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export const TopHeader: React.FC = () => {
+interface TopHeaderProps {
+  sessionTitle?: string | null;
+  onRenameSession?: (newTitle: string) => void;
+}
+
+export const TopHeader: React.FC<TopHeaderProps> = ({ sessionTitle, onRenameSession }) => {
   const navigate = useNavigate();
-  const { user, isAdmin, canAccess, logout } = useAuth();
+  const { user, canAccess, logout } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(sessionTitle ?? '');
+      setTimeout(() => inputRef.current?.select(), 0);
+    }
+  }, [editing, sessionTitle]);
+
+  const commitRename = () => {
+    if (draft.trim() && draft.trim() !== sessionTitle) {
+      onRenameSession?.(draft.trim());
+    }
+    setEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') commitRename();
+    if (e.key === 'Escape') setEditing(false);
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -20,7 +47,7 @@ export const TopHeader: React.FC = () => {
     .toUpperCase() ?? 'AI';
 
   return (
-    <header className="h-12 bg-surface border-b border-border flex items-center justify-between px-4 flex-shrink-0 z-50">
+    <header className="h-12 bg-surface border-b border-border flex items-center justify-between px-4 flex-shrink-0 z-50 relative">
       {/* Logo */}
       <button
         onClick={() => navigate('/dashboard')}
@@ -31,6 +58,38 @@ export const TopHeader: React.FC = () => {
         <span className="font-semibold text-[15px] text-text-primary">VaultAI</span>
         <span className="badge bg-accent/15 text-accent border border-accent/40">NỘI BỘ</span>
       </button>
+
+      {/* Session title — breadcrumb center */}
+      {sessionTitle && (
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 max-w-[420px] group">
+          <BookOpen className="w-3.5 h-3.5 text-text-muted flex-shrink-0" />
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={handleKeyDown}
+              className="text-[13px] font-medium text-text-primary bg-transparent outline-none border-b border-accent/70 pb-px w-[260px] placeholder:text-text-muted"
+              placeholder="Tên sổ ghi chú..."
+            />
+          ) : (
+            <button
+              onClick={() => onRenameSession && setEditing(true)}
+              disabled={!onRenameSession}
+              className="flex items-center gap-1.5 min-w-0 rounded px-1.5 py-0.5 -mx-1.5 hover:bg-hover transition-colors"
+              title={onRenameSession ? 'Nhấn để đổi tên' : undefined}
+            >
+              <span className="text-[13px] font-medium text-text-secondary truncate max-w-[300px] group-hover:text-text-primary transition-colors">
+                {sessionTitle}
+              </span>
+              {onRenameSession && (
+                <Pencil className="w-3 h-3 text-text-muted opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Right */}
       <div className="flex items-center gap-3">

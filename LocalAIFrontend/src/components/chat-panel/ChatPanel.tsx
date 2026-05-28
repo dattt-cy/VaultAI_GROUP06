@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Loader2, BookOpen, ChevronDown } from 'lucide-react';
+import { MessageSquare, Loader2, BookOpen, ChevronDown, ScrollText } from 'lucide-react';
 import type { Message, Citation } from '../../hooks/useChatState';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
@@ -108,6 +108,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <span className="badge bg-elevated text-text-muted border border-border">{messages.length} tin</span>
         </div>
         <div className="flex items-center gap-2">
+          {messages.length > 0 && !isGenerating && (
+            <button
+              onClick={() => onSend('Hãy tóm tắt ngắn gọn cuộc trò chuyện này thành các điểm chính, kèm kết luận quan trọng.')}
+              title="Tóm tắt cuộc trò chuyện"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-medium text-text-muted border border-border hover:border-accent/50 hover:text-accent hover:bg-accent/5 transition-all"
+            >
+              <ScrollText className="w-3.5 h-3.5" />
+              Tóm tắt
+            </button>
+          )}
           {checkedCount > 0 ? (
             <div
               className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-accent/10 border border-accent/20 max-w-[200px]"

@@ -25,6 +25,7 @@ const BackupPage            = lazy(() => import('./pages/admin/BackupPage'));
 const SecuritySettingsPage  = lazy(() => import('./pages/admin/SecuritySettingsPage'));
 const LegalImportPage       = lazy(() => import('./pages/admin/LegalImportPage'));
 const EvalPage              = lazy(() => import('./pages/admin/EvalPage'));
+const ActionPermissionsPage = lazy(() => import('./pages/admin/ActionPermissionsPage'));
 
 const Spinner = () => (
   <div className="min-h-screen flex items-center justify-center bg-base">
@@ -38,6 +39,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return user ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+function RequireAction({ actionKey, children }: { actionKey: string; children: React.ReactNode }) {
+  const { canDo, isLoading } = useAuth();
+  if (isLoading) return <Spinner />;
+  return canDo(actionKey) ? <>{children}</> : <Navigate to="/admin/overview" replace />;
+}
+
 function AppRoutes() {
   return (
     <Suspense fallback={<Spinner />}>
@@ -49,24 +56,25 @@ function AppRoutes() {
 
         <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/admin/overview" replace />} />
-          <Route path="overview"         element={<OverviewPage />} />
-          <Route path="users"            element={<UsersPage />} />
-          <Route path="roles"            element={<RolesPage />} />
-          <Route path="doc-permissions"  element={<DocPermissionsPage />} />
+          <Route path="overview"           element={<OverviewPage />} />
+          <Route path="users"            element={<RequireAction actionKey="admin.users.view"><UsersPage /></RequireAction>} />
+          <Route path="roles"            element={<RequireAction actionKey="admin.roles.view"><RolesPage /></RequireAction>} />
+          <Route path="doc-permissions"  element={<RequireAction actionKey="admin.doc_perm.manage"><DocPermissionsPage /></RequireAction>} />
           <Route path="documents"        element={<DocumentsPage />} />
-          <Route path="categories"       element={<CategoriesPage />} />
-          <Route path="departments"      element={<DepartmentsPage />} />
-          <Route path="ai-config"        element={<AIConfigPage />} />
-          <Route path="chat-monitor"     element={<ChatMonitorPage />} />
-          <Route path="feedback"         element={<FeedbackPage />} />
-          <Route path="audit-logs"         element={<AuditLogsPage />} />
-          <Route path="system-metrics"   element={<SystemMetricsPage />} />
-          <Route path="model-management" element={<ModelManagementPage />} />
-          <Route path="rag-config"       element={<RAGConfigPage />} />
-          <Route path="backup"           element={<BackupPage />} />
-          <Route path="security"         element={<SecuritySettingsPage />} />
-          <Route path="legal-import"     element={<LegalImportPage />} />
-          <Route path="eval"             element={<EvalPage />} />
+          <Route path="categories"       element={<RequireAction actionKey="admin.categories.manage"><CategoriesPage /></RequireAction>} />
+          <Route path="departments"      element={<RequireAction actionKey="admin.departments.view"><DepartmentsPage /></RequireAction>} />
+          <Route path="ai-config"        element={<RequireAction actionKey="admin.ai_config.view"><AIConfigPage /></RequireAction>} />
+          <Route path="chat-monitor"     element={<RequireAction actionKey="admin.chat_monitor"><ChatMonitorPage /></RequireAction>} />
+          <Route path="feedback"         element={<RequireAction actionKey="admin.feedback.view"><FeedbackPage /></RequireAction>} />
+          <Route path="audit-logs"       element={<RequireAction actionKey="admin.audit_logs"><AuditLogsPage /></RequireAction>} />
+          <Route path="system-metrics"   element={<RequireAction actionKey="admin.system_metrics"><SystemMetricsPage /></RequireAction>} />
+          <Route path="model-management" element={<RequireAction actionKey="admin.ai_config.view"><ModelManagementPage /></RequireAction>} />
+          <Route path="rag-config"       element={<RequireAction actionKey="admin.rag_config.edit"><RAGConfigPage /></RequireAction>} />
+          <Route path="backup"           element={<RequireAction actionKey="admin.backup"><BackupPage /></RequireAction>} />
+          <Route path="security"         element={<RequireAction actionKey="admin.security"><SecuritySettingsPage /></RequireAction>} />
+          <Route path="legal-import"     element={<RequireAction actionKey="admin.legal_import"><LegalImportPage /></RequireAction>} />
+          <Route path="eval"             element={<RequireAction actionKey="admin.eval"><EvalPage /></RequireAction>} />
+          <Route path="action-permissions" element={<RequireAction actionKey="admin.permissions.edit"><ActionPermissionsPage /></RequireAction>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />

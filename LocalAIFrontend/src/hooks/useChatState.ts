@@ -226,9 +226,18 @@ export function useChatState() {
                   : m
               ));
             } else if (data.type === 'token') {
-              setMessages(prev => prev.map(m =>
-                m.id === assistantId ? { ...m, content: m.content + data.content } : m
-              ));
+              setMessages(prev => prev.map(m => {
+                if (m.id !== assistantId) return m;
+                let newContent = m.content + data.content;
+                // Strip "(Điều X [A])", "(Điều 15, Tài liệu A)" ngay khi stream
+                // Chỉ chạy regex khi token chứa ')' để tránh overhead mỗi token
+                if (data.content.includes(')')) {
+                  newContent = newContent.replace(
+                    /\s*\(\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d.]+[^)]*\)/gi, ''
+                  );
+                }
+                return { ...m, content: newContent };
+              }));
             } else if (data.type === 'suggestions') {
               setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, suggestions: data.suggestions || [] } : m
@@ -377,9 +386,22 @@ export function useChatState() {
     loadSessions();
   }, [currentSessionId, newSession, loadSessions]);
 
+  const sessionTitle = sessions.find(s => s.id === currentSessionId)?.title ?? null;
+
+  const renameSession = useCallback(async (sessionId: number, newTitle: string) => {
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: trimmed } : s));
+    try {
+      await fetch(`${API_BASE}/api/chat/sessions/${sessionId}?title=${encodeURIComponent(trimmed)}`, {
+        method: 'PATCH', credentials: 'include',
+      });
+    } catch { /* ignore */ }
+  }, []);
+
   return {
-    messages, sessions, currentSessionId, isGenerating, cancelledQuestion,
+    messages, sessions, currentSessionId, sessionTitle, isGenerating, cancelledQuestion,
     sendMessage, cancelMessage, setFeedback, reportMessage, newSession, loadSession, deleteSession, loadSessions,
-    regenerateLast, editAndResend,
+    renameSession, regenerateLast, editAndResend,
   };
 }
