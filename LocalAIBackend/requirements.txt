@@ -19,6 +19,7 @@ easyocr
 PyMuPDF
 Pillow
 mammoth
+beautifulsoup4
 
 # Test dependencies
 pytest>=7.4

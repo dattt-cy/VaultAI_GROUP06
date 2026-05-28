@@ -88,9 +88,11 @@ async def pull_ollama_model(body: PullModelRequest):
 async def delete_ollama_model(model_name: str):
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.delete(
+            resp = await client.request(
+                "DELETE",
                 f"{OLLAMA_URL}/api/delete",
-                json={"name": model_name},
+                content=json.dumps({"name": model_name}),
+                headers={"Content-Type": "application/json"},
             )
             if resp.status_code == 404:
                 raise HTTPException(status_code=404, detail=f"Model '{model_name}' không tồn tại.")
