@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import require_min_level
+from app.api.dependencies import require_action
 from app.core.security import get_password_hash
 from app.db.session import get_db
 from app.models.user_model import Department, Role, User
@@ -38,7 +38,7 @@ class UserUpdateRequest(BaseModel):
     password: Optional[str] = None
 
 
-@router.get("/users", summary="Danh sách người dùng")
+@router.get("/users", summary="Danh sách người dùng", dependencies=[Depends(require_action("admin.users.view"))])
 def list_users(db: Session = Depends(get_db)):
     users = db.query(User).all()
     return [
@@ -59,7 +59,7 @@ def list_users(db: Session = Depends(get_db)):
     ]
 
 
-@router.post("/users", summary="Tạo người dùng mới", status_code=201, dependencies=[Depends(require_min_level(9))])
+@router.post("/users", summary="Tạo người dùng mới", status_code=201, dependencies=[Depends(require_action("admin.users.create"))])
 def create_user(body: UserCreateRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(status_code=400, detail="Username đã tồn tại")
@@ -78,7 +78,7 @@ def create_user(body: UserCreateRequest, db: Session = Depends(get_db)):
     return {"id": user.id, "username": user.username, "full_name": user.full_name}
 
 
-@router.patch("/users/{user_id}", summary="Cập nhật thông tin người dùng", dependencies=[Depends(require_min_level(9))])
+@router.patch("/users/{user_id}", summary="Cập nhật thông tin người dùng", dependencies=[Depends(require_action("admin.users.edit"))])
 def update_user(user_id: int, body: UserUpdateRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -97,7 +97,7 @@ def update_user(user_id: int, body: UserUpdateRequest, db: Session = Depends(get
     return {"ok": True}
 
 
-@router.patch("/users/{user_id}/toggle-active", summary="Bật/tắt trạng thái người dùng", dependencies=[Depends(require_min_level(9))])
+@router.patch("/users/{user_id}/toggle-active", summary="Bật/tắt trạng thái người dùng", dependencies=[Depends(require_action("admin.users.toggle"))])
 def toggle_user_active(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -107,7 +107,7 @@ def toggle_user_active(user_id: int, db: Session = Depends(get_db)):
     return {"id": user.id, "is_active": user.is_active}
 
 
-@router.delete("/users/{user_id}", summary="Xóa người dùng", status_code=204, dependencies=[Depends(require_min_level(9))])
+@router.delete("/users/{user_id}", summary="Xóa người dùng", status_code=204, dependencies=[Depends(require_action("admin.users.delete"))])
 def delete_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -150,7 +150,7 @@ class RoleUpdateRequest(BaseModel):
     description: Optional[str] = None
 
 
-@router.get("/roles", summary="Danh sách vai trò", dependencies=[Depends(require_min_level(9))])
+@router.get("/roles", summary="Danh sách vai trò", dependencies=[Depends(require_action("admin.roles.view"))])
 def list_roles(db: Session = Depends(get_db)):
     roles = db.query(Role).all()
     return [
@@ -165,7 +165,7 @@ def list_roles(db: Session = Depends(get_db)):
     ]
 
 
-@router.post("/roles", summary="Tạo vai trò mới", status_code=201, dependencies=[Depends(require_min_level(10))])
+@router.post("/roles", summary="Tạo vai trò mới", status_code=201, dependencies=[Depends(require_action("admin.roles.create"))])
 def create_role(body: RoleCreateRequest, db: Session = Depends(get_db)):
     role = Role(name=body.name, access_level=body.access_level, description=body.description)
     db.add(role)
@@ -174,7 +174,7 @@ def create_role(body: RoleCreateRequest, db: Session = Depends(get_db)):
     return {"id": role.id, "name": role.name}
 
 
-@router.patch("/roles/{role_id}", summary="Cập nhật vai trò", dependencies=[Depends(require_min_level(10))])
+@router.patch("/roles/{role_id}", summary="Cập nhật vai trò", dependencies=[Depends(require_action("admin.roles.edit"))])
 def update_role(role_id: int, body: RoleUpdateRequest, db: Session = Depends(get_db)):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -191,7 +191,7 @@ def update_role(role_id: int, body: RoleUpdateRequest, db: Session = Depends(get
     return {"ok": True}
 
 
-@router.delete("/roles/{role_id}", summary="Xóa vai trò", status_code=204, dependencies=[Depends(require_min_level(10))])
+@router.delete("/roles/{role_id}", summary="Xóa vai trò", status_code=204, dependencies=[Depends(require_action("admin.roles.delete"))])
 def delete_role(role_id: int, db: Session = Depends(get_db)):
     role = db.query(Role).filter(Role.id == role_id).first()
     if not role:
@@ -218,7 +218,7 @@ class DepartmentUpdateRequest(BaseModel):
     description: Optional[str] = None
 
 
-@router.get("/departments", summary="Danh sách phòng ban")
+@router.get("/departments", summary="Danh sách phòng ban", dependencies=[Depends(require_action("admin.departments.view"))])
 def list_departments(db: Session = Depends(get_db)):
     depts = db.query(Department).order_by(Department.name).all()
     return [
@@ -247,7 +247,7 @@ def get_department(dept_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/departments", summary="Tạo phòng ban mới", status_code=201, dependencies=[Depends(require_min_level(9))])
+@router.post("/departments", summary="Tạo phòng ban mới", status_code=201, dependencies=[Depends(require_action("admin.departments.create"))])
 def create_department(body: DepartmentCreateRequest, db: Session = Depends(get_db)):
     if db.query(Department).filter(Department.name == body.name).first():
         raise HTTPException(status_code=400, detail="Tên phòng ban đã tồn tại")
@@ -258,7 +258,7 @@ def create_department(body: DepartmentCreateRequest, db: Session = Depends(get_d
     return {"id": dept.id, "name": dept.name}
 
 
-@router.patch("/departments/{dept_id}", summary="Cập nhật phòng ban", dependencies=[Depends(require_min_level(9))])
+@router.patch("/departments/{dept_id}", summary="Cập nhật phòng ban", dependencies=[Depends(require_action("admin.departments.edit"))])
 def update_department(dept_id: int, body: DepartmentUpdateRequest, db: Session = Depends(get_db)):
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
@@ -274,7 +274,7 @@ def update_department(dept_id: int, body: DepartmentUpdateRequest, db: Session =
     return {"ok": True}
 
 
-@router.delete("/departments/{dept_id}", summary="Xóa phòng ban", status_code=204, dependencies=[Depends(require_min_level(9))])
+@router.delete("/departments/{dept_id}", summary="Xóa phòng ban", status_code=204, dependencies=[Depends(require_action("admin.departments.delete"))])
 def delete_department(dept_id: int, db: Session = Depends(get_db)):
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:

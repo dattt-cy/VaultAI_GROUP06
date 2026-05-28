@@ -15,6 +15,7 @@ from app.api.routes import admin_ollama, admin_rag_config, admin_backup, admin_s
 from app.api.routes import admin_legal_import
 from app.api.routes import admin_eval
 from app.api.routes import admin_system, admin_users, admin_permissions, admin_monitor
+from app.api.routes import admin_actions
 from app.api.dependencies import require_min_level
 
 Base.metadata.create_all(bind=engine)
@@ -70,6 +71,7 @@ app.include_router(admin_system.router, prefix="/api/admin", tags=["Admin - Syst
 app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - Users"], dependencies=[Depends(require_min_level(5))])
 app.include_router(admin_permissions.router, prefix="/api/admin", tags=["Admin - Permissions"], dependencies=[Depends(require_min_level(5))])
 app.include_router(admin_monitor.router, prefix="/api/admin", tags=["Admin - Monitor"], dependencies=[Depends(require_min_level(5))])
+app.include_router(admin_actions.router, prefix="/api/admin", tags=["Admin - Actions"])
 
 
 @app.on_event("startup")

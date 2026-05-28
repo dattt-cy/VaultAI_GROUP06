@@ -89,10 +89,10 @@ _STANDALONE_ARTICLE_HEADING = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-# Khớp "(Điều 3)", "(Điều 9.1)", "(Khoản 2)", "(Mục 4.2.1)" trong nội dung câu trả lời.
-# Chú ý: chỉ strip khi nằm ở cuối dòng hoặc trước citation [N] — tránh strip tiêu đề đoạn.
+# Khớp "(Điều 3)", "(Điều 15, )", "(Điều 9.1)", "(Khoản 2)", "(Mục 4.2.1)" ở cuối dòng/bullet.
+# Cho phép dấu phẩy thừa do strip_tai_lieu_labels để lại, và dấu chấm sau ngoặc.
 _INLINE_ARTICLE_REF = re.compile(
-    r'\s*\(\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d\.]+(?:\s*,\s*[\d\.]+)*\s*\)(?=\s*(?:\[\d+\]|$|\n))',
+    r'\s*\(\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d\.]+(?:\s*[,;]\s*[\d\.]*)*\s*\)(?=[\.\s]*(?:\[\d+\]|$|\n))',
     re.IGNORECASE,
 )
 

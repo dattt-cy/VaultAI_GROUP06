@@ -348,16 +348,20 @@ async def get_document_content(
             detail=f"Tài liệu '{filename}' gặp lỗi khi xử lý: {doc.error_message or 'Không rõ lý do'}"
         )
 
+    # Chỉ lấy parent + flat chunks để hiển thị — child chunks là sub-split của parent,
+    # trả về cả hai sẽ gây lặp nội dung trong DocumentViewer.
     pages = (
         db.query(DocumentPage)
-        .filter(DocumentPage.document_id == doc.id)
+        .filter(
+            DocumentPage.document_id == doc.id,
+            DocumentPage.chunk_type.in_(["parent", "flat"]),
+        )
         .order_by(DocumentPage.chunk_index.asc())
         .all()
     )
 
     result = []
     for p in pages:
-        # Parse page_metadata (nếu có) để lấy thêm thông tin
         meta = {}
         if p.page_metadata:
             try:
@@ -365,10 +369,13 @@ async def get_document_content(
             except Exception:
                 pass
 
+        # Dùng page_number thật từ metadata; fallback về chunk_index + 1 cho legacy rows
+        page_num = meta.get("page_number") or (p.chunk_index + 1)
+
         result.append({
-            "page": p.chunk_index + 1,
+            "page": page_num,
             "lines": [line for line in p.raw_content.split('\n')],
-            "title": meta.get("heading"),       # None nếu không có heading
+            "title": meta.get("heading"),
             "chunk_index": p.chunk_index,
             "token_count": p.token_count,
         })

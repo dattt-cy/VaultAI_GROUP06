@@ -11,6 +11,8 @@ from app.core.config import settings
 from app.core.security import create_access_token
 from app.crud.crud_user import authenticate_user
 from app.models.doc_model import CategoryPermission
+from app.models.user_model import RoleAction
+from app.core.actions import ACTIONS
 from app.api.routes.admin import write_audit_log
 
 router = APIRouter()
@@ -22,6 +24,21 @@ COOKIE_MAX_AGE = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+def _build_action_permissions(user, db: Session) -> dict[str, bool]:
+    """Tính toán effective action permissions cho user."""
+    if user.role.name == "admin":
+        return {a.key: True for a in ACTIONS}
+
+    saved: dict[str, bool] = {
+        ra.action_key: ra.allowed
+        for ra in db.query(RoleAction).filter(RoleAction.role_id == user.role_id).all()
+    }
+    return {
+        a.key: saved[a.key] if a.key in saved else user.role.access_level >= a.default_min_level
+        for a in ACTIONS
+    }
 
 
 def _build_user_response(user, db: Session) -> dict:
@@ -44,6 +61,7 @@ def _build_user_response(user, db: Session) -> dict:
             }
             for p in perms
         ],
+        "action_permissions": _build_action_permissions(user, db),
     }
 
 
