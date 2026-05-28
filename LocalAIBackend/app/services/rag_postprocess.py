@@ -65,6 +65,36 @@ def fix_bullet_indentation(text: str) -> str:
     return '\n'.join(result)
 
 
+_DIEU_TAI_LIEU_PATTERN = re.compile(
+    r'\(Điều\s+[\d\.]+,\s*Tài liệu\s+[A-Z]\)',
+    re.IGNORECASE,
+)
+_TAI_LIEU_LABEL_PATTERN = re.compile(
+    r',?\s*Tài liệu\s+[A-Z](?=\)|\s|$|,)',
+    re.IGNORECASE,
+)
+
+
+def strip_tai_lieu_labels(text: str) -> str:
+    """Xóa 'Tài liệu X' khỏi câu trả lời — nguồn đã hiển thị qua nhãn [X]."""
+    # "(Điều 3, Tài liệu B)" → "(Điều 3)"
+    text = _TAI_LIEU_LABEL_PATTERN.sub('', text)
+    # Dọn ngoặc trống "()" còn sót lại
+    text = re.sub(r'\(\s*\)', '', text)
+    return text
+
+
+_STANDALONE_ARTICLE_HEADING = re.compile(
+    r'^\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d\.]+\s*[:\-]?\s*$',
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def strip_standalone_article_headings(text: str) -> str:
+    """Xóa dòng chỉ chứa 'Điều X.X' / 'Khoản X' đứng một mình — không phải nội dung trả lời."""
+    return _STANDALONE_ARTICLE_HEADING.sub('', text).strip()
+
+
 def process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
     """
     Xử lý response chứa inline citations [A],[B],[C] do LLM tự chèn.

@@ -14,6 +14,20 @@ _TABLE_KEYWORDS = [
     "list all", "tabulate", "make a table",
 ]
 
+_ENUMERATION_KEYWORDS = [
+    "những gì", "những gì?", "gồm những", "bao gồm những", "có những",
+    "các quyền", "các nghĩa vụ", "các chính sách", "các quy định",
+    "hỗ trợ gì", "được gì", "có gì", "gồm gì", "bao gồm gì",
+    "nêu hết", "kể hết", "tất cả các", "toàn bộ các",
+    "what are", "what does", "list of", "all the",
+]
+
+
+def is_enumeration_intent(query: str) -> bool:
+    """Phát hiện câu hỏi liệt kê nhiều mục — cần lấy nhiều chunk hơn."""
+    lower = query.lower()
+    return any(k in lower for k in _ENUMERATION_KEYWORDS)
+
 
 def is_summary_intent(query: str) -> bool:
     lower = query.lower()
@@ -89,7 +103,7 @@ QA_PROMPT = PromptTemplate(
 Câu hỏi: {question}
 
 QUY TẮC:
-- TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
+- TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:", hoặc tiêu đề điều khoản như "Điều 1", "Điều 1.1", "Khoản 2", "Mục 3" — viết thẳng nội dung. Số điều chỉ được nhắc đến BÊN TRONG câu khi cần thiết, không dùng làm tiêu đề độc lập.
 - CHỈ TRẢ LỜI ĐÚNG NHỮNG GÌ ĐƯỢC HỎI. Nếu câu hỏi hỏi về X, chỉ trả lời về X — không tự thêm thông tin về Y, Z dù chúng xuất hiện trong tài liệu gần đó.
 - Ý ĐỊNH CHI TIẾT (ƯU TIÊN CAO NHẤT): Nếu câu hỏi chứa từ "chi tiết", "cụ thể", "đầy đủ", "liệt kê", "nêu hết", "kể chi tiết", "toàn bộ nội dung" — PHẢI trích dẫn và trình bày ĐẦY ĐỦ nội dung từ NGỮ CẢNH. KHÔNG ĐƯỢC chỉ ghi số điều/khoản rồi dừng. Phải kể ra nội dung thực sự của điều đó.
 - Ý ĐỊNH NGẮN GỌN: Nếu câu hỏi dùng từ như "chỉ cần", "ngắn gọn", "tóm tắt", "tại điều mấy", "ở đâu", "là gì" theo nghĩa định vị — chỉ trả lời đúng phần được hỏi (VD: tên điều khoản, số điều, tên tài liệu), KHÔNG liệt kê nội dung chi tiết bên trong. QUY TẮC NÀY KHÔNG ÁP DỤNG nếu câu hỏi đã kích hoạt Ý ĐỊNH CHI TIẾT.

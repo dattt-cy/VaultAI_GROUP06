@@ -35,6 +35,7 @@ from .rag_prompts import (
     SUMMARY_PROMPT,
     TABLE_EXTRACTION_PROMPT,
     THINKING_DIRECTIVE,
+    is_enumeration_intent,
     is_summary_intent,
     is_table_intent,
 )
@@ -42,6 +43,8 @@ from .rag_postprocess import (
     fix_bullet_indentation,
     fix_missing_doc_name,
     strip_spurious_not_found,
+    strip_standalone_article_headings,
+    strip_tai_lieu_labels,
     verify_citations_post_hoc,
 )
 from app.core.config import settings
@@ -77,28 +80,45 @@ _INTRO_ANSWER = (
 # ---------------------------------------------------------------------------
 
 def _build_context_parts(chunks: list) -> list[str]:
-    """Ghép chunk liên tiếp (cùng document, chunk_index liền nhau) thành 1 block."""
+    """Ghép chunk theo tài liệu — mỗi document_id nhận 1 chữ cái duy nhất.
+    Các chunk không liên tiếp trong cùng tài liệu được nối bằng dấu phân cách.
+    """
     if not chunks:
         return []
 
-    ordered = sorted(chunks, key=lambda c: (c.document_id, c.chunk_index))
+    # Xác định thứ tự xuất hiện của từng document_id (giữ nguyên thứ tự retrieval)
+    doc_order: dict[int, int] = {}
+    for c in chunks:
+        if c.document_id not in doc_order:
+            doc_order[c.document_id] = len(doc_order)
 
-    groups: list[list] = []
-    current_group = [ordered[0]]
-    for c in ordered[1:]:
-        prev = current_group[-1]
-        if c.document_id == prev.document_id and c.chunk_index == prev.chunk_index + 1:
-            current_group.append(c)
-        else:
-            groups.append(current_group)
-            current_group = [c]
-    groups.append(current_group)
+    # Gom tất cả chunks theo document_id, sort theo chunk_index
+    doc_chunks: dict[int, list] = {}
+    for c in chunks:
+        doc_chunks.setdefault(c.document_id, []).append(c)
+    for doc_id in doc_chunks:
+        doc_chunks[doc_id].sort(key=lambda c: c.chunk_index)
 
     parts = []
-    for letter_idx, group in enumerate(groups):
+    for doc_id, letter_idx in sorted(doc_order.items(), key=lambda x: x[1]):
         letter = chr(65 + (letter_idx % 26))
-        source_name = group[0].page_metadata.get("source", f"Tài liệu {group[0].document_id}")
-        merged_text = "\n".join(c.content for c in group)
+        cs = doc_chunks[doc_id]
+        source_name = cs[0].page_metadata.get("source", f"Tài liệu {doc_id}")
+
+        # Ghép các đoạn liên tiếp; chèn "..." giữa các đoạn không liền nhau
+        segments = []
+        current_seg = [cs[0]]
+        for c in cs[1:]:
+            if c.chunk_index == current_seg[-1].chunk_index + 1:
+                current_seg.append(c)
+            else:
+                segments.append(current_seg)
+                current_seg = [c]
+        segments.append(current_seg)
+
+        merged_text = "\n[...]\n".join(
+            "\n".join(ch.content for ch in seg) for seg in segments
+        )
         parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{merged_text}")
     return parts
 
@@ -286,6 +306,8 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
 
     history = conversation_history or []
     top_k = get_top_k(db)
+    if is_enumeration_intent(query):
+        top_k = max(top_k, 20)
     retrieval_query = _rewrite_query(query, history)
 
     chunks = _do_retrieval(query, retrieval_query, db, top_k, allowed_doc_ids)
@@ -321,7 +343,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     llm_options = get_active_llm_options(db)
     num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
     num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
-    ctx_budget = max(500, num_ctx - num_predict - 600)
+    ctx_budget = max(500, num_ctx - num_predict - 400)
     merged_context = trim_to_token_budget(merged_context, ctx_budget)
 
     if is_table_intent(query):
@@ -360,6 +382,8 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
         verify_citations_post_hoc(safe_response, chunks)
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
+    safe_response = strip_tai_lieu_labels(safe_response)
+    safe_response = strip_standalone_article_headings(safe_response)
 
     citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
     suggestions = _generate_suggestions(merged_context, safe_response)
@@ -377,6 +401,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     """
     history = conversation_history or []
     top_k = get_top_k(db)
+    if is_enumeration_intent(query):
+        top_k = max(top_k, 20)
 
     retrieval_query = query
     if history and needs_rewrite(query, history):
@@ -450,7 +476,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     llm_options = get_active_llm_options(db)
     num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
     num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
-    ctx_budget = max(500, num_ctx - num_predict - 600)
+    ctx_budget = max(500, num_ctx - num_predict - 400)
     merged_context = trim_to_token_budget(merged_context, ctx_budget)
 
     if is_table:
@@ -507,6 +533,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         verify_citations_post_hoc(safe_response, chunks)
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
+    safe_response = strip_tai_lieu_labels(safe_response)
+    safe_response = strip_standalone_article_headings(safe_response)
 
     yield _sse({"type": "corrected_text", "content": safe_response})
 
