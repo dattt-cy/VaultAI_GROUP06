@@ -1,0 +1,362 @@
+[
+  {
+    "id": "Q01",
+    "category": "fact_lookup",
+    "source_doc": "Quy_che_lao_dong_2024.txt",
+    "question": "Nhân viên đi làm thêm vào ngày lễ được hưởng bao nhiêu phần trăm lương?",
+    "expected_keywords": ["300%", "lương cơ bản"],
+    "expected_citation": true,
+    "notes": "Điều 4 – chính sách OT ngày lễ"
+  },
+  {
+    "id": "Q02",
+    "category": "fact_lookup",
+    "source_doc": "Quy_che_lao_dong_2024.txt",
+    "question": "Nhân viên có thâm niên 4 năm được hưởng bao nhiêu ngày phép mỗi năm?",
+    "expected_keywords": ["14 ngày"],
+    "expected_citation": true,
+    "notes": "Điều 6 – từ 3 đến dưới 5 năm = 14 ngày"
+  },
+  {
+    "id": "Q03",
+    "category": "fact_lookup",
+    "source_doc": "Quy_che_lao_dong_2024.txt",
+    "question": "Quản lý cấp trưởng phòng phải báo trước bao nhiêu ngày khi muốn nghỉ việc?",
+    "expected_keywords": ["45 ngày"],
+    "expected_citation": true,
+    "notes": "Điều 11 – quy trình nghỉ việc"
+  },
+  {
+    "id": "Q04",
+    "category": "multi_fact",
+    "source_doc": "Chinh_sach_luong_thuong_2024.txt",
+    "question": "Lương tháng của nhân viên gồm những thành phần nào và tỷ lệ mỗi phần là bao nhiêu?",
+    "expected_keywords": ["lương cơ bản", "60%", "phụ cấp", "20%", "KPI"],
+    "expected_citation": true,
+    "notes": "Phần 1.1 – 3 thành phần lương"
+  },
+  {
+    "id": "Q05",
+    "category": "fact_lookup",
+    "source_doc": "Chinh_sach_luong_thuong_2024.txt",
+    "question": "Lương được trả vào ngày mấy hàng tháng?",
+    "expected_keywords": ["ngày 10"],
+    "expected_citation": true,
+    "notes": "Phần 1.3 – chu kỳ trả lương"
+  },
+  {
+    "id": "Q06",
+    "category": "threshold",
+    "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
+    "question": "Khoản chi tiêu 30 triệu đồng cần ai phê duyệt?",
+    "expected_keywords": ["CFO", "Giám đốc Tài Chính"],
+    "expected_citation": true,
+    "notes": "Mục 3.1c – từ 20 đến 100 triệu do CFO phê duyệt"
+  },
+  {
+    "id": "Q07",
+    "category": "threshold",
+    "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
+    "question": "Giao dịch chuyển khoản trên bao nhiêu tiền thì cần 2 người ký duyệt?",
+    "expected_keywords": ["20.000.000", "2 người ký duyệt"],
+    "expected_citation": true,
+    "notes": "Bước 4 – nguyên tắc 4-eyes principle"
+  },
+  {
+    "id": "Q08",
+    "category": "procedure",
+    "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
+    "question": "Quy trình thanh toán nội bộ gồm những bước nào? Trình bày chi tiết từng bước.",
+    "expected_keywords": ["Bước 1", "Bước 2", "Bước 3", "lập đề nghị", "phê duyệt"],
+    "expected_citation": true,
+    "notes": "Mục 4 – 5 bước thanh toán"
+  },
+  {
+    "id": "Q09",
+    "category": "security",
+    "source_doc": "Huong_dan_bao_mat_CNTT.txt",
+    "question": "Mật khẩu tối thiểu phải có bao nhiêu ký tự và gồm những loại ký tự nào?",
+    "expected_keywords": ["12 ký tự", "chữ hoa", "chữ số", "ký tự đặc biệt"],
+    "expected_citation": true,
+    "notes": "Mục 1.1 – yêu cầu mật khẩu"
+  },
+  {
+    "id": "Q10",
+    "category": "security",
+    "source_doc": "Huong_dan_bao_mat_CNTT.txt",
+    "question": "Khi phát hiện máy tính bị mã độc thì phải làm gì đầu tiên?",
+    "expected_keywords": ["ngắt kết nối mạng", "gọi IT"],
+    "expected_citation": true,
+    "notes": "Mục 6.2 – xử lý sự cố mã độc"
+  },
+  {
+    "id": "Q11",
+    "category": "yes_no",
+    "source_doc": "Huong_dan_bao_mat_CNTT.txt",
+    "question": "Nhân viên có được dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng không?",
+    "expected_keywords": ["không", "cấm"],
+    "expected_citation": true,
+    "notes": "Mục 3.3 – không được dùng Zalo cá nhân"
+  },
+  {
+    "id": "Q12",
+    "category": "yes_no",
+    "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
+    "question": "Nhân viên thử việc có được tạm ứng không?",
+    "expected_keywords": ["không", "không áp dụng", "thử việc"],
+    "expected_citation": true,
+    "notes": "Mục 5.1 – chỉ nhân viên chính thức"
+  },
+  {
+    "id": "Q13",
+    "category": "multi_doc",
+    "source_doc": "Quy_che_lao_dong_2024.txt + Chinh_sach_luong_thuong_2024.txt",
+    "question": "Nhân viên đi muộn 3 lần trong tháng bị xử lý như thế nào? Điều đó ảnh hưởng đến lương không?",
+    "expected_keywords": ["trừ 0.5 ngày phép", "phép"],
+    "expected_citation": true,
+    "notes": "Điều 5 quy chế LĐ – trừ phép; ảnh hưởng gián tiếp đến lương KPI"
+  },
+  {
+    "id": "Q14",
+    "category": "calculation",
+    "source_doc": "Chinh_sach_luong_thuong_2024.txt",
+    "question": "Nhân viên được xếp loại KPI C thì được hưởng bao nhiêu phần trăm lương KPI?",
+    "expected_keywords": ["80%", "60–74 điểm"],
+    "expected_citation": true,
+    "notes": "Phần 2.2 – thang điểm KPI loại C"
+  },
+  {
+    "id": "Q15",
+    "category": "out_of_scope",
+    "source_doc": "N/A",
+    "question": "Giá cổ phiếu công ty hiện tại là bao nhiêu?",
+    "expected_keywords": ["không tìm thấy", "không có thông tin"],
+    "expected_citation": false,
+    "notes": "Câu hỏi ngoài phạm vi tài liệu – kiểm tra khả năng từ chối hallucination"
+  },
+  {
+    "id": "Q16",
+    "category": "fact_lookup",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
+    "question": "Nhân viên phải cập nhật tiến độ công việc trên hệ thống ERP trước mấy giờ mỗi ngày?",
+    "expected_keywords": ["17:30", "17h30", "17h"],
+    "expected_citation": true,
+    "notes": "Module PM – deadline cập nhật task hàng ngày"
+  },
+  {
+    "id": "Q17",
+    "category": "fact_lookup",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
+    "question": "Đăng ký làm thêm giờ phải nộp trước bao nhiêu tiếng?",
+    "expected_keywords": ["24 giờ", "24 tiếng"],
+    "expected_citation": true,
+    "notes": "Quy định nộp đơn OT ít nhất 24h trước"
+  },
+  {
+    "id": "Q18",
+    "category": "fact_lookup",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
+    "question": "File đính kèm trong đề nghị thanh toán trên ERP được phép tối đa bao nhiêu MB?",
+    "expected_keywords": ["10MB", "10 MB"],
+    "expected_citation": true,
+    "notes": "Giới hạn dung lượng file PDF và JPG khi nộp đề nghị thanh toán"
+  },
+  {
+    "id": "Q19",
+    "category": "fact_lookup",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
+    "question": "Bộ phận IT hỗ trợ người dùng ERP trong khung giờ nào?",
+    "expected_keywords": ["08:00", "18:00", "thứ Hai", "thứ Sáu"],
+    "expected_citation": true,
+    "notes": "IT support giờ hành chính thứ 2 đến thứ 6"
+  },
+  {
+    "id": "Q20",
+    "category": "threshold",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
+    "question": "Những ai bắt buộc phải bật xác thực 2 yếu tố (MFA) khi đăng nhập ERP?",
+    "expected_keywords": ["quản trị", "administrator", "cấp quản lý", "trưởng nhóm"],
+    "expected_citation": true,
+    "notes": "MFA bắt buộc từ cấp team leader trở lên"
+  },
+  {
+    "id": "Q21",
+    "category": "fact_lookup",
+    "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
+    "question": "Mục tiêu doanh thu năm 2024 của công ty là bao nhiêu?",
+    "expected_keywords": ["210 tỷ", "210"],
+    "expected_citation": true,
+    "notes": "Mục tiêu doanh thu 2024 tăng 25% so với 2023"
+  },
+  {
+    "id": "Q22",
+    "category": "fact_lookup",
+    "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
+    "question": "Công ty đặt mục tiêu tuyển bao nhiêu nhân viên mới trong năm 2024?",
+    "expected_keywords": ["80", "390"],
+    "expected_citation": true,
+    "notes": "Tuyển 80 người để đạt tổng 390 nhân viên"
+  },
+  {
+    "id": "Q23",
+    "category": "fact_lookup",
+    "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
+    "question": "Ngân sách R&D năm 2024 là bao nhiêu và chiếm tỷ lệ bao nhiêu phần trăm doanh thu?",
+    "expected_keywords": ["18 tỷ", "8,6%", "8.6%"],
+    "expected_citation": true,
+    "notes": "R&D 18 tỷ = 8.6% doanh thu, tuyển 15 kỹ sư AI/ML"
+  },
+  {
+    "id": "Q24",
+    "category": "fact_lookup",
+    "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
+    "question": "Tỷ lệ nghỉ việc (turnover) năm 2023 là bao nhiêu và có đạt mục tiêu không?",
+    "expected_keywords": ["12,1%", "12.1%", "8%", "không đạt", "vượt"],
+    "expected_citation": true,
+    "notes": "Turnover 12.1% vượt mục tiêu 8% – cần cải thiện giữ chân nhân tài"
+  },
+  {
+    "id": "Q25",
+    "category": "multi_fact",
+    "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
+    "question": "Công ty có kế hoạch mở rộng ra thị trường quốc tế nào trong năm 2025?",
+    "expected_keywords": ["Singapore", "Thái Lan", "Thailand"],
+    "expected_citation": true,
+    "notes": "Mở văn phòng Singapore Q1/2025 và Thailand Q3/2025"
+  },
+  {
+    "id": "Q26",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
+    "question": "Doanh thu Q1 2024 của công ty là bao nhiêu và vượt kế hoạch bao nhiêu phần trăm?",
+    "expected_keywords": ["47,3 tỷ", "47.3 tỷ", "12,8%", "12.8%"],
+    "expected_citation": true,
+    "notes": "Doanh thu 47.3 tỷ, vượt kế hoạch 12.8%"
+  },
+  {
+    "id": "Q27",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
+    "question": "Tỷ lệ hài lòng khách hàng (CSAT) trong Q1 2024 đạt bao nhiêu điểm?",
+    "expected_keywords": ["4,6/5", "4.6/5", "4,6", "4.6"],
+    "expected_citation": true,
+    "notes": "CSAT 4.6/5 tăng so với 4.3/5 Q4 2023"
+  },
+  {
+    "id": "Q28",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
+    "question": "Tỷ lệ gia hạn hợp đồng với khách hàng cũ trong Q1 2024 là bao nhiêu?",
+    "expected_keywords": ["91,2%", "91.2%", "91%"],
+    "expected_citation": true,
+    "notes": "Renewal rate 91.2% vượt mục tiêu năm 90%"
+  },
+  {
+    "id": "Q29",
+    "category": "calculation",
+    "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
+    "question": "Doanh thu từ dịch vụ phần mềm chiếm bao nhiêu phần trăm tổng doanh thu Q1 2024?",
+    "expected_keywords": ["60%", "28,4 tỷ", "28.4 tỷ"],
+    "expected_citation": true,
+    "notes": "28.4 tỷ / 47.3 tỷ = 60% doanh thu"
+  },
+  {
+    "id": "Q30",
+    "category": "multi_doc",
+    "source_doc": "Ke_hoach_phat_trien_2024_2025.txt + Bao_cao_doanh_thu_Q1_2024.txt",
+    "question": "Mảng SaaS trong Q1 2024 tăng trưởng bao nhiêu phần trăm so với cùng kỳ và hiện có bao nhiêu khách hàng SaaS trả phí?",
+    "expected_keywords": ["42%", "156", "khách hàng"],
+    "expected_citation": true,
+    "notes": "SaaS tăng 42% YoY, 156 khách hàng trả phí – thông tin có trực tiếp trong Bao_cao Q1"
+  },
+  {
+    "id": "Q31",
+    "category": "negation",
+    "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
+    "question": "Những trường hợp nào không được phép tạm ứng theo quy trình thanh toán?",
+    "expected_keywords": ["thử việc", "không được", "không áp dụng"],
+    "expected_citation": true,
+    "notes": "Kiểm tra khả năng trả lời câu phủ định – tìm ngoại lệ"
+  },
+  {
+    "id": "Q32",
+    "category": "negation",
+    "source_doc": "Huong_dan_bao_mat_CNTT.txt",
+    "question": "Những phần mềm hoặc ứng dụng nào bị cấm sử dụng trên thiết bị công ty?",
+    "expected_keywords": ["cấm", "không được", "bị cấm"],
+    "expected_citation": true,
+    "notes": "Kiểm tra khả năng liệt kê các mục bị cấm từ tài liệu bảo mật"
+  },
+  {
+    "id": "Q33",
+    "category": "comparison",
+    "source_doc": "Quy_che_lao_dong_2024.txt",
+    "question": "Nhân viên 2 năm thâm niên và nhân viên 5 năm thâm niên khác nhau bao nhiêu ngày phép?",
+    "expected_keywords": ["12 ngày", "14 ngày", "2 ngày"],
+    "expected_citation": true,
+    "notes": "So sánh 2 mức thâm niên – kiểm tra khả năng suy luận từ bảng dữ liệu"
+  },
+  {
+    "id": "Q34",
+    "category": "ambiguous",
+    "source_doc": "Chinh_sach_luong_thuong_2024.txt",
+    "question": "Thưởng cuối năm tính như thế nào?",
+    "expected_keywords": ["KPI", "xếp loại", "hệ số"],
+    "expected_citation": true,
+    "notes": "Câu hỏi mơ hồ – hệ thống phải tự suy ra ngữ cảnh từ tài liệu lương thưởng"
+  },
+  {
+    "id": "Q35",
+    "category": "out_of_scope",
+    "source_doc": "N/A",
+    "question": "Tỷ giá USD/VND hiện tại là bao nhiêu?",
+    "expected_keywords": ["không tìm thấy", "không có thông tin", "ngoài phạm vi"],
+    "expected_citation": false,
+    "notes": "Thông tin thị trường thời gian thực – không có trong tài liệu nội bộ"
+  },
+  {
+    "id": "Q36",
+    "category": "out_of_scope",
+    "source_doc": "N/A",
+    "question": "CEO của công ty Apple là ai?",
+    "expected_keywords": ["không tìm thấy", "không có thông tin", "ngoài phạm vi"],
+    "expected_citation": false,
+    "notes": "Câu hỏi về tổ chức bên ngoài – không liên quan đến tài liệu nội bộ"
+  },
+  {
+    "id": "Q37",
+    "category": "out_of_scope",
+    "source_doc": "N/A",
+    "question": "Hướng dẫn cách đầu tư chứng khoán sinh lời?",
+    "expected_keywords": ["không tìm thấy", "không có thông tin", "ngoài phạm vi"],
+    "expected_citation": false,
+    "notes": "Câu hỏi hoàn toàn ngoài phạm vi tài liệu công ty"
+  },
+  {
+    "id": "Q38",
+    "category": "procedure",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
+    "question": "Quy trình xin nghỉ phép từ 3 ngày trở lên trên hệ thống ERP thực hiện như thế nào?",
+    "expected_keywords": ["3 ngày làm việc", "trước", "nộp đơn"],
+    "expected_citation": true,
+    "notes": "Phải nộp đơn trước ít nhất 3 ngày làm việc"
+  },
+  {
+    "id": "Q39",
+    "category": "multi_doc",
+    "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt + Chinh_sach_luong_thuong_2024.txt",
+    "question": "Bảng lương tháng được cập nhật trên ERP vào ngày nào và tiền được chuyển vào ngày nào?",
+    "expected_keywords": ["ngày 8", "ngày 9", "ngày 10"],
+    "expected_citation": true,
+    "notes": "ERP cập nhật lương ngày 8-9, tiền chuyển ngày 10 – kết hợp 2 tài liệu"
+  },
+  {
+    "id": "Q40",
+    "category": "out_of_scope",
+    "source_doc": "N/A",
+    "question": "Lương tối thiểu vùng năm 2025 theo quy định nhà nước là bao nhiêu?",
+    "expected_keywords": ["không tìm thấy", "không có thông tin", "ngoài phạm vi"],
+    "expected_citation": false,
+    "notes": "Thông tin pháp luật bên ngoài – không có trong tài liệu nội bộ công ty"
+  }
+]
