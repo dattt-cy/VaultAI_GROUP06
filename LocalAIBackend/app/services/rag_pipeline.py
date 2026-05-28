@@ -1,7 +1,9 @@
-import re
 import json
+import re
 from typing import Generator
+
 from sqlalchemy.orm import Session
+
 from .hybrid_retriever import (
     hybrid_retrieve,
     hybrid_retrieve_multi,
@@ -9,29 +11,76 @@ from .hybrid_retriever import (
     get_reranker,
     retrieve_for_summary,
 )
-from .llm_engine import safe_llm_invoke, fast_llm_invoke, stream_llm_invoke, stream_llm_invoke_with_thinking, check_hallucination, check_response_grounding, apply_pii_masking, log_english_leakage, trim_to_token_budget
+from .llm_engine import (
+    apply_pii_masking,
+    check_hallucination,
+    check_response_grounding,
+    fast_llm_invoke,
+    log_english_leakage,
+    safe_llm_invoke,
+    stream_llm_invoke,
+    stream_llm_invoke_with_thinking,
+    trim_to_token_budget,
+)
 from .context_manager import (
+    extract_yes_no_topic,
     format_history_block,
-    needs_rewrite, rewrite_query,
-    expand_query, is_yes_no_query, extract_yes_no_topic,
+    is_yes_no_query,
+    needs_rewrite,
+    rewrite_query,
+)
+from .rag_prompts import (
+    QA_PROMPT,
+    SUGGESTIONS_PROMPT,
+    SUMMARY_PROMPT,
+    TABLE_EXTRACTION_PROMPT,
+    THINKING_DIRECTIVE,
+    is_summary_intent,
+    is_table_intent,
+)
+from .rag_postprocess import (
+    fix_bullet_indentation,
+    fix_missing_doc_name,
+    strip_spurious_not_found,
+    verify_citations_post_hoc,
 )
 from app.core.config import settings
 from app.api.routes.admin_rag_config import get_top_k
 from app.services.config_loader import get_active_system_prompt, get_active_llm_options
 
-# Budget: 8192 ctx - 300 system prompt - 4096 output - 200 safety margin = ~3596 tokens cho context+history+question
 _MAX_CONTEXT_TOKENS = 3500
 
+_INTENT_INTRO_KEYWORDS = [
+    "bạn có thể làm",
+    "chức năng của",
+    "khả năng của",
+    "bạn làm được gì",
+    "bạn là ai",
+    "giới thiệu bản thân",
+    "hệ thống làm được gì",
+    "làm được những gì",
+]
+
+_INTRO_ANSWER = (
+    "Xin chào! Tôi là **Trợ lý AI Nội bộ (Local AI)** – Hệ thống trí tuệ nhân tạo chuyên biệt được thiết kế để quản lý và khai thác tri thức của doanh nghiệp một cách bảo mật.\n\n"
+    "Dưới đây là các tính năng cốt lõi tôi có thể hỗ trợ bạn:\n\n"
+    "* **🔍 Tìm Kiếm Ngữ Nghĩa (Hybrid Search):** Quét và hiểu ý nghĩa của hàng vạn trang tài liệu (PDF, Word, TXT) chỉ trong vài giây, thay vì chỉ tìm theo từ khóa thô cứng.\n"
+    "* **🧠 Hỏi Đáp Tập Trung (RAG):** Đọc nội dung tài liệu của bạn, phân tích để chắt lọc câu trả lời chính xác nhất, sau đó trình bày lại bằng ngôn ngữ tự nhiên.\n"
+    "* **📑 Trích Dẫn Cụ Thể, Minh Bạch:** Mọi thông tin tôi cung cấp bắt buộc phải có nguồn gốc rõ ràng (Tên file, Số trang, Đoạn văn) để bạn dễ dàng kiểm chứng lại chống \"ảo giác\".\n"
+    "* **🛡️ Bảo Mật Tuyệt Đối (Air-gapped):** Mọi quá trình suy luận của tôi diễn ra 100% trên phần cứng máy chủ nội bộ (Offline). Dữ liệu nhạy cảm của bạn sẽ không bao giờ bị đưa ra ngoài Internet.\n\n"
+    "Bạn đã sẵn sàng chưa? Hãy thử đặt bất kỳ câu hỏi nào liên quan đến các tài liệu đang có trên hệ thống!"
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _build_context_parts(chunks: list) -> list[str]:
-    """
-    Ghép các chunk liên tiếp (cùng document, chunk_index liền nhau) thành 1 block.
-    Giúp LLM thấy nội dung liên tục thay vì nhiều tài liệu rời rạc.
-    """
+    """Ghép chunk liên tiếp (cùng document, chunk_index liền nhau) thành 1 block."""
     if not chunks:
         return []
 
-    # Sắp xếp theo (document_id, chunk_index) để nhóm dễ hơn
     ordered = sorted(chunks, key=lambda c: (c.document_id, c.chunk_index))
 
     groups: list[list] = []
@@ -46,95 +95,69 @@ def _build_context_parts(chunks: list) -> list[str]:
     groups.append(current_group)
 
     parts = []
-    letter_idx = 0
-    for group in groups:
+    for letter_idx, group in enumerate(groups):
         letter = chr(65 + (letter_idx % 26))
-        letter_idx += 1
         source_name = group[0].page_metadata.get("source", f"Tài liệu {group[0].document_id}")
         merged_text = "\n".join(c.content for c in group)
         parts.append(f"[TÀI LIỆU {letter} — {source_name}]\n{merged_text}")
     return parts
-from langchain_core.prompts import PromptTemplate
 
 
-# ---------------------------------------------------------------------------
-# Prompt QA — cấu trúc 3 bước bắt buộc để AI suy luận rõ ràng hơn
-# {history_block} = "" khi không có history (không ảnh hưởng prompt)
-# ---------------------------------------------------------------------------
+def _detect_article_ambiguity(query: str, chunks: list) -> list[dict] | None:
+    """
+    Kiểm tra xem query có hỏi về một điều khoản cụ thể (VD: "điều 4") mà
+    xuất hiện trong nhiều ngữ cảnh khác nhau.
+    Trả về list các văn bản nếu mơ hồ, None nếu không.
+    """
+    match = re.search(r'điều\s+(\d+)', query, re.IGNORECASE)
+    if not match:
+        return None
+    article_num = match.group(1)
+    article_heading = re.compile(rf'(?:^|\n)\s*[Đđ]iều\s+{article_num}[\.\s]', re.MULTILINE)
 
-_SUMMARY_KEYWORDS = [
-    "tóm tắt", "tổng hợp", "tổng quan", "tóm lược", "tóm gọn",
-    "nội dung chính", "ý chính", "điểm chính", "khái quát",
-    "summarize", "summary", "overview",
-]
+    tt_pattern = re.compile(
+        r'(?:Thông tư|Quyết định|Nghị định)\s+(?:số\s+)?(\d+[\/\-]\d+[\/\-][A-Z\-]+)',
+        re.IGNORECASE,
+    )
 
-_TABLE_KEYWORDS = [
-    "lập bảng", "tạo bảng", "liệt kê", "danh sách", "thống kê",
-    "bảng tổng hợp", "bảng so sánh", "liệt kê tất cả", "danh sách tất cả",
-    "bảng danh sách", "tổng hợp danh sách", "bảng thống kê",
-    "list all", "tabulate", "make a table",
-]
+    by_doc: dict[int, str] = {}
+    for chunk in chunks:
+        if article_heading.search(chunk.content):
+            doc_id = chunk.document_id
+            if doc_id not in by_doc:
+                by_doc[doc_id] = chunk.page_metadata.get("source", f"Tài liệu {doc_id}")
 
+    if len(by_doc) >= 2:
+        return [{"document_id": doc_id, "name": name} for doc_id, name in by_doc.items()]
 
-def _is_summary_intent(query: str) -> bool:
-    lower = query.lower()
-    return any(k in lower for k in _SUMMARY_KEYWORDS)
+    seen_tt: dict[str, str] = {}
+    for chunk in chunks:
+        if not article_heading.search(chunk.content):
+            continue
+        for full_match in tt_pattern.finditer(chunk.content):
+            code = full_match.group(1).upper().strip()
+            if code not in seen_tt:
+                seen_tt[code] = full_match.group(0).strip()
 
+    unique_labels = list(dict.fromkeys(seen_tt.values()))
+    if len(unique_labels) >= 2:
+        return [{"document_id": None, "name": label} for label in unique_labels]
 
-def _is_table_intent(query: str) -> bool:
-    lower = query.lower()
-    return any(k in lower for k in _TABLE_KEYWORDS)
-
-
-TABLE_EXTRACTION_PROMPT = PromptTemplate(
-    input_variables=["context", "question"],
-    template="""Bạn là chuyên gia trích xuất dữ liệu có cấu trúc từ tài liệu nội bộ.
-
---- NỘI DUNG TÀI LIỆU ---
-{context}
---------------------------
-
-Yêu cầu của người dùng: {question}
-
-Nhiệm vụ: Trích xuất tất cả thực thể/mục phù hợp từ tài liệu thành bảng JSON có cấu trúc.
-
-QUY TẮC:
-- Chỉ trích xuất thông tin CÓ TRONG tài liệu, không bịa thêm bất kỳ thông tin nào.
-- Nếu một ô không có thông tin → điền "—"
-- Tự xác định tên cột phù hợp với nội dung và yêu cầu của người dùng.
-- Mỗi thực thể riêng biệt là một hàng.
-- Tên cột viết ngắn gọn, rõ ràng bằng tiếng Việt.
-- Tiêu đề bảng mô tả nội dung bảng trong 5-8 từ.
-
-Trả về ĐÚNG FORMAT JSON sau đây, KHÔNG thêm bất kỳ text giải thích nào:
-
-{{
-  "title": "Tiêu đề bảng ngắn gọn",
-  "columns": ["Tên cột 1", "Tên cột 2", "Tên cột 3"],
-  "rows": [
-    ["giá trị 1", "giá trị 2", "giá trị 3"],
-    ["giá trị 1", "giá trị 2", "giá trị 3"]
-  ]
-}}"""
-)
+    return None
 
 
 def _extract_table_from_llm(context: str, query: str) -> dict | None:
-    """
-    Gọi LLM với TABLE_EXTRACTION_PROMPT, parse JSON trả về.
-    Trả về dict {title, columns, rows} hoặc None nếu thất bại.
-    """
+    """Gọi LLM với TABLE_EXTRACTION_PROMPT, parse JSON trả về."""
     try:
         prompt = TABLE_EXTRACTION_PROMPT.format(context=context, question=query)
         raw = safe_llm_invoke(prompt)
-        # Tìm block JSON đầu tiên trong response
         match = re.search(r'\{[\s\S]*\}', raw)
         if not match:
-            print(f"[TableExtract] Không tìm thấy JSON trong response")
+            print("[TableExtract] Không tìm thấy JSON trong response")
             return None
         data = json.loads(match.group())
         if not isinstance(data.get("columns"), list) or not isinstance(data.get("rows"), list):
-            print(f"[TableExtract] JSON thiếu trường columns/rows")
+            print("[TableExtract] JSON thiếu trường columns/rows")
             return None
         if not data["columns"] or not data["rows"]:
             return None
@@ -151,157 +174,8 @@ def _extract_table_from_llm(context: str, query: str) -> dict | None:
         return None
 
 
-SUMMARY_PROMPT = PromptTemplate(
-    input_variables=["context", "question"],
-    template="""Bạn là chuyên gia phân tích tài liệu. Dưới đây là nội dung các đoạn trích từ tài liệu.
-
---- NỘI DUNG TÀI LIỆU ---
-{context}
---------------------------
-
-Nhiệm vụ: {question}
-
-Hãy trả lời câu hỏi và tổng hợp nội dung dựa trên các đoạn trích trên.
-Trình bày một cách tự nhiên, rõ ràng, vào thẳng vấn đề. Sử dụng dấu gạch đầu dòng (-) nếu cần liệt kê nhiều ý để dễ đọc.
-
-Chỉ dùng thông tin từ các đoạn trích. Không bịa thêm. Viết hoàn toàn bằng tiếng Việt.
-
-Tóm tắt:"""
-)
-
-
-QA_PROMPT = PromptTemplate(
-    input_variables=["context", "history_block", "question"],
-    template="""Bạn là chuyên gia phân tích tài liệu nội bộ. Đọc KỸ LƯỠNG tất cả các đoạn tài liệu trong NGỮ CẢNH trước khi trả lời. Chỉ dùng thông tin từ NGỮ CẢNH bên dưới. Không bịa thêm bất kỳ thông tin nào.
-
---- NGỮ CẢNH ---
-{context}
------------------
-
-{history_block}
-Câu hỏi: {question}
-
-QUY TẮC:
-- TUYỆT ĐỐI không bắt đầu bằng "Q:", "A:", "Câu hỏi:", "Trả lời:" — viết thẳng nội dung.
-- CHỈ TRẢ LỜI ĐÚNG NHỮNG GÌ ĐƯỢC HỎI. Nếu câu hỏi hỏi về X, chỉ trả lời về X — không tự thêm thông tin về Y, Z dù chúng xuất hiện trong tài liệu gần đó.
-- Ý ĐỊNH CHI TIẾT (ƯU TIÊN CAO NHẤT): Nếu câu hỏi chứa từ "chi tiết", "cụ thể", "đầy đủ", "liệt kê", "nêu hết", "kể chi tiết", "toàn bộ nội dung" — PHẢI trích dẫn và trình bày ĐẦY ĐỦ nội dung từ NGỮ CẢNH. KHÔNG ĐƯỢC chỉ ghi số điều/khoản rồi dừng. Phải kể ra nội dung thực sự của điều đó.
-- Ý ĐỊNH NGẮN GỌN: Nếu câu hỏi dùng từ như "chỉ cần", "ngắn gọn", "tóm tắt", "tại điều mấy", "ở đâu", "là gì" theo nghĩa định vị — chỉ trả lời đúng phần được hỏi (VD: tên điều khoản, số điều, tên tài liệu), KHÔNG liệt kê nội dung chi tiết bên trong. QUY TẮC NÀY KHÔNG ÁP DỤNG nếu câu hỏi đã kích hoạt Ý ĐỊNH CHI TIẾT.
-- DANH SÁCH ĐẦY ĐỦ: Nếu NGỮ CẢNH chứa nhiều mục/điểm liên quan đến câu hỏi (dù có đánh số hay không, dù là bullet hay đoạn văn riêng biệt), PHẢI liệt kê TẤT CẢ — không được bỏ sót, không được gộp, không được viết "..." hay "và các mục khác". Ví dụ: câu hỏi về "nội dung hợp đồng" và tài liệu liệt kê 9 điểm → phải trả lời đủ 9 điểm. NGOẠI LỆ: nếu câu hỏi kích hoạt quy tắc Ý ĐỊNH NGẮN GỌN ở trên, bỏ qua quy tắc này.
-- ƯU TIÊN SỬ DỤNG suy luận logic: Nếu NGỮ CẢNH đề cập đến chủ đề liên quan (dù dùng từ ngữ khác nhau), hãy suy luận và trả lời. Ví dụ: tài liệu nói "IT thực hiện backup" → có thể trả lời "IT chịu trách nhiệm khôi phục".
-- SUY LUẬN DANH SÁCH ĐÓNG: Nếu NGỮ CẢNH liệt kê rõ những gì được phép/khuyến nghị (VD: "chỉ dùng A hoặc B"), và câu hỏi hỏi về X không có trong danh sách đó → kết luận dứt khoát "Không được phép" và giải thích chỉ A, B mới được phép. KHÔNG được nói "không đề cập trong tài liệu" khi đã có danh sách rõ ràng.
-- Chỉ từ chối khi NGỮ CẢNH HOÀN TOÀN KHÔNG ĐỀ CẬP đến chủ đề câu hỏi. Nếu có thông tin liên quan dù gián tiếp, hãy trả lời và giải thích suy luận.
-- Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết duy nhất: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." KHÔNG được viết câu này kèm với nội dung trả lời khác.
-- Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
-  - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
-  - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
-- Nhãn nguồn [A]/[B]/[C]: đặt DUY NHẤT một nhãn ở cuối câu hoặc cuối dòng bullet, không xếp chồng [A][B][C]
-- KHÔNG viết tên file tài liệu vào trong câu trả lời. Nguồn gốc sẽ được hiển thị tự động qua nhãn [A]/[B]/[C].
-- TRÍCH DẪN CHÍNH XÁC CẤP CON: Khi NGỮ CẢNH có cả tiêu đề cấp cha (VD: "PHẦN 5", "Chương 3") lẫn mục con có số thập phân (VD: "5.1", "5.2", "3.2.1"), PHẢI trích dẫn số mục con cụ thể nhất chứa thông tin — KHÔNG được chỉ nêu cấp cha. Ví dụ: tài liệu có "PHẦN 5" và "5.1 Công tác trong nước" → trích dẫn là "mục 5.1" hoặc "Điều 5.1", KHÔNG phải "Phần 5". Tương tự: có "3.2.1" thì dùng "3.2.1", không dùng "3.2" hay "3".
-- CÂU HỎI KÉP (nội dung + vị trí): Nếu câu hỏi hỏi cả "nội dung/có được không" LẪN "tại điều mấy/ở đâu", PHẢI trả lời ĐẦY ĐỦ CẢ HAI — vừa nêu nội dung, vừa chỉ rõ số điều và tên tài liệu. KHÔNG được bỏ qua phần nào.
-
-VÍ DỤ — câu trả lời nhiều ý:
-Quy trình thanh toán gồm các bước sau:
-- **Bước 1: Lập đề nghị thanh toán**
-  - Điền phiếu đề nghị trên hệ thống ERP
-  - Đính kèm hóa đơn VAT hợp lệ, hợp đồng liên quan [A]
-- **Bước 2: Kiểm tra chứng từ**
-  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020 [A]
-- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, bổ sung chứng từ trong **3 ngày làm việc**. [B]
-
-"""
-)
-
-# Directive cấu trúc hóa chain-of-thought cho thinking model
-_THINKING_DIRECTIVE = """Trước khi trả lời, hãy suy nghĩ theo cấu trúc sau trong phần suy nghĩ nội tâm:
-[PHÂN TÍCH CÂU HỎI]: Câu hỏi yêu cầu thông tin gì? Từ khóa chính là gì?
-[XEM XÉT TÀI LIỆU]: Tài liệu nào ([A],[B],[C]...) có thông tin liên quan? Độ tin cậy?
-[KẾT LUẬN]: Thông tin có đủ để trả lời không? Cần đặt điều kiện/giới hạn gì?
-
-"""
-
-
-
-# ---------------------------------------------------------------------------
-# Prompt Suggestions — viết thuần tiếng Việt
-# ---------------------------------------------------------------------------
-
-SUGGESTIONS_PROMPT = PromptTemplate(
-    input_variables=["context", "answer"],
-    template="""Tạo đúng 3 câu hỏi tiếp theo dựa trên nội dung tài liệu.
-
-Quy tắc:
-- Đánh số thứ tự: 1. 2. 3.
-- Mỗi câu một dòng, không viết thêm bất kỳ đoạn giới thiệu hay kết luận nào.
-
-Nội dung tài liệu:
-{context}
-
-Câu trả lời trước đó:
-{answer}
-
-3 câu hỏi tiếp theo:"""
-)
-
-
-
-def _detect_article_ambiguity(query: str, chunks: list) -> list[dict] | None:
-    """
-    Kiểm tra xem query có hỏi về một điều khoản cụ thể (VD: "điều 4") mà
-    xuất hiện trong nhiều ngữ cảnh khác nhau (nhiều văn bản hoặc nhiều thông tư
-    trong cùng VBHN hợp nhất).
-
-    Trả về list các văn bản/thông tư nếu mơ hồ, None nếu không mơ hồ.
-    """
-    match = re.search(r'điều\s+(\d+)', query, re.IGNORECASE)
-    if not match:
-        return None
-    article_num = match.group(1)
-    # Chỉ match khi "Điều X" đứng đầu dòng hoặc sau dấu chấm/xuống dòng — tránh match "khoản X Điều Y"
-    article_heading = re.compile(rf'(?:^|\n)\s*[Đđ]iều\s+{article_num}[\.\s]', re.MULTILINE)
-
-    # Tên thông tư/quyết định thường có dạng XX/YYYY/TT-NHNN hoặc số/năm/QĐ-...
-    tt_pattern = re.compile(
-        r'(?:Thông tư|Quyết định|Nghị định)\s+(?:số\s+)?(\d+[\/\-]\d+[\/\-][A-Z\-]+)',
-        re.IGNORECASE
-    )
-
-    # Case 1: nhiều document_id khác nhau
-    by_doc: dict[int, str] = {}
-    for chunk in chunks:
-        if article_heading.search(chunk.content):
-            doc_id = chunk.document_id
-            if doc_id not in by_doc:
-                by_doc[doc_id] = chunk.page_metadata.get("source", f"Tài liệu {doc_id}")
-
-    if len(by_doc) >= 2:
-        return [{"document_id": doc_id, "name": name} for doc_id, name in by_doc.items()]
-
-    # Case 2: cùng document (VBHN hợp nhất) nhưng "Điều X" thuộc các thông tư khác nhau
-    # → tìm tên thông tư trong mỗi chunk chứa heading "Điều X", dedup theo code
-    seen_tt: dict[str, str] = {}  # tt_code (chuẩn hóa) → label hiển thị đầy đủ
-    for chunk in chunks:
-        if not article_heading.search(chunk.content):
-            continue
-        # Lấy tất cả (label_đầy_đủ, code) trong chunk
-        for full_match in tt_pattern.finditer(chunk.content):
-            code = full_match.group(1).upper().strip()  # chuẩn hóa key
-            if code not in seen_tt:
-                seen_tt[code] = full_match.group(0).strip()
-
-    # Loại bỏ trùng lặp theo label (2 chunk cùng tên TT → chỉ giữ 1)
-    unique_labels = list(dict.fromkeys(seen_tt.values()))
-
-    if len(unique_labels) >= 2:
-        return [{"document_id": None, "name": label} for label in unique_labels]
-
-    return None
-
-
 def _generate_suggestions(context: str, answer: str) -> list:
-    """
-    Sinh 3 câu hỏi gợi ý tiếp theo dựa trên ngữ cảnh + câu trả lời.
-    Trả về danh sách rỗng nếu LLM lỗi.
-    """
+    """Sinh 3 câu hỏi gợi ý tiếp theo. Trả về [] nếu lỗi."""
     try:
         prompt = SUGGESTIONS_PROMPT.format(context=context[:2000], answer=answer[:500])
         raw = fast_llm_invoke(prompt, num_predict=150)
@@ -310,8 +184,7 @@ def _generate_suggestions(context: str, answer: str) -> list:
             line = line.strip()
             match = re.match(r'^(\d+)[\.\)]\s*(.+)$', line)
             if match:
-                q = match.group(2).strip()
-                q = q.replace('**', '').replace('*', '')
+                q = match.group(2).strip().replace('**', '').replace('*', '')
                 if q and len(q) > 5:
                     lines.append(q)
             if len(lines) == 3:
@@ -322,453 +195,19 @@ def _generate_suggestions(context: str, answer: str) -> list:
         return []
 
 
-def _verify_citations_post_hoc(
-    response: str,
-    chunks: list,
-    threshold: float = -1.5,
-) -> tuple[str, dict, list[list[str]]]:
-    """
-    Xác minh citation bằng cách rerank từng câu/bullet trong response với tất cả chunks.
-
-    Thay vì tin LLM tự gắn [A][B][C], hàm này:
-    1. Tách response thành các đơn vị có nghĩa (câu / dòng bullet)
-    2. Rerank từng đơn vị với tất cả chunks → chunk có score cao nhất = nguồn thực sự
-    3. Chỉ gán citation khi score vượt threshold (tránh gán sai cho câu chuyển tiếp)
-    4. Trả về response đã gắn [1][2], citation_source_lines, và relevant_spans
-
-    Fallback: nếu reranker không available, trả về response gốc không thay đổi.
-    """
-    try:
-        reranker = get_reranker()
-        if not reranker:
-            return response, {}, [[] for _ in chunks]
-    except Exception:
-        return response, {}, [[] for _ in chunks]
-
-    # Tách response thành các đơn vị: dòng bullet hoặc câu trong đoạn văn
-    raw_lines = response.split('\n')
-    units: list[tuple[int, str, str]] = []  # (line_idx, line_raw, text_to_score)
-
-    for idx, line in enumerate(raw_lines):
-        stripped = line.strip()
-        if not stripped:
-            continue
-        # Với bullet, score cả dòng; với đoạn văn dài, tách theo dấu câu
-        if re.match(r'^[-*•]\s+', stripped) or re.match(r'^\d+[\.\)]\s+', stripped):
-            text = re.sub(r'^[-*•\d\.\)]+\s*', '', stripped)
-            text = re.sub(r'\s*\[\d+\]\s*$', '', text).strip()
-            if len(text) > 10:
-                units.append((idx, line, text))
-        else:
-            # Tách câu trong đoạn văn thường
-            sentences = re.split(r'(?<=[.!?])\s+', stripped)
-            for sent in sentences:
-                clean = re.sub(r'\s*\[\d+\]\s*', '', sent).strip()
-                if len(clean) > 15:
-                    units.append((idx, line, clean))
-
-    if not units or not chunks:
-        return response, {}, [[] for _ in chunks]
-
-    # Build pairs: mỗi unit × mỗi chunk
-    all_pairs = []
-    for _, _, text in units:
-        for chunk in chunks:
-            all_pairs.append([text, chunk.content])
-
-    try:
-        all_scores = reranker.predict(all_pairs)
-    except Exception as e:
-        print(f"[PostHocCite ERROR] {e}")
-        return response, {}, [[] for _ in chunks]
-
-    num_chunks = len(chunks)
-    # Map line_idx → best chunk_idx
-    line_to_chunk: dict[int, int] = {}
-    citation_source_lines: dict[int, list[str]] = {}
-
-    for i, (line_idx, _, text) in enumerate(units):
-        scores = all_scores[i * num_chunks: (i + 1) * num_chunks]
-        scores_list = scores.tolist() if hasattr(scores, 'tolist') else list(scores)
-        best_idx = int(max(range(num_chunks), key=lambda j: scores_list[j]))
-        best_score = scores_list[best_idx]
-        if best_score >= threshold:
-            # Nếu dòng này đã có chunk được gán, dùng chunk có score cao hơn
-            if line_idx not in line_to_chunk or scores_list[line_to_chunk[line_idx]] < best_score:
-                line_to_chunk[line_idx] = best_idx
-            citation_source_lines.setdefault(best_idx, []).append(text)
-
-    # Xây dựng tập chunk nào thực sự được cite (theo thứ tự xuất hiện)
-    used_chunk_indices = []
-    for idx in sorted(line_to_chunk.keys()):
-        c = line_to_chunk[idx]
-        if c not in used_chunk_indices:
-            used_chunk_indices.append(c)
-
-    # Map chunk_idx gốc → số thứ tự hiển thị [1],[2],...
-    chunk_to_display: dict[int, int] = {c: n + 1 for n, c in enumerate(used_chunk_indices)}
-
-    # Rebuild response: thêm [N] vào cuối mỗi dòng bullet hoặc câu cuối đoạn
-    result_lines = list(raw_lines)
-    line_done: set[int] = set()
-
-    for idx, line_raw, _ in units:
-        if idx in line_to_chunk and idx not in line_done:
-            c_idx = line_to_chunk[idx]
-            display_n = chunk_to_display[c_idx]
-            clean_line = re.sub(r'\s*\[\d+\]\s*$', '', result_lines[idx]).rstrip()
-            result_lines[idx] = f"{clean_line} [{display_n}]"
-            line_done.add(idx)
-
-    new_response = '\n'.join(result_lines)
-
-    # Tính relevant_spans cho từng chunk được cite
-    relevant_spans: list[list[str]] = [[] for _ in chunks]
-    for c_idx, src_lines in citation_source_lines.items():
-        query_text = " ".join(src_lines[:3])
-        chunk = chunks[c_idx]
-        chunk_sentences = [
-            s.strip() for s in re.split(r'(?<=[.!?\n])\s+', chunk.content)
-            if len(s.strip()) > 15
-        ]
-        if not chunk_sentences:
-            continue
-        pairs = [[query_text, s] for s in chunk_sentences]
-        try:
-            span_scores = reranker.predict(pairs)
-            span_list = span_scores.tolist() if hasattr(span_scores, 'tolist') else list(span_scores)
-            scored = sorted(zip(span_list, chunk_sentences), key=lambda x: x[0], reverse=True)
-            relevant_spans[c_idx] = [s for score, s in scored if score > -2.0][:3]
-        except Exception:
-            pass
-
-    return new_response, citation_source_lines, relevant_spans, used_chunk_indices
+def _clean_response(text: str) -> str:
+    """Xóa context labels, file markers, câu 'không tìm thấy' thừa."""
+    text = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', text).strip()
+    text = re.sub(r'\[[A-Z]\]', '', text).strip()
+    text = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', text).strip()
+    text = re.sub(r'\b(\w[\w\-().,]+)\.(txt|pdf|docx?|xlsx?)\b\.?', r'\1', text, flags=re.IGNORECASE)
+    return strip_spurious_not_found(text)
 
 
-def _extract_relevant_spans_dynamic(chunk_queries: list[str], chunks: list) -> list[list[str]]:
-    """
-    Sử dụng chính câu văn mà LLM đã trích dẫn để tìm kiếm lại trong chunk gốc.
-    """
-    try:
-        reranker = get_reranker()
-        if not reranker:
-            return [[] for _ in chunks]
-    except Exception as e:
-        print(f"[SubChunk] Không load được reranker: {e}")
-        return [[] for _ in chunks]
-
-    all_pairs = []
-    chunk_ranges = []
-
-    for i, chunk in enumerate(chunks):
-        c_query = chunk_queries[i]
-        sentences = [
-            s.strip()
-            for s in re.split(r'(?<=[.!?\n])\s+', chunk.content)
-            if len(s.strip()) > 15
-        ]
-        start = len(all_pairs)
-        all_pairs.extend([[c_query, s] for s in sentences])
-        chunk_ranges.append((start, len(all_pairs), sentences))
-
-    results: list[list[str]] = []
-    if not all_pairs:
-        return [[] for _ in chunks]
-
-    try:
-        all_scores = reranker.predict(all_pairs)
-    except Exception as e:
-        print(f"[SubChunk ERROR] Batch predict thất bại: {e}")
-        return [[] for _ in chunks]
-
-    for (start, end, sentences) in chunk_ranges:
-        if not sentences:
-            results.append([])
-            continue
-        chunk_scores = all_scores[start:end].tolist() if hasattr(all_scores, 'tolist') else list(all_scores[start:end])
-        scored = sorted(zip(chunk_scores, sentences), key=lambda x: x[0], reverse=True)
-        best = [s for score, s in scored if score > -2.0][:3]
-        results.append(best)
-
-    return results
-
-
-def _process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
-    """
-    Xử lý response chứa inline citations [A],[B],[C] do LLM tự chèn:
-    - Gom markers của từng dòng, chuyển về cuối dòng dưới dạng [N]
-    - Trả về (response đã format, citation_source_lines)
-
-    Tại sao dùng LLM tự cite thay vì reranker:
-    LLM đọc context và biết chính xác "thông tin này từ TÀI LIỆU A/B/C".
-    Reranker đoán ngược sau khi đã tạo text — dễ nhầm khi chunks cùng chủ đề.
-    """
-    lines = response.split('\n')
-    result_lines = []
-    citation_source_lines: dict[int, list[str]] = {}
-
-    for line in lines:
-        markers = re.findall(r'\[([A-Z])\]', line)
-        # Xóa markers khỏi nội dung dòng
-        clean = re.sub(r'\s*\[([A-Z])\]\s*', ' ', line)
-        clean = re.sub(r'\s+', ' ', clean).strip()
-
-        if markers:
-            if clean:
-                # Chọn marker xuất hiện nhiều nhất (hoặc đầu tiên nếu bằng nhau)
-                best_letter = max(set(markers), key=markers.count)
-                chunk_idx = ord(best_letter) - 65  # A→0, B→1, C→2 ...
-                if 0 <= chunk_idx < num_chunks:
-                    result_lines.append(f"{clean} [{chunk_idx + 1}]")
-                    citation_source_lines.setdefault(chunk_idx, []).append(clean)
-                else:
-                    result_lines.append(clean)  # chunk index ngoài range → giữ text, bỏ marker
-            # Dòng chỉ có markers (clean rỗng) → bỏ hoàn toàn
-            continue
-
-        # Dòng không có citation marker → giữ nguyên
-        result_lines.append(line)
-
-    return '\n'.join(result_lines), citation_source_lines
-
-
-_NOT_FOUND_PATTERN = re.compile(
-    r'Tôi không tìm thấy thông tin này trong tài liệu[^\n]*',
-    re.IGNORECASE,
-)
-
-# Pattern: "trong tài liệu ." hoặc "trong tài liệu." (LLM bỏ quên tên file)
-_MISSING_DOC_NAME_PATTERN = re.compile(
-    r'trong tài liệu\s*\.',
-    re.IGNORECASE,
-)
-
-
-def _fix_missing_doc_name(text: str, chunks: list) -> str:
-    """Thay 'trong tài liệu .' bằng tên file thực từ chunk đầu tiên."""
-    if not _MISSING_DOC_NAME_PATTERN.search(text):
-        return text
-    # Lấy tên file từ chunk đầu tiên có source
-    source_name = None
-    for chunk in chunks:
-        name = chunk.page_metadata.get("source", "")
-        if name:
-            source_name = name
-            break
-    if not source_name:
-        return text
-    return _MISSING_DOC_NAME_PATTERN.sub(f'trong **{source_name}**.', text)
-
-
-def _strip_spurious_not_found(text: str) -> str:
-    """
-    Xóa câu 'Tôi không tìm thấy...' nếu response đã có nội dung thực sự.
-    Qwen2.5 hay thêm câu này như closing statement dù đã trả lời đầy đủ.
-    Chỉ giữ lại câu này nếu nó là NỘI DUNG DUY NHẤT của response.
-    """
-    stripped = _NOT_FOUND_PATTERN.sub('', text).strip()
-    # Nếu sau khi xóa còn lại nội dung có nghĩa → dùng bản đã xóa
-    if len(stripped) > 20:
-        return stripped
-    # Nếu xóa xong không còn gì → response thực sự là "không tìm thấy", giữ nguyên
-    return text.strip()
-
-
-def _fix_bullet_indentation(text: str) -> str:
-    """
-    Post-processing: tự động thụt lề sub-bullet dưới header bold.
-
-    Chuyển đổi:
-      - **Bước 1: Header**
-      - Nội dung con [1]
-      - **Bước 2: Header**
-
-    Thành:
-      - **Bước 1: Header**
-        - Nội dung con [1]
-      - **Bước 2: Header**
-    """
-    lines = text.split('\n')
-    result = []
-    under_bold = False
-
-    for line in lines:
-        is_root_bullet = bool(re.match(r'^[-*] ', line))
-        is_bold_bullet = is_root_bullet and bool(re.match(r'^[-*] \*\*', line))
-
-        if is_bold_bullet:
-            under_bold = True
-            result.append(line)
-        elif under_bold and is_root_bullet:
-            # Plain root bullet ngay sau bold header → thụt vào làm sub-item
-            result.append('  ' + line)
-            # Không reset under_bold: nhiều sub-items liên tiếp vẫn thụt
-        else:
-            # Blank line hoặc dòng text thường (không phải bullet) → reset
-            if line.strip() == '' or not is_root_bullet:
-                under_bold = False
-            result.append(line)
-
-    return '\n'.join(result)
-
-
-def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
-              conversation_history: list = None):
-    """
-    Luồng RAG nâng cấp dùng Hybrid Retriever.
-    conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
-    """
-    lower_query = query.lower()
-    intent_keywords = [
-        "bạn có thể làm",
-        "chức năng của",
-        "khả năng của",
-        "bạn làm được gì",
-        "bạn là ai",
-        "giới thiệu bản thân",
-        "hệ thống làm được gì",
-        "làm được những gì"
-    ]
-    if any(k in lower_query for k in intent_keywords):
-        return {
-            "answer": "Xin chào! Tôi là **Trợ lý AI Nội bộ (Local AI)** – Hệ thống trí tuệ nhân tạo chuyên biệt được thiết kế để quản lý và khai thác tri thức của doanh nghiệp một cách bảo mật.\n\nDưới đây là các tính năng cốt lõi tôi có thể hỗ trợ bạn:\n\n* **🔍 Tìm Kiếm Ngữ Nghĩa (Hybrid Search):** Quét và hiểu ý nghĩa của hàng vạn trang tài liệu (PDF, Word, TXT) chỉ trong vài giây, thay vì chỉ tìm theo từ khóa thô cứng.\n* **🧠 Hỏi Đáp Tập Trung (RAG):** Đọc nội dung tài liệu của bạn, phân tích để chắt lọc câu trả lời chính xác nhất, sau đó trình bày lại bằng ngôn ngữ tự nhiên.\n* **📑 Trích Dẫn Cụ Thể, Minh Bạch:** Mọi thông tin tôi cung cấp bắt buộc phải có nguồn gốc rõ ràng (Tên file, Số trang, Đoạn văn) để bạn dễ dàng kiểm chứng lại chống \"ảo giác\".\n* **🛡️ Bảo Mật Tuyệt Đối (Air-gapped):** Mọi quá trình suy luận của tôi diễn ra 100% trên phần cứng máy chủ nội bộ (Offline). Dữ liệu nhạy cảm của bạn sẽ không bao giờ bị đưa ra ngoài Internet.\n\nBạn đã sẵn sàng chưa? Hãy thử đặt bất kỳ câu hỏi nào liên quan đến các tài liệu đang có trên hệ thống!",
-            "citations": [],
-            "suggestions": []
-        }
-
-    history = conversation_history or []
-    top_k = get_top_k(db)
-
-    # 0. Query rewriting: rewrite bằng history trước, sau đó áp yes/no extraction
-    retrieval_query = query
-    if history and needs_rewrite(query, history):
-        # Rewrite với context hội thoại để câu hỏi mơ hồ có đầy đủ thông tin
-        retrieval_query = rewrite_query(query, history, safe_llm_invoke)
-        if retrieval_query != query:
-            print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
-    if is_yes_no_query(retrieval_query):
-        # Trích topic từ câu hỏi Yes/No để retrieval match keyword tốt hơn
-        retrieval_query = extract_yes_no_topic(retrieval_query)
-        print(f"[YesNoExtract] → '{retrieval_query}'")
-
-    # 1. Retrieval — table/summary dùng retrieve_for_summary để lấy nhiều chunk hơn
-    is_table = _is_table_intent(query)
-    if _is_summary_intent(query) or is_table:
-        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
-    else:
-        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
-        # Câu hỏi Yes/No luôn expand để tìm quy định liên quan dù retrieval có vẻ confident
-        if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
-            print(f"[AdaptiveRAG] Confidence thấp, thử expand query...")
-            expanded = expand_query(retrieval_query, safe_llm_invoke)
-            if len(expanded) > 1:
-                multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
-                if multi_chunks:
-                    # Merge thay vì replace để không mất chunks tốt từ lần đầu
-                    seen = {c.vector_id for c in chunks}
-                    merged = chunks + [c for c in multi_chunks if c.vector_id not in seen]
-                    reranker = get_reranker()
-                    if reranker:
-                        for c in merged:
-                            if c.rerank_score is None:
-                                c.rerank_score = reranker.predict([(retrieval_query, c.content)])
-                        merged.sort(key=lambda c: c.rerank_score or 0, reverse=True)
-                    chunks = merged[:top_k]
-
-    if not chunks:
-        return {
-            "answer": "Tôi không tìm thấy thông tin này trong tài liệu nội bộ.",
-            "citations": [],
-            "suggestions": []
-        }
-
-    # 2a. Kiểm tra mơ hồ điều khoản — nếu nhiều văn bản có cùng "điều X", hỏi lại user
-    ambiguous_sources = _detect_article_ambiguity(query, chunks)
-    if ambiguous_sources:
-        names = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
-        return {
-            "answer": f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong nhiều văn bản khác nhau:\n{names}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?",
-            "citations": [],
-            "suggestions": [s['name'] for s in ambiguous_sources],
-            "clarify": True,
-        }
-
-    # 2. Ghép ngữ cảnh — chunk liên tiếp cùng doc được merge thành 1 block
-    context_parts = _build_context_parts(chunks)
-    merged_context = "\n\n".join(context_parts)
-
-    # 3. Anti-hallucination check TRƯỚC KHI GỌI LLM (bỏ qua khi tóm tắt/bảng vì context luôn có nội dung)
-    if not _is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
-        return {
-            "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
-            "citations": [],
-            "suggestions": []
-        }
-
-    # Load config từ DB (cached 60s)
-    sys_prompt = get_active_system_prompt(db)
-    llm_options = get_active_llm_options(db)
-
-    # Trim context để tránh overflow context window
-    num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
-    num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
-    # Budget: num_ctx - num_predict - ước tính system+history+question overhead
-    ctx_budget = max(500, num_ctx - num_predict - 600)
-    merged_context = trim_to_token_budget(merged_context, ctx_budget)
-
-    # 4a. Table extraction — bypass QA pipeline, trích xuất JSON thành bảng
-    if is_table:
-        table_data = _extract_table_from_llm(merged_context, query)
-        if table_data:
-            row_count = len(table_data["rows"])
-            answer = f"Đã trích xuất **{row_count} mục** từ tài liệu nội bộ."
-            suggestions = _generate_suggestions(merged_context, answer)
-            return {
-                "answer": answer,
-                "citations": [],
-                "suggestions": suggestions,
-                "table_data": table_data,
-            }
-        # Fallback về QA thường nếu extraction thất bại
-        print("[TableExtract] Thất bại, fallback về QA thường")
-
-    # 4b. Gọi LLM — dùng SUMMARY_PROMPT cho yêu cầu tóm tắt để tránh LLM trigger "không tìm thấy"
-    if _is_summary_intent(query):
-        prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
-    else:
-        history_block = format_history_block(history)
-        prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
-    raw_response = safe_llm_invoke(prompt, system_prompt=sys_prompt, options_override=llm_options)
-
-    # Post-gen grounding check — phát hiện hallucination sau khi có response
-    if not _is_summary_intent(query) and check_response_grounding(raw_response, chunks):
-        return {
-            "answer": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này.",
-            "citations": [],
-            "suggestions": []
-        }
-
-    safe_response = apply_pii_masking(raw_response)
-    log_english_leakage(safe_response)
-
-    # 5. Xóa context labels thừa + marker [A][B][C] thô + tên file + câu "không tìm thấy" giả
-    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
-    safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
-    safe_response = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', safe_response, flags=re.IGNORECASE).strip()
-    # Xóa "Tài liệu X —" và đuôi file extension khỏi text
-    safe_response = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', safe_response).strip()
-    safe_response = re.sub(r'\b(\w[\w\-().,]+)\.(txt|pdf|docx?|xlsx?)\b\.?', r'\1', safe_response, flags=re.IGNORECASE)
-    safe_response = _strip_spurious_not_found(safe_response)
-
-    # 6. Post-hoc citation verification — rerank từng câu với chunk thực tế
-    safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
-        _verify_citations_post_hoc(safe_response, chunks)
-    safe_response = _fix_bullet_indentation(safe_response)
-    safe_response = _fix_missing_doc_name(safe_response, chunks)
-
-    # 7. Đóng gói citations — chỉ include chunk được cite thực sự
+def _build_citations(chunks: list, used_chunk_indices: list, all_relevant_spans: list, citation_source_lines: dict) -> list:
     citations = []
-    for display_n, c_idx in enumerate(used_chunk_indices):
+    for c_idx in used_chunk_indices:
         chunk = chunks[c_idx]
         citations.append({
             "content_preview": chunk.content,
@@ -781,38 +220,164 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
             "relevant_spans": all_relevant_spans[c_idx] if c_idx < len(all_relevant_spans) else [],
             "source_lines": citation_source_lines.get(c_idx, []),
         })
+    return citations
 
-    # 8. Sinh gợi ý câu hỏi tiếp theo
-    suggestions = _generate_suggestions(merged_context, safe_response)
 
-    return {
-        "answer": safe_response,
-        "citations": citations,
-        "suggestions": suggestions,
-    }
+def _do_retrieval(query: str, retrieval_query: str, db: Session, top_k: int, allowed_doc_ids: list | None) -> list:
+    """Chạy retrieval, tự động expand nếu confidence thấp hoặc câu hỏi yes/no."""
+    is_table = is_table_intent(query)
+    if is_summary_intent(query) or is_table:
+        return retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
+
+    chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
+    if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
+        print("[AdaptiveRAG] Confidence thấp, thử expand query...")
+        from .context_manager import expand_query
+        expanded = expand_query(retrieval_query, safe_llm_invoke)
+        if len(expanded) > 1:
+            multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
+            if multi_chunks:
+                seen = {c.vector_id for c in chunks}
+                merged = chunks + [c for c in multi_chunks if c.vector_id not in seen]
+                reranker = get_reranker()
+                if reranker:
+                    for c in merged:
+                        if c.rerank_score is None:
+                            c.rerank_score = reranker.predict([(retrieval_query, c.content)])
+                    merged.sort(key=lambda c: c.rerank_score or 0, reverse=True)
+                chunks = merged[:top_k]
+    return chunks
+
+
+def _rewrite_query(query: str, history: list) -> str:
+    """Rewrite query với history context nếu cần."""
+    retrieval_query = query
+    if history and needs_rewrite(query, history):
+        retrieval_query = rewrite_query(query, history, safe_llm_invoke)
+        if retrieval_query != query:
+            print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
+    if is_yes_no_query(retrieval_query):
+        retrieval_query = extract_yes_no_topic(retrieval_query)
+        print(f"[YesNoExtract] → '{retrieval_query}'")
+    return retrieval_query
 
 
 # ---------------------------------------------------------------------------
-# SSE Streaming variant
+# SSE helper
 # ---------------------------------------------------------------------------
 
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
+              conversation_history: list = None):
+    """
+    Luồng RAG nâng cấp dùng Hybrid Retriever.
+    conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
+    """
+    lower_query = query.lower()
+    if any(k in lower_query for k in _INTENT_INTRO_KEYWORDS):
+        return {"answer": _INTRO_ANSWER, "citations": [], "suggestions": []}
+
+    history = conversation_history or []
+    top_k = get_top_k(db)
+    retrieval_query = _rewrite_query(query, history)
+
+    chunks = _do_retrieval(query, retrieval_query, db, top_k, allowed_doc_ids)
+
+    if not chunks:
+        return {
+            "answer": "Tôi không tìm thấy thông tin này trong tài liệu nội bộ.",
+            "citations": [],
+            "suggestions": [],
+        }
+
+    ambiguous_sources = _detect_article_ambiguity(query, chunks)
+    if ambiguous_sources:
+        names = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
+        return {
+            "answer": f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong nhiều văn bản khác nhau:\n{names}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?",
+            "citations": [],
+            "suggestions": [s['name'] for s in ambiguous_sources],
+            "clarify": True,
+        }
+
+    context_parts = _build_context_parts(chunks)
+    merged_context = "\n\n".join(context_parts)
+
+    if not is_summary_intent(query) and not is_table_intent(query) and check_hallucination(merged_context, retrieval_query):
+        return {
+            "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
+            "citations": [],
+            "suggestions": [],
+        }
+
+    sys_prompt = get_active_system_prompt(db)
+    llm_options = get_active_llm_options(db)
+    num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
+    num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
+    ctx_budget = max(500, num_ctx - num_predict - 600)
+    merged_context = trim_to_token_budget(merged_context, ctx_budget)
+
+    if is_table_intent(query):
+        table_data = _extract_table_from_llm(merged_context, query)
+        if table_data:
+            row_count = len(table_data["rows"])
+            answer = f"Đã trích xuất **{row_count} mục** từ tài liệu nội bộ."
+            return {
+                "answer": answer,
+                "citations": [],
+                "suggestions": _generate_suggestions(merged_context, answer),
+                "table_data": table_data,
+            }
+        print("[TableExtract] Thất bại, fallback về QA thường")
+
+    if is_summary_intent(query):
+        prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
+    else:
+        history_block = format_history_block(history)
+        prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
+
+    raw_response = safe_llm_invoke(prompt, system_prompt=sys_prompt, options_override=llm_options)
+
+    if not is_summary_intent(query) and check_response_grounding(raw_response, chunks):
+        return {
+            "answer": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này.",
+            "citations": [],
+            "suggestions": [],
+        }
+
+    safe_response = apply_pii_masking(raw_response)
+    log_english_leakage(safe_response)
+    safe_response = _clean_response(safe_response)
+
+    safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
+        verify_citations_post_hoc(safe_response, chunks)
+    safe_response = fix_bullet_indentation(safe_response)
+    safe_response = fix_missing_doc_name(safe_response, chunks)
+
+    citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
+    suggestions = _generate_suggestions(merged_context, safe_response)
+
+    return {"answer": safe_response, "citations": citations, "suggestions": suggestions}
+
+
 def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
                      conversation_history: list = None) -> Generator[str, None, None]:
     """
     Streaming version của query_rag — yield SSE events:
-      {"type":"thinking","step":"..."}   — bước xử lý pipeline
-      {"type":"token","content":"..."}   — từng token LLM sinh ra
+      {"type":"thinking","step":"..."}
+      {"type":"token","content":"..."}
       {"type":"done","citations":[...],"suggestions":[...]}
-    conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
     """
     history = conversation_history or []
     top_k = get_top_k(db)
 
-    # 0. Query rewriting: rewrite bằng history trước, sau đó áp yes/no extraction
     retrieval_query = query
     if history and needs_rewrite(query, history):
         yield _sse({"type": "thinking", "step": "💬 Đang phân tích ngữ cảnh hội thoại..."})
@@ -824,8 +389,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         retrieval_query = extract_yes_no_topic(retrieval_query)
         print(f"[YesNoExtract] → '{retrieval_query}'")
 
-    is_table = _is_table_intent(query)
-    if _is_summary_intent(query):
+    is_table = is_table_intent(query)
+    if is_summary_intent(query):
         yield _sse({"type": "thinking", "step": "📄 Đang đọc toàn bộ nội dung tài liệu để tóm tắt..."})
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
     elif is_table:
@@ -836,6 +401,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
         if not _retrieval_is_confident(chunks) or is_yes_no_query(query):
             yield _sse({"type": "thinking", "step": "🔄 Đang mở rộng câu hỏi để tìm kiếm sâu hơn..."})
+            from .context_manager import expand_query
             expanded = expand_query(retrieval_query, safe_llm_invoke)
             if len(expanded) > 1:
                 multi_chunks = hybrid_retrieve_multi(db=db, queries=expanded, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
@@ -858,13 +424,14 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     doc_ids = {c.document_id for c in chunks}
     yield _sse({"type": "thinking", "step": f"✓ Tìm thấy {len(chunks)} đoạn từ {len(doc_ids)} tài liệu"})
 
-    # Kiểm tra mơ hồ điều khoản — nếu nhiều văn bản có cùng "điều X", hỏi lại user
     ambiguous_sources = _detect_article_ambiguity(query, chunks)
     if ambiguous_sources:
         print(f"[Ambiguity] '{query[:50]}' → {[s['name'] for s in ambiguous_sources]}")
-    if ambiguous_sources:
         names_md = "\n".join(f"- {s['name']}" for s in ambiguous_sources)
-        clarify_text = f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong **{len(ambiguous_sources)} văn bản** khác nhau:\n{names_md}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?"
+        clarify_text = (
+            f"Câu hỏi của bạn đề cập đến một điều khoản xuất hiện trong **{len(ambiguous_sources)} văn bản** khác nhau:\n"
+            f"{names_md}\n\nBạn muốn hỏi về điều khoản trong văn bản nào?"
+        )
         yield _sse({"type": "token", "content": clarify_text})
         yield _sse({"type": "suggestions", "data": [s['name'] for s in ambiguous_sources]})
         yield _sse({"type": "done", "citations": []})
@@ -875,21 +442,17 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
 
-    if not _is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
+    if not is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    # Load config từ DB (cached 60s)
     sys_prompt = get_active_system_prompt(db)
     llm_options = get_active_llm_options(db)
-
-    # Trim context để tránh overflow context window
     num_ctx = llm_options.get("num_ctx", settings.LLM_NUM_CTX)
     num_predict = llm_options.get("num_predict", settings.LLM_NUM_PREDICT)
     ctx_budget = max(500, num_ctx - num_predict - 600)
     merged_context = trim_to_token_budget(merged_context, ctx_budget)
 
-    # Table extraction branch — không stream token, yield table event
     if is_table:
         yield _sse({"type": "thinking", "step": "🔢 Đang trích xuất dữ liệu có cấu trúc..."})
         table_data = _extract_table_from_llm(merged_context, query)
@@ -900,10 +463,9 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             yield _sse({"type": "table", "table_data": table_data})
             yield _sse({"type": "done", "citations": [], "suggestions": []})
             return
-        # Fallback về QA nếu extraction thất bại
         print("[TableExtract] Thất bại, fallback về QA stream")
 
-    if _is_summary_intent(query):
+    if is_summary_intent(query):
         qa_prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
     else:
         history_block = format_history_block(history)
@@ -911,8 +473,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     full_response = ""
     if settings.THINKING_ENABLED:
-        # Thêm directive cấu trúc hóa suy nghĩ vào đầu prompt
-        thinking_prompt = _THINKING_DIRECTIVE + qa_prompt
+        thinking_prompt = THINKING_DIRECTIVE + qa_prompt
         yield _sse({"type": "thinking", "step": "🧠 Đang phân tích câu hỏi..."})
         yield _sse({"type": "reasoning_start"})
         reasoning_done_sent = False
@@ -920,7 +481,6 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             if kind == "thinking":
                 yield _sse({"type": "reasoning", "content": token})
             else:
-                # Gửi reasoning_done ngay trước token trả lời đầu tiên
                 if not reasoning_done_sent:
                     yield _sse({"type": "reasoning_done"})
                     yield _sse({"type": "thinking", "step": "📖 Đang đọc tài liệu liên quan..."})
@@ -934,45 +494,21 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             full_response += token
             yield _sse({"type": "token", "content": token})
 
-    # Post-gen grounding check — phát hiện hallucination sau khi stream xong
-    if not _is_summary_intent(query) and check_response_grounding(full_response, chunks):
+    if not is_summary_intent(query) and check_response_grounding(full_response, chunks):
         yield _sse({"type": "corrected_text", "content": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này."})
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    # Post-process
     safe_response = apply_pii_masking(full_response)
-    safe_response = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', safe_response).strip()
-    safe_response = re.sub(r'\[[A-Z]\]', '', safe_response).strip()
-    safe_response = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', safe_response, flags=re.IGNORECASE).strip()
-    safe_response = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', safe_response).strip()
-    safe_response = re.sub(r'\b(\w[\w\-().,]+)\.(txt|pdf|docx?|xlsx?)\b\.?', r'\1', safe_response, flags=re.IGNORECASE)
-    safe_response = _strip_spurious_not_found(safe_response)
+    safe_response = _clean_response(safe_response)
     log_english_leakage(safe_response)
 
-    # Post-hoc citation verification — rerank từng câu với chunk thực tế
     safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
-        _verify_citations_post_hoc(safe_response, chunks)
-    safe_response = _fix_bullet_indentation(safe_response)
-    safe_response = _fix_missing_doc_name(safe_response, chunks)
+        verify_citations_post_hoc(safe_response, chunks)
+    safe_response = fix_bullet_indentation(safe_response)
+    safe_response = fix_missing_doc_name(safe_response, chunks)
 
-    # Gửi corrected_text để frontend thay thế text đã stream bằng bản có citation
     yield _sse({"type": "corrected_text", "content": safe_response})
 
-    # Build citations — chỉ include chunk được cite thực sự
-    citations = []
-    for c_idx in used_chunk_indices:
-        chunk = chunks[c_idx]
-        citations.append({
-            "content_preview": chunk.content,
-            "document_id": chunk.document_id,
-            "chunk_index": chunk.chunk_index,
-            "page": chunk.page_metadata.get("page_number", chunk.chunk_index + 1),
-            "sourceFile": chunk.page_metadata.get("source", f"Tài liệu {chunk.document_id}"),
-            "rerank_score": round(chunk.rerank_score, 4),
-            "source_type": chunk.source_type,
-            "relevant_spans": all_relevant_spans[c_idx] if c_idx < len(all_relevant_spans) else [],
-            "source_lines": citation_source_lines.get(c_idx, []),
-        })
-
+    citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
     yield _sse({"type": "done", "citations": citations})
