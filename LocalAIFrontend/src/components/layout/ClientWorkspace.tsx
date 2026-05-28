@@ -24,7 +24,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const [rightOpen, setRightOpen] = useState(true);
 
   const {
-    messages, isGenerating, cancelledQuestion, currentSessionId,
+    messages, isGenerating, cancelledQuestion, currentSessionId, sessionTitle,
     sendMessage, cancelMessage, setFeedback, reportMessage, loadSession,
     regenerateLast, editAndResend,
   } = useChatState();
@@ -38,6 +38,13 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   useEffect(() => {
     if (initialSessionId) loadSession(initialSessionId);
   }, [initialSessionId]); // eslint-disable-line
+
+  // Đồng bộ URL với session hiện tại để refresh không mất lịch sử
+  useEffect(() => {
+    if (currentSessionId) {
+      navigate(`/workspace?id=${currentSessionId}`, { replace: true });
+    }
+  }, [currentSessionId, navigate]);
 
   const { highlight, highlightCitation } = useDocumentHighlight();
 
@@ -56,7 +63,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <TopHeader />
+      <TopHeader sessionTitle={sessionTitle} />
 
       {/* Wrapper relative để đặt toggle buttons lên trên grid */}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
