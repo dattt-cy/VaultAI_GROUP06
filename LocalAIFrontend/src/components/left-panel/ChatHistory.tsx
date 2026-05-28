@@ -33,15 +33,15 @@ export const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, activeId, on
     {sessions.map(s => (
       <button
         key={s.id}
-        onClick={() => onSelect(s.id)}
-        className={`sidebar-item mx-1 text-left ${s.id === activeId ? 'active' : ''}`}
+        onClick={() => onSelect(String(s.id))}
+        className={`sidebar-item mx-1 text-left ${String(s.id) === activeId ? 'active' : ''}`}
       >
-        <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${s.id === activeId ? 'text-accent' : 'text-text-muted'}`} />
+        <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${String(s.id) === activeId ? 'text-accent' : 'text-text-muted'}`} />
         <div className="flex-1 min-w-0">
-          <div className={`text-[15px] truncate ${s.id === activeId ? 'text-accent font-medium' : 'text-text-primary'}`}>
+          <div className={`text-[15px] truncate ${String(s.id) === activeId ? 'text-accent font-medium' : 'text-text-primary'}`}>
             {s.title}
           </div>
-          <div className="text-[14px] text-text-muted">{timeAgo(s.createdAt)}</div>
+          <div className="text-[14px] text-text-muted">{timeAgo(s.updatedAt)}</div>
         </div>
       </button>
     ))}

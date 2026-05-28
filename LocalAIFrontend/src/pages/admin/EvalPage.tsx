@@ -197,7 +197,7 @@ const EvalPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Đánh giá RAG Pipeline"
-        description="Kiểm thử độ chính xác của hệ thống truy xuất và trả lời tự động."
+        subtitle="Kiểm thử độ chính xác của hệ thống truy xuất và trả lời tự động."
         actions={
           <div className="flex items-center gap-2">
             {status.running && (

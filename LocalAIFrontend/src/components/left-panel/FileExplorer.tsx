@@ -19,9 +19,9 @@ const FileIcon: React.FC<{ type: string }> = ({ type }) => {
 const StatusDot: React.FC<{ status: string; errorMessage?: string }> = ({ status, errorMessage }) => {
   if (status === 'SUCCESS' || status === 'COMPLETED') return null;
   if (status === 'PROCESSING')
-    return <Loader2 className="w-3 h-3 text-warning animate-spin flex-shrink-0" title="Đang xử lý..." />;
+    return <Loader2 className="w-3 h-3 text-warning animate-spin flex-shrink-0" aria-label="Đang xử lý..." />;
   if (status === 'FAILED')
-    return <AlertCircle className="w-3 h-3 text-danger flex-shrink-0" title={errorMessage ? `Lỗi: ${errorMessage}` : 'Xử lý thất bại'} />;
+    return <AlertCircle className="w-3 h-3 text-danger flex-shrink-0" aria-label={errorMessage ? `Lỗi: ${errorMessage}` : 'Xử lý thất bại'} />;
   return <span className="w-1.5 h-1.5 rounded-full bg-text-muted/40 flex-shrink-0" title="Chờ xử lý" />;
 };
 
@@ -347,7 +347,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   };
 
   const sharedCatMap = buildCatMap(sharedDocs);
-  const privateCatMap = buildCatMap(privateDocs);
+  const _privateCatMap = buildCatMap(privateDocs);
 
   const allSharedIds = sharedDocs.map(d => d.id);
   const sharedChecked = allSharedIds.filter(id => checkedIds.has(id));

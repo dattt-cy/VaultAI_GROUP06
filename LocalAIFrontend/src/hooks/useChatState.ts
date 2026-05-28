@@ -245,7 +245,7 @@ export function useChatState() {
               const spans: string[][] = data.spans || [];
               setMessages(prev => prev.map(m => {
                 if (m.id !== assistantId) return m;
-                const updated = m.citations.map((c, i) => ({
+                const updated = (m.citations ?? []).map((c, i) => ({
                   ...c,
                   relevant_spans: spans[i] || [],
                 }));

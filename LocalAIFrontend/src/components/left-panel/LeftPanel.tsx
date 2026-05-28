@@ -31,7 +31,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   const [uploadOpen, setUploadOpen] = useState(false);
 
   // Có quyền upload vào kho chung nếu là admin hoặc có ít nhất 1 category can_upload
-  const canUploadCompany = isAdmin || (user?.category_permissions ?? []).some(p => p.can_upload);
+  const _canUploadCompany = isAdmin || (user?.category_permissions ?? []).some(p => p.can_upload);
 
   return (
     <div className="flex flex-col h-full bg-surface border-r border-border overflow-hidden">

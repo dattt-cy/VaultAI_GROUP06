@@ -133,7 +133,7 @@ export const DropZone: React.FC<DropZoneProps> = ({ categories, onSuccess, onUpl
                   {u.status === 'uploading' && <span className="text-accent">{u.progress}%</span>}
                   {u.status === 'processing' && <Loader2 className="w-3.5 h-3.5 text-warning animate-spin" />}
                   {u.status === 'done' && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
-                  {u.status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-danger" title={u.error} />}
+                  {u.status === 'error' && <AlertCircle className="w-3.5 h-3.5 text-danger" aria-label={u.error} />}
                 </span>
               </div>
 

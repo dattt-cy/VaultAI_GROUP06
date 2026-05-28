@@ -580,7 +580,7 @@ const DocumentsPage: React.FC = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={refetch}
+                          onClick={() => refetch()}
                           className="btn-icon w-7 h-7 hover:text-warning hover:border-warning/50"
                           title="Làm mới trạng thái"
                         >
