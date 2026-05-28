@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Shield, FileKey, FileText,
   FolderOpen, Settings2, MessageSquare, ThumbsUp,
   ClipboardList, Activity, Building2,
-  Cpu, Sliders, HardDrive, ShieldCheck, Scale,
+  Cpu, Sliders, HardDrive, ShieldCheck, Scale, FlaskConical,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiGet } from '../../utils/apiClient';
@@ -37,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Tài nguyên',          path: '/admin/system-metrics',    icon: Activity,        minLevel: 9  },
   { label: 'Sao lưu',             path: '/admin/backup',            icon: HardDrive,       minLevel: 9  },
   { label: 'Bảo mật',             path: '/admin/security',          icon: ShieldCheck,     minLevel: 9  },
+  { label: 'Đánh giá RAG',        path: '/admin/eval',              icon: FlaskConical,    minLevel: 9  },
 ];
 
 const SECTION_CONFIG: { title: string; paths: string[] }[] = [
@@ -48,7 +49,7 @@ const SECTION_CONFIG: { title: string; paths: string[] }[] = [
   { title: 'Hệ thống', paths: [
     '/admin/ai-config', '/admin/model-management', '/admin/rag-config',
     '/admin/chat-monitor', '/admin/feedback', '/admin/audit-logs',
-    '/admin/system-metrics', '/admin/backup', '/admin/security',
+    '/admin/system-metrics', '/admin/backup', '/admin/security', '/admin/eval',
   ]},
 ];
 
