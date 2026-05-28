@@ -84,6 +84,39 @@ def strip_tai_lieu_labels(text: str) -> str:
     return text
 
 
+_NGUON_BLOCK_PATTERN = re.compile(
+    r'\[Nguồn:[^\]]*\]',
+    re.IGNORECASE,
+)
+
+
+def strip_nguon_blocks(text: str) -> str:
+    """Xóa '[Nguồn: ...]' do LLM tự thêm — người dùng có thể hỏi lại nếu cần."""
+    return _NGUON_BLOCK_PATTERN.sub('', text).strip()
+
+
+def strip_question_echo(text: str, question: str) -> str:
+    """Xóa dòng đầu nếu LLM lặp lại câu hỏi thay vì trả lời."""
+    import unicodedata
+
+    def normalize(s: str) -> str:
+        s = unicodedata.normalize('NFC', s.lower())
+        return re.sub(r'[\s\?\!\.\,]+', ' ', s).strip()
+
+    q_norm = normalize(question)
+    lines = text.split('\n')
+
+    # Xóa các dòng đầu khớp với câu hỏi (có thể kèm citation [N] hoặc dấu ?)
+    while lines:
+        first = re.sub(r'\s*\[\d+\]\s*$', '', lines[0]).rstrip('?!. ')
+        if normalize(first) == q_norm:
+            lines.pop(0)
+        else:
+            break
+
+    return '\n'.join(lines).strip()
+
+
 _STANDALONE_ARTICLE_HEADING = re.compile(
     r'^\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d\.]+\s*[:\-]?\s*$',
     re.IGNORECASE | re.MULTILINE,

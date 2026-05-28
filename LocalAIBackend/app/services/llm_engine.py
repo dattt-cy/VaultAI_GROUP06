@@ -205,8 +205,8 @@ def check_response_grounding(response: str, chunks: list, threshold: float = -5.
     if not sentences:
         return False
 
-    # Score mỗi câu với top 3 chunks (đã là best candidates)
-    top_chunks = chunks[:3]
+    # Score mỗi câu với top 6 chunks — dùng 3 trước đây dễ miss chunk liên quan ở vị trí 4-5
+    top_chunks = chunks[:6]
     pairs = [[sent, chunk.content] for sent in sentences for chunk in top_chunks]
     try:
         scores = reranker.predict(pairs)

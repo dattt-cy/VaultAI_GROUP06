@@ -30,12 +30,17 @@ from .context_manager import (
     rewrite_query,
 )
 from .rag_prompts import (
+    COMPARISON_PROMPT,
     QA_PROMPT,
     SUGGESTIONS_PROMPT,
     SUMMARY_PROMPT,
     TABLE_EXTRACTION_PROMPT,
     THINKING_DIRECTIVE,
+    get_intent_instruction,
+    is_comparison_intent,
+    is_condition_intent,
     is_enumeration_intent,
+    is_locating_intent,
     is_summary_intent,
     is_table_intent,
 )
@@ -43,6 +48,8 @@ from .rag_postprocess import (
     fix_bullet_indentation,
     fix_missing_doc_name,
     strip_inline_article_refs,
+    strip_nguon_blocks,
+    strip_question_echo,
     strip_spurious_not_found,
     strip_standalone_article_headings,
     strip_tai_lieu_labels,
@@ -323,8 +330,10 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
 
     history = conversation_history or []
     top_k = get_top_k(db)
-    if is_enumeration_intent(query):
+    if is_enumeration_intent(query) or is_condition_intent(query):
         top_k = max(top_k, 20)
+    elif is_locating_intent(query):
+        top_k = min(top_k, 5)  # Câu hỏi định vị chỉ cần ít chunk
     retrieval_query = _rewrite_query(query, history)
 
     chunks = _do_retrieval(query, retrieval_query, db, top_k, allowed_doc_ids)
@@ -349,7 +358,8 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
 
-    if not is_summary_intent(query) and not is_table_intent(query) and check_hallucination(merged_context, retrieval_query):
+    skip_hallucination = is_summary_intent(query) or is_table_intent(query) or is_comparison_intent(query)
+    if not skip_hallucination and check_hallucination(merged_context, retrieval_query):
         return {
             "answer": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống.",
             "citations": [],
@@ -378,9 +388,18 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
 
     if is_summary_intent(query):
         prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
+    elif is_comparison_intent(query):
+        history_block = format_history_block(history)
+        prompt = COMPARISON_PROMPT.format(context=merged_context, history_block=history_block, question=query)
     else:
         history_block = format_history_block(history)
-        prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
+        intent_instruction = get_intent_instruction(query)
+        prompt = QA_PROMPT.format(
+            context=merged_context,
+            history_block=history_block,
+            question=query,
+            intent_instruction=f"\n{intent_instruction}" if intent_instruction else "",
+        )
 
     raw_response = safe_llm_invoke(prompt, system_prompt=sys_prompt, options_override=llm_options)
 
@@ -399,6 +418,8 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
         verify_citations_post_hoc(safe_response, chunks)
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
+    safe_response = strip_question_echo(safe_response, query)
+    safe_response = strip_nguon_blocks(safe_response)
     safe_response = strip_tai_lieu_labels(safe_response)
     safe_response = strip_inline_article_refs(safe_response)
     safe_response = strip_standalone_article_headings(safe_response)
@@ -430,8 +451,10 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     history = conversation_history or []
     top_k = get_top_k(db)
-    if is_enumeration_intent(query):
+    if is_enumeration_intent(query) or is_condition_intent(query):
         top_k = max(top_k, 20)
+    elif is_locating_intent(query):
+        top_k = min(top_k, 5)  # Câu hỏi định vị chỉ cần ít chunk
 
     retrieval_query = query
     if history and needs_rewrite(query, history):
@@ -445,12 +468,16 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         print(f"[YesNoExtract] → '{retrieval_query}'")
 
     is_table = is_table_intent(query)
+    is_comparison = is_comparison_intent(query)
     if is_summary_intent(query):
         yield _sse({"type": "thinking", "step": "📄 Đang đọc toàn bộ nội dung tài liệu để tóm tắt..."})
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
     elif is_table:
         yield _sse({"type": "thinking", "step": "📋 Đang quét tài liệu để trích xuất dữ liệu bảng..."})
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
+    elif is_comparison:
+        yield _sse({"type": "thinking", "step": "⚖️ Đang tìm kiếm thông tin để so sánh..."})
+        chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
     else:
         yield _sse({"type": "thinking", "step": "🔍 Đang tìm kiếm tài liệu liên quan..."})
         chunks = hybrid_retrieve(db=db, query=retrieval_query, top_k=top_k, allowed_doc_ids=allowed_doc_ids)
@@ -497,7 +524,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
 
-    if not is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
+    skip_hallucination = is_summary_intent(query) or is_table or is_comparison
+    if not skip_hallucination and check_hallucination(merged_context, retrieval_query):
         yield _sse({"type": "token", "content": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống."})
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
@@ -523,9 +551,18 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     if is_summary_intent(query):
         qa_prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
+    elif is_comparison:
+        history_block = format_history_block(history)
+        qa_prompt = COMPARISON_PROMPT.format(context=merged_context, history_block=history_block, question=query)
     else:
         history_block = format_history_block(history)
-        qa_prompt = QA_PROMPT.format(context=merged_context, history_block=history_block, question=query)
+        intent_instruction = get_intent_instruction(query)
+        qa_prompt = QA_PROMPT.format(
+            context=merged_context,
+            history_block=history_block,
+            question=query,
+            intent_instruction=f"\n{intent_instruction}" if intent_instruction else "",
+        )
 
     full_response = ""
     if settings.THINKING_ENABLED:
@@ -563,6 +600,8 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         verify_citations_post_hoc(safe_response, chunks)
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
+    safe_response = strip_question_echo(safe_response, query)
+    safe_response = strip_nguon_blocks(safe_response)
     safe_response = strip_tai_lieu_labels(safe_response)
     safe_response = strip_inline_article_refs(safe_response)
     safe_response = strip_standalone_article_headings(safe_response)

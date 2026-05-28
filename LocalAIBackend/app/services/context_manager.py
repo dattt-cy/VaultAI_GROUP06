@@ -73,6 +73,8 @@ _AMBIGUOUS_CONTAINS = (
     "nó", "họ", "điều đó", "điều này", "cái đó", "vấn đề trên",
     "như vậy", "thêm", "tiếp theo", "giải thích thêm", "tại sao vậy",
     "kể thêm", "nói thêm", "bổ sung thêm", "chi tiết hơn",
+    "văn bản này", "tài liệu này", "quy định này", "quy chế này",
+    "chính sách này", "hướng dẫn này", "nội quy này",
 )
 
 
