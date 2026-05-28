@@ -6,12 +6,12 @@
     "source_doc": "Quy_che_lao_dong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 42.61,
+    "latency": 37.79,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Nhân viên đi làm thêm vào ngày lễ được hưởng 300% lương cơ bản. [1]\n\n[Q:]",
-    "num_citations": 1
+    "answer_preview": "Nhân viên đi làm thêm vào ngày lễ được hưởng 300% lương cơ bản. [1]\n\nTrích dẫn từ tài liệu:\n-  Điều 4, Quy chế lao động 2024: \"Làm thêm ngày lễ, Tết: 300% lương cơ bản.\" [2]",
+    "num_citations": 2
   },
   {
     "id": "Q02",
@@ -20,11 +20,11 @@
     "source_doc": "Quy_che_lao_dong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 33.61,
+    "latency": 34.63,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Nhân viên có thâm niên 4 năm được hưởng 14 ngày phép mỗi năm, theo quy định tại Điều 6 của Quy chế lao động 2024. [1]",
+    "answer_preview": "Nhân viên có thâm niên 4 năm được hưởng 14 ngày phép/năm. [1]\n\nTrích dẫn:\n- Điều 6, Tài liệu A: \"Nhân viên từ 3 đến dưới 5 năm: 14 ngày phép/năm.\" [1]",
     "num_citations": 1
   },
   {
@@ -34,11 +34,11 @@
     "source_doc": "Quy_che_lao_dong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 46.31,
+    "latency": 39.07,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Quản lý cấp trưởng phòng phải báo trước 45 ngày khi muốn nghỉ việc. [1]\n\nTrích dẫn từ tài liệu:\n- Điều 11 của Quy chế lao động 2024 (TÀI LIỆU A) quy định: \"Quản lý cấp trung (trưởng/phó phòng): báo trước 45 ngày.\" [1]\n\nĐiều này chỉ rõ thời gian báo trước cụ thể cho quản lý cấp trưởng phòng khi muốn ",
+    "answer_preview": "Quản lý cấp trưởng phòng phải báo trước 45 ngày khi muốn nghỉ việc. [1]\n\nTrích dẫn từ tài liệu:\nĐiều 11. Quy trình nghỉ việc [1]\n- Quản lý cấp trung (trưởng/phó phòng): báo trước 45 ngày. [1]",
     "num_citations": 1
   },
   {
@@ -48,12 +48,12 @@
     "source_doc": "Chinh_sach_luong_thuong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 46.15,
+    "latency": 50.57,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Lương tháng của nhân viên bao gồm 3 phần: [1]\n\n- Lương cơ bản (60%): Căn cứ vào vị trí, kinh nghiệm và kết quả phỏng vấn. [1]\n- Phụ cấp cố định (20%): Bao gồm phụ cấp trách nhiệm, phụ cấp chức vụ (nếu có), phụ cấp điện thoại, xăng xe. [1]\n- Lương hiệu suất KPI (20%): Được tính theo kết quả đánh giá ",
-    "num_citations": 1
+    "answer_preview": "Lương tháng của nhân viên bao gồm 3 phần với tỷ lệ cụ thể như sau: [1]\n- Lương cơ bản: 60% [1]\n- Phụ cấp cố định: 20% [1]\n- Lương hiệu suất KPI: 20% [2]\n\nĐiều này được nêu rõ trong  - PHẦN 1 – CẤU TRÚC LƯƠNG. [1]",
+    "num_citations": 2
   },
   {
     "id": "Q05",
@@ -62,11 +62,11 @@
     "source_doc": "Chinh_sach_luong_thuong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 43.37,
+    "latency": 37.63,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Lương được trả vào ngày 10 của tháng kế tiếp cho công lao động của tháng trước. Trường hợp ngày 10 trùng với ngày nghỉ, lương sẽ được trả vào ngày làm việc liền kề trước đó. [1]\n\nĐiều này có thể thấy ở  Điều 7. Nguyên tắc trả lương. [1]",
+    "answer_preview": "Lương được trả vào ngày 10 của tháng kế tiếp cho công lao động của tháng trước. Trường hợp ngày 10 trùng với ngày nghỉ, lương sẽ được trả vào ngày làm việc liền kề trước đó. [1]",
     "num_citations": 1
   },
   {
@@ -76,11 +76,11 @@
     "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
     "passed": false,
     "is_out_of_scope": false,
-    "latency": 41.37,
+    "latency": 45.27,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.0,
-    "answer_preview": "Khoản chi tiêu 30 triệu đồng cần Giám đốc bộ phận phê duyệt. [1]\n\nTrích dẫn:\n- Theo quy định tại  §3.1.c, chi tiêu từ 20.000.000 đến 100.000.000 đồng phải được Giám đốc bộ phận phê duyệt. [2]",
+    "answer_preview": "Khoản chi tiêu 30 triệu đồng cần Giám đốc bộ phận phê duyệt. [1]\n\nTrích dẫn từ tài liệu:\n- Theo quy định tại  (Quy trình thanh toán và kiểm soát tài chính), chi tiêu từ 20.000.000 đến 100.000.000 đồng phải được Giám đốc bộ phận phê duyệt. [2]\n\nDo 30 triệu đồng nằm trong khoảng từ 20.000.000 đến 100.",
     "num_citations": 2
   },
   {
@@ -90,12 +90,12 @@
     "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 46.16,
+    "latency": 45.15,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Giao dịch chuyển khoản trên 20.000.000 đồng thì cần 2 người ký duyệt trên hệ thống ngân hàng. [1]\n\nTrích dẫn từ tài liệu  - Quy trình thanh toán và kiểm soát tài chính: [2]\n\n- Bước 4: Thực hiện thanh toán [3]\n  - Giao dịch trên 20 triệu đồng yêu cầu 2 người ký duyệt trên hệ thống ngân hàng (4-eyes p",
-    "num_citations": 3
+    "answer_preview": "Giao dịch chuyển khoản trên 20.000.000 đồng thì cần 2 người ký duyệt. [1]\n\nTrích dẫn từ tài liệu:\n- \"Thanh toán bằng tiền mặt bị hạn chế, tối đa 2.000.000 đồng/lần và phải có lý do đặc biệt.\" [1]\n- \"Giao dịch trên 20 triệu đồng yêu cầu 2 người ký duyệt trên hệ thống ngân hàng (4-eyes principle).\" [1",
+    "num_citations": 1
   },
   {
     "id": "Q08",
@@ -104,12 +104,12 @@
     "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 85.94,
+    "latency": 100.28,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
     "answer_preview": "Quy trình thanh toán nội bộ gồm các bước sau: [1]\n\n- **Bước 1: Lập đề nghị thanh toán** [2]\n  - Điền đầy đủ phiếu đề nghị thanh toán trên hệ thống ERP (module Finance). [3]\n  - Đính kèm: Hóa đơn VAT hợp lệ, hợp đồng/biên bản nghiệm thu (nếu có), báo giá so sánh (cho khoản trên 10 triệu – cần ít nhất",
-    "num_citations": 5
+    "num_citations": 6
   },
   {
     "id": "Q09",
@@ -118,11 +118,11 @@
     "source_doc": "Huong_dan_bao_mat_CNTT.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 43.08,
+    "latency": 61.7,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Độ dài tối thiểu của mật khẩu là 12 ký tự và phải bao gồm ít nhất: [1]\n- 1 chữ hoa (ví dụ: A, B)\n- 1 chữ thường (ví dụ: a, b)\n- 1 chữ số (ví dụ: 0, 1)\n- 1 ký tự đặc biệt (!@#$%^&*) [2]\n\nĐiều này được quy định trong Mục 1.1 Yêu cầu mật khẩu bắt buộc của Hướng dẫn bảo mật Công nghệ thông tin . [1]",
+    "answer_preview": "Độ dài tối thiểu của mật khẩu là 12 ký tự và phải bao gồm ít nhất: [1]\n- 1 chữ hoa (uppercase letter)\n- 1 chữ thường (lowercase letter)\n- 1 chữ số (digit)\n- 1 ký tự đặc biệt (!@#$%^&*) [2]\n\nĐiều này được quy định trong [CHƯƠNG II: QUẢN LÝ MẬT KHẨU VÀ XÁC THỰC] của TÀI LIỆU A. [2]",
     "num_citations": 2
   },
   {
@@ -132,11 +132,11 @@
     "source_doc": "Huong_dan_bao_mat_CNTT.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 45.96,
+    "latency": 42.02,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Khi phát hiện máy tính bị mã độc, đầu tiên cần thực hiện các bước sau: [1]\n\n- Ngắt kết nối mạng ngay (rút dây hoặc tắt wifi). [1]\n- Gọi IT Hotline: 1900-XXXX hoặc gửi email đến [EMAIL ĐÃ ẨN] [1]\n\nTrên đây là quy trình xử lý ban đầu theo chính sách bảo mật công ty được nêu trong **Huong_dan_bao_mat_C",
+    "answer_preview": "Khi phát hiện máy tính bị mã độc, đầu tiên cần ngắt kết nối mạng ngay (rút dây hoặc tắt wifi) và báo IT ngay. [1]\n\n- Ngắt kết nối mạng: Ngắt kết nối mạng ngay (rút dây hoặc tắt wifi). [1]\n- Báo IT: Gọi IT Hotline 1900-XXXX hoặc gửi email đến [EMAIL ĐÃ ẨN] [1]",
     "num_citations": 1
   },
   {
@@ -146,11 +146,11 @@
     "source_doc": "Huong_dan_bao_mat_CNTT.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 38.82,
+    "latency": 37.99,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.5,
-    "answer_preview": "Nhân viên không được dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng. [1]\n\nTrích dẫn từ tài liệu:\n- Mục 3.3 của Hướng dẫn bảo mật CNTT (tài liệu B) nêu rõ: \"Không dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng.\" [1]",
+    "answer_preview": "Không được dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng. [1]\n\nTheo tài liệu  - chinh_sach_bao_mat_cntt, Điều 3.3 quy định:\n- Không dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng. [1]",
     "num_citations": 1
   },
   {
@@ -160,11 +160,11 @@
     "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 35.97,
+    "latency": 37.14,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.67,
-    "answer_preview": "Nhân viên thử việc không được tạm ứng vì quy định về hạn mức tạm ứng chỉ áp dụng cho nhân viên chính thức, trong khi nhân viên thử việc không thuộc đối tượng được phép tạm ứng theo . [1]",
+    "keyword_score": 1.0,
+    "answer_preview": "Nhân viên thử việc không được tạm ứng vì điều kiện tạm ứng yêu cầu nhân viên phải là nhân viên chính thức (không áp dụng cho thử việc) theo quy định tại  5.1 Điều kiện tạm ứng. [1]",
     "num_citations": 1
   },
   {
@@ -174,11 +174,11 @@
     "source_doc": "Quy_che_lao_dong_2024.txt + Chinh_sach_luong_thuong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 47.97,
+    "latency": 39.73,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Nhân viên đi muộn 3 lần trong tháng sẽ bị trừ 0.5 ngày phép theo quy định tại Điều 4, Chương II - Thời gian làm việc của Quy chế lao động nội bộ công ty năm 2024 . [1]",
+    "answer_preview": "Nhân viên đi muộn 3 lần trong tháng sẽ bị trừ 0.5 ngày phép theo quy định tại Điều 4, Phần II - Thời gian làm việc của Quy chế lao động nội bộ công ty năm 2024. [1]",
     "num_citations": 1
   },
   {
@@ -188,11 +188,11 @@
     "source_doc": "Chinh_sach_luong_thuong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 39.87,
+    "latency": 40.83,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Nhân viên được xếp loại KPI C sẽ hưởng 80% lương KPI. [1]\n\nTrích dẫn từ tài liệu:\n- PHẦN 2 – ĐÁNH GIÁ HIỆU SUẤT VÀ KPI  - 2.2. Thang điểm KPI: [1]\n  - C (60–74 điểm): Đạt – hưởng 80% lương KPI. [1]",
+    "answer_preview": "Nhân viên được xếp loại KPI C sẽ hưởng 80% lương KPI. [1]\n\nTrích dẫn từ tài liệu:\n- PHẦN 2 – ĐÁNH GIÁ HIỆU SUẤT VÀ KPI, khoản 2.2: \"Thang điểm KPI - C (60–74 điểm): Đạt – hưởng 80% lương KPI.\" [1]",
     "num_citations": 1
   },
   {
@@ -202,7 +202,7 @@
     "source_doc": "N/A",
     "passed": true,
     "is_out_of_scope": true,
-    "latency": 21.46,
+    "latency": 20.89,
     "has_citation": false,
     "citation_ok": true,
     "keyword_score": 0.5,
@@ -214,13 +214,13 @@
     "category": "fact_lookup",
     "question": "Nhân viên phải cập nhật tiến độ công việc trên hệ thống ERP trước mấy giờ mỗi ngày?",
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
-    "passed": false,
+    "passed": true,
     "is_out_of_scope": false,
-    "latency": 35.77,
+    "latency": 37.67,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.33,
-    "answer_preview": "Nhân viên phải cập nhật tiến độ công việc trên hệ thống ERP trước 17:30 mỗi ngày. [1]",
+    "keyword_score": 0.67,
+    "answer_preview": "Nhân viên phải cập nhật tiến độ công việc trên hệ thống ERP trước 17h30 mỗi ngày. [1]\n\nTrích dẫn:\n- \"Nhân viên cập nhật tiến độ task hàng ngày (trước 17h30).\" [1]",
     "num_citations": 1
   },
   {
@@ -230,12 +230,12 @@
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 50.72,
+    "latency": 44.53,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.5,
-    "answer_preview": "Đăng ký làm thêm giờ phải nộp trước ít nhất 24 giờ để quản lý phê duyệt. [1]\n\nTheo tài liệu, quy trình đăng ký làm thêm giờ được nêu chi tiết như sau: [2]\n- Vào: Nhân sự → Chấm công → Đăng ký OT. [1]\n- Điền: Ngày OT, giờ bắt đầu/kết thúc, lý do OT. [1]\n- Gửi trước ít nhất 24 giờ để quản lý phê duyệt",
-    "num_citations": 3
+    "answer_preview": "Đăng ký làm thêm giờ phải nộp trước ít nhất 24 giờ theo quy định tại Điều 5 của Tài liệu A. [1]\n\n- **Điều 5. Làm thêm giờ** [1]\n  - Đăng ký OT phải được phê duyệt bởi quản lý trực tiếp trước ít nhất 24 giờ. [1]\n  \nTài liệu: Quy chế lao động 2024 [1]",
+    "num_citations": 1
   },
   {
     "id": "Q18",
@@ -244,12 +244,12 @@
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 36.58,
+    "latency": 42.02,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.5,
-    "answer_preview": "File đính kèm trong đề nghị thanh toán trên ERP được phép tối đa 10MB mỗi file. [1]\n\nTrích dẫn:\n- Mục 3.1 Lập đề nghị thanh toán, Tài liệu C [1]",
-    "num_citations": 1
+    "answer_preview": "File đính kèm trong đề nghị thanh toán trên ERP được phép tối đa 10MB mỗi file. [1]\n\nTrích dẫn từ, mục 3.1: [1]\n- Bước 4: Submit → Hệ thống tự động định tuyến đến người phê duyệt [1]\n- Trạng thái: Chờ phê duyệt / Đã phê duyệt / Từ chối / Đã thanh toán [2]\n\nThông tin này được trích dẫn từ .",
+    "num_citations": 2
   },
   {
     "id": "Q19",
@@ -258,11 +258,11 @@
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 54.11,
+    "latency": 38.91,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Hỗ trợ người dùng ERP của bộ phận IT được thực hiện trong khung giờ từ thứ Hai đến thứ Sáu, 08:00–18:00. [1]\n\n- **Trong khung giờ này**, IT hỗ trợ giải quyết các vấn đề liên quan đến hệ thống ERP như lỗi hệ thống, không đăng nhập được, yêu cầu phân quyền mới, v.v. [1]\n\nNgoài khung giờ này, người dùn",
+    "answer_preview": "Khung giờ hỗ trợ của bộ phận IT cho người dùng ERP là từ thứ Hai đến thứ Sáu, từ 08:00 đến 18:00. [1]",
     "num_citations": 1
   },
   {
@@ -272,11 +272,11 @@
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 48.91,
+    "latency": 41.15,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.5,
-    "answer_preview": "Những ai bắt buộc phải bật xác thực 2 yếu tố (MFA) khi đăng nhập ERP liệt kê như sau: [1]\n\n- Tất cả tài khoản truy cập từ xa (VPN, Remote Desktop). [1]\n- Hệ thống ERP, CRM, hệ thống email doanh nghiệp. [2]\n- Tài khoản có quyền quản trị (Administrator) trên bất kỳ hệ thống nào. [1]\n\nTrích dẫn từ  - Đ",
+    "keyword_score": 1.0,
+    "answer_preview": "Trưởng nhóm trở lên bắt buộc phải bật xác thực 2 yếu tố (MFA) khi đăng nhập ERP. [1]\n\nTheo tài liệu  - Hướng dẫn sử dụng hệ thống ERP nội bộ, tại Điều 2.1: [1]\n\n- Bắt buộc bật xác thực 2 bước (MFA) cho: [2]\n  - Hệ thống ERP, CRM, hệ thống email doanh nghiệp. [1]\n  \nTrong đó, ERP được liệt kê là một ",
     "num_citations": 2
   },
   {
@@ -286,12 +286,12 @@
     "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 38.02,
+    "latency": 39.63,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Mục tiêu doanh thu năm 2024 của công ty là 210 tỷ đồng, theo mục 2.1 Mục tiêu tài chính trong Kế hoạch phát triển chiến lược công ty 2024-2025 . [1]",
-    "num_citations": 1
+    "answer_preview": "Mục tiêu doanh thu năm 2024 của công ty là 210 tỷ đồng. [1]\n\n[Nguồn: Kế hoạch phát triển chiến lược công ty 2024-2025, mục 2.1 Mục tiêu tài chính, trang .] [2]",
+    "num_citations": 2
   },
   {
     "id": "Q22",
@@ -300,11 +300,11 @@
     "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 38.61,
+    "latency": 43.17,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.5,
-    "answer_preview": "Công ty đặt mục tiêu tuyển 80 nhân viên mới trong năm 2024, theo mục 2.1 của Quy chế lao động nội bộ năm 2024 . [1]",
+    "answer_preview": "Công ty đặt mục tiêu tuyển 80 người mới trong năm 2024, theo mục 2.3 Mục tiêu nhân sự của Kế hoạch phát triển chiến lược công ty 2024-2025. [1]\n\n[Nguồn: PHẦN II – MỤC TIÊU NĂM 2024, Tài liệu A] [1]",
     "num_citations": 1
   },
   {
@@ -314,11 +314,11 @@
     "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 42.73,
+    "latency": 39.36,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.5,
-    "answer_preview": "Ngân sách R&D năm 2024 là 18 tỷ đồng và chiếm 8,6% doanh thu. [1]\n\nTrích dẫn từ tài liệu A, PHẦN III – CHIẾN LƯỢC PHÁT TRIỂN SẢN PHẨM: [1]\n- Ngân sách R&D 2024: 18 tỷ đồng (8,6% doanh thu). [1]",
+    "keyword_score": 0.67,
+    "answer_preview": "- Ngân sách R&D năm 2024 là 18 tỷ đồng. [1]\n- Ngân sách này chiếm 8,6% doanh thu.\n\nTrích dẫn từ tài liệu:\n- \"3.2. Đầu tư R&D: Ngân sách R&D 2024: 18 tỷ đồng (8,6% doanh thu).\" [1]",
     "num_citations": 1
   },
   {
@@ -328,11 +328,11 @@
     "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 40.02,
+    "latency": 30.76,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.5,
-    "answer_preview": "Tỷ lệ nghỉ việc năm 2023 là 12,1%. Mục tiêu đề ra cho tỷ lệ này là 8%, do đó không đạt mục tiêu. [1]\n\nTrích dẫn từ : \"Kết quả đạt được - Tỷ lệ nghỉ việc: 12,1% (mục tiêu: 8%) — cần cải thiện chính sách giữ chân nhân tài.\" [1]",
+    "keyword_score": 0.6,
+    "answer_preview": "Tỷ lệ nghỉ việc năm 2023 là 12,1% và không đạt mục tiêu (mục tiêu là 8%). [1]",
     "num_citations": 1
   },
   {
@@ -342,7 +342,7 @@
     "source_doc": "Ke_hoach_phat_trien_2024_2025.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 42.44,
+    "latency": 39.1,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.67,
@@ -356,7 +356,7 @@
     "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 31.4,
+    "latency": 32.56,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.5,
@@ -370,11 +370,11 @@
     "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 41.95,
+    "latency": 40.14,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.5,
-    "answer_preview": "CSAT trong Q1 2024 đạt 4,6/5 điểm. [1]\n\nTrích dẫn từ tài liệu A, PHẦN II – PHÂN TÍCH DOANH THU THEO MẢNG KINH DOANH: [2]\n- Chỉ số hài lòng khách hàng (CSAT): 4,6/5 điểm, tăng so với Q4/2023 (4,3/5). [1]",
+    "answer_preview": "CSAT trong Q1 2024 đạt 4,6/5 điểm. [1]\n\nTrích dẫn từ PHẦN II – PHÂN TÍCH DOANH THU THEO MẢNG KINH DOANH của Báo cáo kết quả kinh doanh quý 1 năm 2024 . [2]",
     "num_citations": 2
   },
   {
@@ -382,14 +382,14 @@
     "category": "fact_lookup",
     "question": "Tỷ lệ gia hạn hợp đồng với khách hàng cũ trong Q1 2024 là bao nhiêu?",
     "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
-    "passed": false,
+    "passed": true,
     "is_out_of_scope": false,
-    "latency": 39.85,
+    "latency": 43.76,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.33,
-    "answer_preview": "Tỷ lệ gia hạn hợp đồng với khách hàng cũ trong Q1 2024 là 91,2%. Thông tin này được tìm thấy ở phần \"CHI PHÍ VÀ LỢI NHUẬN\" của báo cáo doanh thu quý 1 năm 2024. [1]",
-    "num_citations": 1
+    "keyword_score": 1.0,
+    "answer_preview": "Tỷ lệ gia hạn hợp đồng với khách hàng cũ trong Q1 2024 là 91,2%. Thông tin này được tìm thấy ở phần \"Cơ cấu chi phí Q1/2024\" của tài liệu A. [1]\n\n- Chi tiết:\n  - Tỷ lệ gia hạn hợp đồng bảo trì: 91,2% [2]",
+    "num_citations": 2
   },
   {
     "id": "Q29",
@@ -398,12 +398,12 @@
     "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 30.61,
+    "latency": 34.53,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.5,
-    "answer_preview": "Dịch vụ phần mềm chiếm 60% tổng doanh thu Q1/2024. [1]",
-    "num_citations": 1
+    "keyword_score": 1.0,
+    "answer_preview": "Doanh thu từ dịch vụ phần mềm chiếm 60% tổng doanh thu Q1/2024. [1]\n\n[Báo cáo kết quả kinh doanh quý 1 năm 2024 - TÀI LIỆU A] [2]",
+    "num_citations": 2
   },
   {
     "id": "Q30",
@@ -412,12 +412,12 @@
     "source_doc": "Ke_hoach_phat_trien_2024_2025.txt + Bao_cao_doanh_thu_Q1_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 46.78,
+    "latency": 57.8,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Mảng SaaS trong Q1 2024 tăng trưởng 42% so với cùng kỳ năm trước và hiện có 156 khách hàng SaaS trả phí hàng tháng. [1]\n\nTrích dẫn từ : PHẦN II – PHÂN TÍCH DOANH THU THEO MẢNG KINH DOANH, mục 2.2. Tư vấn và triển khai (Consulting & Implementation): [2]\n\n- Mảng SaaS đăng ký (subscription) tăng mạnh: ",
-    "num_citations": 2
+    "answer_preview": "Mảng SaaS trong Q1 2024 tăng trưởng 42% so với cùng kỳ và hiện có 156 khách hàng SaaS trả phí hàng tháng. [1]\n\nTrích dẫn:\n- \"Dịch vụ phần mềm (Software Services) - Doanh thu Q1/2024: 28,4 tỷ đồng (+18% so với Q1/2023). - Chiếm tỷ trọng 60% tổng doanh thu. - Tăng trưởng chủ yếu từ 3 hợp đồng lớn ký m",
+    "num_citations": 1
   },
   {
     "id": "Q31",
@@ -426,11 +426,11 @@
     "source_doc": "Quy_trinh_thanh_toan_tai_chinh.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 41.13,
+    "latency": 44.35,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.67,
-    "answer_preview": "Những trường hợp không được phép tạm ứng theo quy trình thanh toán bao gồm:\n\n- Nhân viên thử việc.\n- Có khoản tạm ứng chưa quyết toán từ lần trước. [1]\n\nTrên đây là những trường hợp cụ thể được liệt kê trong tài liệu về quy trình thanh toán.",
+    "answer_preview": "Theo quy trình thanh toán, không được phép tạm ứng cho các trường hợp sau:\n\n- Nhân viên thử việc.\n- Không có mục đích chi tiêu cụ thể hoặc chưa được phê duyệt trước. [1]\n- Có khoản tạm ứng chưa quyết toán từ lần trước. [1]\n\nTrên đây là những trường hợp không được phép tạm ứng theo quy trình thanh to",
     "num_citations": 1
   },
   {
@@ -440,12 +440,12 @@
     "source_doc": "Huong_dan_bao_mat_CNTT.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 53.12,
+    "latency": 55.06,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.67,
-    "answer_preview": "Phần mềm hoặc ứng dụng bị cấm sử dụng trên thiết bị công ty bao gồm: [1]\n\n- Không dùng SMS OTP cho tài khoản cấp quản lý trở lên vì rủi ro SIM swap (TÀI LIỆU A, Mục 1.2). [2]\n- Không dùng Zalo cá nhân để trao đổi thông tin bảo mật với khách hàng (TÀI LIỆU B, Điều 3.3). [3]\n- Telegram và Facebook Mes",
-    "num_citations": 3
+    "answer_preview": "Dựa trên tài liệu cung cấp, những phần mềm hoặc ứng dụng bị cấm sử dụng trên thiết bị công ty bao gồm:\n\n- Phần mềm không có trong danh sách phê duyệt của Phòng IT mà không có phép bằng văn bản (Điều 5.2, chinh_sach_bao_mat_cntt). [1]\n- Phần mềm từ nguồn không rõ ràng lên thiết bị có chứa dữ liệu côn",
+    "num_citations": 2
   },
   {
     "id": "Q33",
@@ -454,11 +454,11 @@
     "source_doc": "Quy_che_lao_dong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 43.65,
+    "latency": 46.49,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 1.0,
-    "answer_preview": "Nhân viên 2 năm thâm niên được 12 ngày phép/năm, còn nhân viên 5 năm thâm niên được 14 ngày phép/năm. [1]\n\n- Đối với nhân viên 2 năm kinh nghiệm:\n  - 12 ngày phép/năm [1]\n\n- Đối với nhân viên 5 năm kinh nghiệm:\n  - 14 ngày phép/năm [1]",
+    "answer_preview": "Nhân viên 2 năm thâm niên được 14 ngày phép/năm, còn nhân viên 5 năm thâm niên được 16 ngày phép/năm. Do đó, hai nhóm nhân viên này khác nhau 2 ngày phép/năm. [1]\n\nTrích dẫn từ :\n- Nhân viên dưới 3 năm: 12 ngày phép/năm. [1]\n- Nhân viên từ 3 đến dưới 5 năm: 14 ngày phép/năm. [1]\n- Nhân viên từ 5 năm",
     "num_citations": 1
   },
   {
@@ -468,12 +468,12 @@
     "source_doc": "Chinh_sach_luong_thuong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 125.62,
+    "latency": 57.66,
     "has_citation": true,
     "citation_ok": true,
-    "keyword_score": 0.67,
-    "answer_preview": "Thưởng cuối năm được tính dựa trên các loại thưởng sau:\n\n- Thưởng Tết Nguyên Đán: [1]\n  - Nhân viên có thời gian làm việc từ 12 tháng trở lên: Thưởng từ 1 đến 3 tháng lương cơ bản. [1]\n  - Nhân viên có thời gian làm việc từ 6 đến dưới 12 tháng: Thưởng theo tỷ lệ thời gian thực tế. [1]\n  - Nhân viên ",
-    "num_citations": 2
+    "keyword_score": 1.0,
+    "answer_preview": "Thưởng cuối năm được tính dựa trên các điều kiện sau:\n\n- Nhân viên có thời gian làm việc từ 12 tháng trở lên: Thưởng từ 1 đến 3 tháng lương cơ bản. [1]\n- Nhân viên có thời gian làm việc từ 6 đến dưới 12 tháng: Thưởng theo tỷ lệ thời gian thực tế. [1]\n- Nhân viên dưới 6 tháng: Thưởng 1 tháng lương cơ",
+    "num_citations": 1
   },
   {
     "id": "Q35",
@@ -482,7 +482,7 @@
     "source_doc": "N/A",
     "passed": true,
     "is_out_of_scope": true,
-    "latency": 19.01,
+    "latency": 18.89,
     "has_citation": false,
     "citation_ok": true,
     "keyword_score": 0.33,
@@ -496,7 +496,7 @@
     "source_doc": "N/A",
     "passed": true,
     "is_out_of_scope": true,
-    "latency": 20.79,
+    "latency": 19.94,
     "has_citation": false,
     "citation_ok": true,
     "keyword_score": 0.33,
@@ -510,7 +510,7 @@
     "source_doc": "N/A",
     "passed": true,
     "is_out_of_scope": true,
-    "latency": 20.35,
+    "latency": 19.76,
     "has_citation": false,
     "citation_ok": true,
     "keyword_score": 0.33,
@@ -524,11 +524,11 @@
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 49.87,
+    "latency": 51.86,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.67,
-    "answer_preview": "Quy trình xin nghỉ phép từ 3 ngày trở lên trên hệ thống ERP thực hiện như sau: [1]\n\n- Vào Menu → Nhân sự → Nghỉ phép → Đăng ký mới. [1]\n- Chọn loại phép (Phép năm / Nghỉ bệnh / Nghỉ cưới / Nghỉ tang). [1]\n- Chọn ngày bắt đầu và kết thúc → Ghi chú lý do. [1]\n- Submit → Quản lý trực tiếp nhận thông bá",
+    "answer_preview": "Quy trình xin nghỉ phép từ 3 ngày trở lên trên hệ thống ERP thực hiện như sau: [1]\n\n- Bước 1: Vào Menu → Nhân sự → Nghỉ phép → Đăng ký mới. [1]\n- Bước 2: Chọn loại phép (Phép năm / Nghỉ bệnh / Nghỉ cưới / Nghỉ tang). [1]\n- Bước 3: Chọn ngày bắt đầu và kết thúc → Ghi chú lý do. [1]\n- Bước 4: Submit →",
     "num_citations": 2
   },
   {
@@ -538,11 +538,11 @@
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt + Chinh_sach_luong_thuong_2024.txt",
     "passed": true,
     "is_out_of_scope": false,
-    "latency": 46.8,
+    "latency": 39.97,
     "has_citation": true,
     "citation_ok": true,
     "keyword_score": 0.67,
-    "answer_preview": "Bảng lương tháng được cập nhật trên ERP vào ngày 8–9 hàng tháng (trước ngày trả lương 10). Tiền được chuyển vào ngày 10 của tháng kế tiếp, nếu ngày 10 là ngày nghỉ lễ hoặc cuối tuần, tiền sẽ được trả vào ngày làm việc liền kề trước đó. [1]\n\nTrích dẫn từ tài liệu  và .",
+    "answer_preview": "Bảng lương tháng được cập nhật trên ERP vào ngày 8–9 hàng tháng (trước ngày trả lương 10). Tiền lương sẽ được chuyển khoản vào ngày 10 của tháng kế tiếp cho công lao động của tháng trước, nếu ngày 10 trùng với ngày nghỉ lễ hoặc cuối tuần, tiền lương sẽ được trả vào ngày làm việc liền kề trước đó. [1",
     "num_citations": 1
   },
   {
@@ -552,7 +552,7 @@
     "source_doc": "N/A",
     "passed": true,
     "is_out_of_scope": true,
-    "latency": 20.13,
+    "latency": 19.77,
     "has_citation": false,
     "citation_ok": true,
     "keyword_score": 0.33,

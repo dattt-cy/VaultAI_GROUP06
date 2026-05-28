@@ -89,10 +89,22 @@ _STANDALONE_ARTICLE_HEADING = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
+# Khớp "(Điều 3)", "(Điều 9.1)", "(Khoản 2)", "(Mục 4.2.1)" trong nội dung câu trả lời.
+# Chú ý: chỉ strip khi nằm ở cuối dòng hoặc trước citation [N] — tránh strip tiêu đề đoạn.
+_INLINE_ARTICLE_REF = re.compile(
+    r'\s*\(\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d\.]+(?:\s*,\s*[\d\.]+)*\s*\)(?=\s*(?:\[\d+\]|$|\n))',
+    re.IGNORECASE,
+)
+
 
 def strip_standalone_article_headings(text: str) -> str:
     """Xóa dòng chỉ chứa 'Điều X.X' / 'Khoản X' đứng một mình — không phải nội dung trả lời."""
     return _STANDALONE_ARTICLE_HEADING.sub('', text).strip()
+
+
+def strip_inline_article_refs(text: str) -> str:
+    """Xóa '(Điều X)' / '(Khoản X)' cuối dòng/cuối bullet — citation [N] đã thay thế vai trò này."""
+    return _INLINE_ARTICLE_REF.sub('', text)
 
 
 def process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:

@@ -42,6 +42,7 @@ from .rag_prompts import (
 from .rag_postprocess import (
     fix_bullet_indentation,
     fix_missing_doc_name,
+    strip_inline_article_refs,
     strip_spurious_not_found,
     strip_standalone_article_headings,
     strip_tai_lieu_labels,
@@ -63,6 +64,19 @@ _INTENT_INTRO_KEYWORDS = [
     "hệ thống làm được gì",
     "làm được những gì",
 ]
+
+# Các tin nhắn chào hỏi / smalltalk ngắn không cần RAG
+_GREETING_PATTERNS = re.compile(
+    r"^\s*(hi|hello|hey|xin chào|chào|chào bạn|alo|ờ|uh|uhm|ok|okay|cảm ơn|cảm on|thanks?|thank you|tốt|được rồi|được|👋)\W*$",
+    re.IGNORECASE | re.UNICODE,
+)
+
+_GREETING_REPLY = "Xin chào! Tôi có thể giúp gì cho bạn? Hãy đặt câu hỏi về tài liệu nội bộ."
+
+
+def _is_greeting(query: str) -> bool:
+    """Trả về True nếu query là lời chào/smalltalk ngắn, không cần tra tài liệu."""
+    return bool(_GREETING_PATTERNS.match(query.strip()))
 
 _INTRO_ANSWER = (
     "Xin chào! Tôi là **Trợ lý AI Nội bộ (Local AI)** – Hệ thống trí tuệ nhân tạo chuyên biệt được thiết kế để quản lý và khai thác tri thức của doanh nghiệp một cách bảo mật.\n\n"
@@ -300,6 +314,9 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     Luồng RAG nâng cấp dùng Hybrid Retriever.
     conversation_history: list[dict] từ load_conversation_history() — đã được load sẵn ở chat.py
     """
+    if _is_greeting(query):
+        return {"answer": _GREETING_REPLY, "citations": [], "suggestions": []}
+
     lower_query = query.lower()
     if any(k in lower_query for k in _INTENT_INTRO_KEYWORDS):
         return {"answer": _INTRO_ANSWER, "citations": [], "suggestions": []}
@@ -383,6 +400,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
     safe_response = strip_tai_lieu_labels(safe_response)
+    safe_response = strip_inline_article_refs(safe_response)
     safe_response = strip_standalone_article_headings(safe_response)
 
     citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
@@ -399,6 +417,17 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
       {"type":"token","content":"..."}
       {"type":"done","citations":[...],"suggestions":[...]}
     """
+    if _is_greeting(query):
+        yield _sse({"type": "token", "content": _GREETING_REPLY})
+        yield _sse({"type": "done", "citations": [], "suggestions": []})
+        return
+
+    lower_query = query.lower()
+    if any(k in lower_query for k in _INTENT_INTRO_KEYWORDS):
+        yield _sse({"type": "token", "content": _INTRO_ANSWER})
+        yield _sse({"type": "done", "citations": [], "suggestions": []})
+        return
+
     history = conversation_history or []
     top_k = get_top_k(db)
     if is_enumeration_intent(query):
@@ -469,6 +498,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     merged_context = "\n\n".join(context_parts)
 
     if not is_summary_intent(query) and not is_table and check_hallucination(merged_context, retrieval_query):
+        yield _sse({"type": "token", "content": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống."})
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
@@ -534,6 +564,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
     safe_response = strip_tai_lieu_labels(safe_response)
+    safe_response = strip_inline_article_refs(safe_response)
     safe_response = strip_standalone_article_headings(safe_response)
 
     yield _sse({"type": "corrected_text", "content": safe_response})

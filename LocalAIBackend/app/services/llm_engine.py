@@ -40,11 +40,7 @@ def _base_options(options_override: dict = None) -> dict:
 
 def _messages(user_content: str, system_prompt: str = None) -> list:
     sys = system_prompt if system_prompt else VIETNAMESE_SYSTEM_PROMPT
-    wrapped = (
-        "LỆNH BẮT BUỘC: Viết toàn bộ câu trả lời bằng TIẾNG VIỆT, không dùng bất kỳ từ tiếng Anh nào.\n\n"
-        + user_content
-        + "\n\n(Nhắc lại: câu trả lời phải hoàn toàn bằng tiếng Việt.)"
-    )
+    wrapped = user_content
     return [
         {"role": "system", "content": sys},
         {"role": "user", "content": wrapped},
@@ -52,9 +48,9 @@ def _messages(user_content: str, system_prompt: str = None) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Token budget — ước tính thô (1 token ≈ 4 chars với tiếng Việt)
+# Token budget — tiếng Việt trung bình ~3 ký tự/token (có dấu)
 # ---------------------------------------------------------------------------
-_CHARS_PER_TOKEN = 4
+_CHARS_PER_TOKEN = 3
 
 def estimate_tokens(text: str) -> int:
     return max(1, len(text) // _CHARS_PER_TOKEN)
@@ -149,9 +145,34 @@ def apply_pii_masking(text: str) -> str:
     return masked
 
 
-def check_hallucination(context: str, query: str = "") -> bool:  # noqa: ARG001
-    """Anti-hallucination: trả về True nếu context rỗng."""
+def check_hallucination(context: str, query: str = "") -> bool:
+    """
+    Anti-hallucination: trả về True nếu context không liên quan đến query.
+    Dùng keyword overlap đơn giản — nhanh, không tốn LLM call.
+    """
     if not context or context.strip() == "":
+        return True
+    if not query or not query.strip():
+        return False
+
+    # Tách token có nghĩa (bỏ stopword ngắn)
+    stopwords = {"là", "có", "và", "của", "trong", "với", "các", "được", "cho",
+                 "về", "này", "đó", "không", "hay", "hoặc", "thì", "để", "khi",
+                 "bị", "do", "từ", "tại", "theo", "như", "cũng", "vì", "nên"}
+    query_tokens = {
+        t.lower() for t in re.findall(r'\w+', query)
+        if len(t) > 2 and t.lower() not in stopwords
+    }
+    if not query_tokens:
+        return False
+
+    context_lower = context.lower()
+    matched = sum(1 for t in query_tokens if t in context_lower)
+    overlap_ratio = matched / len(query_tokens)
+
+    # Nếu < 20% keyword của query xuất hiện trong context → không liên quan
+    if overlap_ratio < 0.2:
+        print(f"[Hallucination] Query-context overlap thấp: {overlap_ratio:.0%} ({matched}/{len(query_tokens)} keywords)")
         return True
     return False
 

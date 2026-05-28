@@ -51,7 +51,22 @@ def _extract_text(file_path: str, file_type: str) -> str:
         try:
             import docx
             doc = docx.Document(file_path)
-            return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+            lines = []
+            for p in doc.paragraphs:
+                text = p.text.strip()
+                if not text:
+                    continue
+                style_name = p.style.name if p.style else ""
+                # Prefix heading để _extract_section_header nhận ra cấu trúc
+                if "Heading 1" in style_name or style_name == "Title":
+                    lines.append(f"\n{text.upper()}\n")
+                elif "Heading 2" in style_name:
+                    lines.append(f"\n{text}\n")
+                elif "Heading" in style_name:
+                    lines.append(f"\n{text}")
+                else:
+                    lines.append(text)
+            return "\n".join(lines)
         except ImportError:
             raise ValueError("Cần cài: pip install python-docx")
 
@@ -218,7 +233,7 @@ def _save_parent_child_chunks(
             document_id=db_doc.id,
             chunk_index=global_chunk_index,
             raw_content=p["text"],
-            token_count=len(p["text"]) // 4,
+            token_count=len(p["text"]) // 3,
             page_metadata=json.dumps({
                 "source": filename,
                 "document_id": db_doc.id,
@@ -240,7 +255,7 @@ def _save_parent_child_chunks(
     for c in child_rows:
         parent_db_id = parent_index_to_db_id.get(c["parent_index"])
         v_id = str(uuid.uuid4())
-        tokens = len(c["text"]) // 4
+        tokens = len(c["text"]) // 3
         total_tokens += tokens
         meta = {
             "source": filename,

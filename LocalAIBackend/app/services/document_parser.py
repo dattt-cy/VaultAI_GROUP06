@@ -104,8 +104,8 @@ def extract_pages_from_pdf_ocr(file_path: str) -> list[tuple[int, str]]:
         # Chạy OCR – EasyOCR trả về list of (bbox, text, confidence)
         result = reader.readtext(img_np, detail=1, paragraph=False)
 
-        # Ghép text từ kết quả OCR
-        page_lines = [entry[1] for entry in result if entry[2] > 0.1]
+        # Ghép text từ kết quả OCR — bỏ qua kết quả confidence thấp để giảm noise
+        page_lines = [entry[1] for entry in result if entry[2] > 0.45]
         page_text = "\n".join(page_lines)
 
         if page_text and page_text.strip():
@@ -119,9 +119,21 @@ def extract_pages_from_pdf_ocr(file_path: str) -> list[tuple[int, str]]:
     return pages
 
 
+# Separator ưu tiên tách tại ranh giới điều khoản pháp luật / quy trình
+_LEGAL_SEPARATORS = [
+    r"(?=\n(?:Điều|Khoản|Mục|Chương|Phần|PHẦN|CHƯƠNG|MỤC)\s+\d)",
+    r"(?=\n(?:ĐIỀU|KHOẢN)\s+\d)",
+    "\n\n",
+    "\n",
+    ".",
+    " ",
+    "",
+]
+
 _SECTION_HEADER_RE = re.compile(
     r'^('
-    r'\d+(\.\d+)*\.?\s+\S.{0,80}'   # 4.2. Tiêu đề hoặc 1.2.3 Tiêu đề
+    r'(?:Điều|Khoản|Mục|Chương|Phần|PHẦN|CHƯƠNG|MỤC|ĐIỀU|KHOẢN)\s+\d[\d\.]*.*'  # Điều 1, Khoản 2.1...
+    r'|\d+(\.\d+)*\.?\s+\S.{0,80}'   # 4.2. Tiêu đề hoặc 1.2.3 Tiêu đề
     r'|[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẸẺẼẾỀ\s]{5,60}'  # TIÊU ĐỀ VIẾT HOA
     r')',
     re.MULTILINE,
@@ -161,13 +173,15 @@ def chunk_text_parent_child(text: str) -> list[dict]:
         chunk_size=settings.PARENT_CHUNK_SIZE,
         chunk_overlap=settings.PARENT_CHUNK_OVERLAP,
         length_function=len,
-        separators=["\n\n", "\n", ".", " ", ""],
+        separators=_LEGAL_SEPARATORS,
+        is_separator_regex=True,
     )
     child_splitter = RecursiveCharacterTextSplitter(
         chunk_size=settings.CHILD_CHUNK_SIZE,
         chunk_overlap=settings.CHILD_CHUNK_OVERLAP,
         length_function=len,
-        separators=["\n\n", "\n", ".", " ", ""],
+        separators=_LEGAL_SEPARATORS,
+        is_separator_regex=True,
     )
 
     result = []
@@ -206,13 +220,15 @@ def chunk_pages_parent_child(pages: list[tuple[int, str]]) -> list[dict]:
         chunk_size=settings.PARENT_CHUNK_SIZE,
         chunk_overlap=settings.PARENT_CHUNK_OVERLAP,
         length_function=len,
-        separators=["\n\n", "\n", ".", " ", ""],
+        separators=_LEGAL_SEPARATORS,
+        is_separator_regex=True,
     )
     child_splitter = RecursiveCharacterTextSplitter(
         chunk_size=settings.CHILD_CHUNK_SIZE,
         chunk_overlap=settings.CHILD_CHUNK_OVERLAP,
         length_function=len,
-        separators=["\n\n", "\n", ".", " ", ""],
+        separators=_LEGAL_SEPARATORS,
+        is_separator_regex=True,
     )
 
     result = []

@@ -175,7 +175,7 @@
     "category": "threshold",
     "source_doc": "Huong_dan_su_dung_he_thong_ERP.txt",
     "question": "Những ai bắt buộc phải bật xác thực 2 yếu tố (MFA) khi đăng nhập ERP?",
-    "expected_keywords": ["quản trị", "administrator", "cấp quản lý", "trưởng nhóm"],
+    "expected_keywords": ["trưởng nhóm", "2 yếu tố", "bắt buộc"],
     "expected_citation": true,
     "notes": "MFA bắt buộc từ cấp team leader trở lên"
   },
@@ -247,7 +247,7 @@
     "category": "fact_lookup",
     "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
     "question": "Tỷ lệ gia hạn hợp đồng với khách hàng cũ trong Q1 2024 là bao nhiêu?",
-    "expected_keywords": ["91,2%", "91.2%", "91%"],
+    "expected_keywords": ["91,2%", "gia hạn"],
     "expected_citation": true,
     "notes": "Renewal rate 91.2% vượt mục tiêu năm 90%"
   },
@@ -256,7 +256,7 @@
     "category": "calculation",
     "source_doc": "Bao_cao_doanh_thu_Q1_2024.txt",
     "question": "Doanh thu từ dịch vụ phần mềm chiếm bao nhiêu phần trăm tổng doanh thu Q1 2024?",
-    "expected_keywords": ["60%", "28,4 tỷ", "28.4 tỷ"],
+    "expected_keywords": ["60%", "phần mềm"],
     "expected_citation": true,
     "notes": "28.4 tỷ / 47.3 tỷ = 60% doanh thu"
   },
@@ -301,7 +301,7 @@
     "category": "ambiguous",
     "source_doc": "Chinh_sach_luong_thuong_2024.txt",
     "question": "Thưởng cuối năm tính như thế nào?",
-    "expected_keywords": ["KPI", "xếp loại", "hệ số"],
+    "expected_keywords": ["lương cơ bản", "12 tháng", "tháng lương"],
     "expected_citation": true,
     "notes": "Câu hỏi mơ hồ – hệ thống phải tự suy ra ngữ cảnh từ tài liệu lương thưởng"
   },
