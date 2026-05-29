@@ -192,8 +192,20 @@ async def chat_message_stream(
                     data["message_id"] = message_id
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
+            elif event_type == "suggestions" and message_id:
+                # Lưu suggestions vào DB để hiện lại khi reload
+                try:
+                    db.execute(
+                        sqlalchemy.text("UPDATE messages SET suggestions_json = :s WHERE id = :id"),
+                        {"s": json.dumps(data.get("suggestions", []), ensure_ascii=False), "id": message_id},
+                    )
+                    db.commit()
+                except Exception:
+                    pass
+                yield chunk
+
             else:
-                # relevant_spans, suggestions, thinking, reasoning, ...
+                # relevant_spans, thinking, reasoning, ...
                 yield chunk
 
     return StreamingResponse(
@@ -300,6 +312,7 @@ async def get_session_messages(
                 "role": m.sender_type,
                 "content": m.content,
                 "citations": json.loads(m.citations_json) if m.citations_json else [],
+                "suggestions": json.loads(m.suggestions_json) if m.suggestions_json else [],
                 "created_at": m.created_at.isoformat(),
                 "feedback": feedback_map.get(m.id),
             }
