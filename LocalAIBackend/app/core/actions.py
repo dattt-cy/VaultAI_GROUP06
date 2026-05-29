@@ -15,32 +15,6 @@ class ActionDef:
 
 
 ACTIONS: list[ActionDef] = [
-    # ── Chat ──────────────────────────────────────────────────────────────
-    ActionDef("chat.send",           "Gửi tin nhắn",           "Chat",
-              "Gửi câu hỏi và nhận câu trả lời từ AI", default_min_level=1),
-    ActionDef("chat.view_history",   "Xem lịch sử chat",       "Chat",
-              "Xem lại các cuộc trò chuyện cũ", default_min_level=1),
-    ActionDef("chat.regenerate",     "Tạo lại câu trả lời",    "Chat",
-              "Yêu cầu AI trả lời lại câu hỏi cuối", default_min_level=1),
-    ActionDef("chat.export",         "Xuất lịch sử chat",      "Chat",
-              "Tải xuống lịch sử trò chuyện", default_min_level=1),
-
-    # ── Tài liệu cá nhân ─────────────────────────────────────────────────
-    ActionDef("docs.personal.upload",  "Upload tài liệu cá nhân",  "Tài liệu - Cá nhân",
-              "Tải lên tài liệu vào kho cá nhân", default_min_level=1),
-    ActionDef("docs.personal.delete",  "Xóa tài liệu cá nhân",    "Tài liệu - Cá nhân",
-              "Xóa tài liệu trong kho cá nhân của mình", default_min_level=1),
-
-    # ── Tài liệu công ty ──────────────────────────────────────────────────
-    ActionDef("docs.company.view",    "Xem tài liệu công ty",    "Tài liệu - Công ty",
-              "Truy cập và đọc tài liệu thuộc kho chung", default_min_level=1),
-    ActionDef("docs.view_all",        "Xem toàn bộ tài liệu",   "Tài liệu - Công ty",
-              "Bỏ qua giới hạn phòng ban — xem tất cả tài liệu công ty (chỉ admin cấp)", default_min_level=99),
-    ActionDef("docs.company.upload",  "Upload tài liệu công ty", "Tài liệu - Công ty",
-              "Tải lên tài liệu vào kho chung của công ty", default_min_level=5),
-    ActionDef("docs.company.delete",  "Xóa tài liệu công ty",   "Tài liệu - Công ty",
-              "Xóa tài liệu trong kho chung", default_min_level=9),
-
     # ── Admin - Người dùng ────────────────────────────────────────────────
     ActionDef("admin.users.view",    "Xem danh sách người dùng", "Quản lý - Người dùng",
               "Truy cập trang quản lý tài khoản", default_min_level=9),
@@ -70,10 +44,14 @@ ACTIONS: list[ActionDef] = [
               "Thêm phòng ban mới", default_min_level=9),
     ActionDef("admin.departments.edit",   "Chỉnh sửa phòng ban", "Quản lý - Phòng ban",
               "Cập nhật tên và mô tả phòng ban", default_min_level=9),
-    ActionDef("admin.departments.delete", "Xóa phòng ban",       "Quản lý - Phòng ban",
+    ActionDef("admin.departments.delete",  "Xóa phòng ban",          "Quản lý - Phòng ban",
               "Xóa phòng ban khỏi hệ thống", default_min_level=9),
+    ActionDef("admin.departments.members", "Quản lý thành viên",     "Quản lý - Phòng ban",
+              "Thêm hoặc xóa nhân viên khỏi phòng ban", default_min_level=9),
 
     # ── Admin - Danh mục & Phân quyền tài liệu ────────────────────────────
+    ActionDef("docs.view_all",            "Xem toàn bộ tài liệu",     "Quản lý - Tài liệu",
+              "Bỏ qua giới hạn phòng ban — xem tất cả tài liệu công ty", default_min_level=99),
     ActionDef("admin.categories.manage",  "Quản lý danh mục",         "Quản lý - Tài liệu",
               "Tạo, sửa, xóa danh mục tài liệu", default_min_level=5),
     ActionDef("admin.permissions.view",   "Xem ma trận phân quyền",   "Quản lý - Tài liệu",

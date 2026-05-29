@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import require_action
 from app.db.session import get_db
 from app.models.doc_model import (
     Category,
@@ -31,7 +32,7 @@ class CategoryUpdateRequest(BaseModel):
     description: Optional[str] = None
 
 
-@router.get("/categories", summary="Danh sách danh mục")
+@router.get("/categories", summary="Danh sách danh mục", dependencies=[Depends(require_action("admin.categories.manage"))])
 def list_categories(db: Session = Depends(get_db)):
     cats = db.query(Category).all()
     return [
@@ -46,7 +47,7 @@ def list_categories(db: Session = Depends(get_db)):
     ]
 
 
-@router.post("/categories", summary="Tạo danh mục mới", status_code=201)
+@router.post("/categories", summary="Tạo danh mục mới", status_code=201, dependencies=[Depends(require_action("admin.categories.manage"))])
 def create_category(body: CategoryCreateRequest, db: Session = Depends(get_db)):
     cat = Category(name=body.name, description=body.description)
     db.add(cat)
@@ -55,7 +56,7 @@ def create_category(body: CategoryCreateRequest, db: Session = Depends(get_db)):
     return {"id": cat.id, "name": cat.name}
 
 
-@router.patch("/categories/{cat_id}", summary="Cập nhật danh mục")
+@router.patch("/categories/{cat_id}", summary="Cập nhật danh mục", dependencies=[Depends(require_action("admin.categories.manage"))])
 def update_category(cat_id: int, body: CategoryUpdateRequest, db: Session = Depends(get_db)):
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
@@ -68,7 +69,7 @@ def update_category(cat_id: int, body: CategoryUpdateRequest, db: Session = Depe
     return {"ok": True}
 
 
-@router.delete("/categories/{cat_id}", summary="Xóa danh mục", status_code=204)
+@router.delete("/categories/{cat_id}", summary="Xóa danh mục", status_code=204, dependencies=[Depends(require_action("admin.categories.manage"))])
 def delete_category(cat_id: int, db: Session = Depends(get_db)):
     cat = db.query(Category).filter(Category.id == cat_id).first()
     if not cat:
@@ -91,7 +92,7 @@ class PermissionItem(BaseModel):
     can_delete: bool = False
 
 
-@router.get("/permissions", summary="Lấy toàn bộ phân quyền")
+@router.get("/permissions", summary="Lấy toàn bộ phân quyền", dependencies=[Depends(require_action("admin.permissions.view"))])
 def list_permissions(db: Session = Depends(get_db)):
     perms = db.query(CategoryPermission).all()
     return [
@@ -107,7 +108,7 @@ def list_permissions(db: Session = Depends(get_db)):
     ]
 
 
-@router.put("/permissions", summary="Lưu bulk permission matrix")
+@router.put("/permissions", summary="Lưu bulk permission matrix", dependencies=[Depends(require_action("admin.permissions.edit"))])
 def save_permissions(items: list[PermissionItem], db: Session = Depends(get_db)):
     for item in items:
         perm = (
@@ -142,7 +143,7 @@ class DocPermSaveRequest(BaseModel):
     doc_ids: list[int]
 
 
-@router.get("/doc-permissions/users", summary="Danh sách user kèm số doc được phép")
+@router.get("/doc-permissions/users", summary="Danh sách user kèm số doc được phép", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def list_doc_perm_users(db: Session = Depends(get_db)):
     users = db.query(User).filter(User.role_id != None).all()
     return [
@@ -159,7 +160,7 @@ def list_doc_perm_users(db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/doc-permissions/documents", summary="Tài liệu COMPANY kèm category")
+@router.get("/doc-permissions/documents", summary="Tài liệu COMPANY kèm category", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def list_doc_perm_documents(db: Session = Depends(get_db)):
     docs = db.query(Document).filter(Document.document_scope == "COMPANY").all()
     return [
@@ -176,13 +177,13 @@ def list_doc_perm_documents(db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/doc-permissions", summary="Lấy doc_ids được phép của một user")
+@router.get("/doc-permissions", summary="Lấy doc_ids được phép của một user", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def get_user_doc_permissions(user_id: int, db: Session = Depends(get_db)):
     perms = db.query(UserDocPermission).filter(UserDocPermission.user_id == user_id).all()
     return {"user_id": user_id, "doc_ids": [p.document_id for p in perms]}
 
 
-@router.put("/doc-permissions", summary="Lưu danh sách doc được phép cho một user")
+@router.put("/doc-permissions", summary="Lưu danh sách doc được phép cho một user", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def save_user_doc_permissions(body: DocPermSaveRequest, db: Session = Depends(get_db)):
     db.query(UserDocPermission).filter(UserDocPermission.user_id == body.user_id).delete()
     for doc_id in body.doc_ids:
@@ -199,7 +200,7 @@ class DeptDocPermSaveRequest(BaseModel):
     doc_ids: list[int]
 
 
-@router.get("/dept-doc-permissions/departments", summary="Phòng ban kèm số doc được phép")
+@router.get("/dept-doc-permissions/departments", summary="Phòng ban kèm số doc được phép", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def list_dept_perm_departments(db: Session = Depends(get_db)):
     depts = db.query(Department).order_by(Department.name).all()
     return [
@@ -216,7 +217,7 @@ def list_dept_perm_departments(db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/dept-doc-permissions/documents", summary="Tài liệu COMPANY kèm category")
+@router.get("/dept-doc-permissions/documents", summary="Tài liệu COMPANY kèm category", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def list_dept_perm_documents(db: Session = Depends(get_db)):
     docs = db.query(Document).filter(Document.document_scope == "COMPANY").all()
     return [
@@ -232,7 +233,7 @@ def list_dept_perm_documents(db: Session = Depends(get_db)):
     ]
 
 
-@router.get("/dept-doc-permissions", summary="Lấy doc_ids được phép của một phòng ban")
+@router.get("/dept-doc-permissions", summary="Lấy doc_ids được phép của một phòng ban", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def get_dept_doc_permissions(department_id: int, db: Session = Depends(get_db)):
     perms = db.query(DepartmentDocPermission).filter(
         DepartmentDocPermission.department_id == department_id
@@ -240,7 +241,7 @@ def get_dept_doc_permissions(department_id: int, db: Session = Depends(get_db)):
     return {"department_id": department_id, "doc_ids": [p.document_id for p in perms]}
 
 
-@router.put("/dept-doc-permissions", summary="Lưu danh sách doc được phép cho một phòng ban")
+@router.put("/dept-doc-permissions", summary="Lưu danh sách doc được phép cho một phòng ban", dependencies=[Depends(require_action("admin.doc_perm.manage"))])
 def save_dept_doc_permissions(body: DeptDocPermSaveRequest, db: Session = Depends(get_db)):
     db.query(DepartmentDocPermission).filter(
         DepartmentDocPermission.department_id == body.department_id

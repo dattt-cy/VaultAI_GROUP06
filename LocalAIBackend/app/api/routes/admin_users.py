@@ -33,7 +33,7 @@ class UserCreateRequest(BaseModel):
 class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
-    department_id: Optional[int] = None
+    department_id: Optional[int] = None  # None means "remove from dept"
     role_id: Optional[int] = None
     password: Optional[str] = None
 
@@ -83,15 +83,16 @@ def update_user(user_id: int, body: UserUpdateRequest, db: Session = Depends(get
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User không tồn tại")
-    if body.full_name is not None:
+    sent = body.model_fields_set
+    if "full_name" in sent and body.full_name is not None:
         user.full_name = body.full_name
-    if body.email is not None:
+    if "email" in sent:
         user.email = body.email
-    if body.department_id is not None:
+    if "department_id" in sent:
         user.department_id = body.department_id
-    if body.role_id is not None:
+    if "role_id" in sent and body.role_id is not None:
         user.role_id = body.role_id
-    if body.password is not None:
+    if "password" in sent and body.password is not None:
         user.password_hash = get_password_hash(body.password)
     db.commit()
     return {"ok": True}
