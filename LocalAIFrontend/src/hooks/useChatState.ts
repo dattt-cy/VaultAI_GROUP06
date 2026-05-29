@@ -104,6 +104,7 @@ export function useChatState() {
         })),
         timestamp: new Date(m.created_at),
         feedback: m.feedback ?? null,
+        suggestions: m.suggestions ?? [],
       }));
       setMessages(msgs.length > 0 ? msgs : [WELCOME_MSG]);
       setCurrentSessionId(sessionId);
@@ -283,8 +284,10 @@ export function useChatState() {
                 if (!currentSessionId) {
                   const words = content.trim().split(/\s+/).slice(0, 8).join(' ');
                   const autoTitle = words.length < content.trim().length ? words + '...' : words;
-                  fetch(`${API_BASE}/api/chat/sessions/${sid}?title=${encodeURIComponent(autoTitle)}`, {
+                  fetch(`${API_BASE}/api/chat/sessions/${sid}`, {
                     method: 'PATCH', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: autoTitle }),
                   }).catch(() => { /* ignore */ });
                 }
                 loadSessions();

@@ -35,8 +35,11 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
     .map(d => ({ id: d.id, name: d.title }));
 
   // Load session từ URL param khi workspace mở
+  // Guard: không reload nếu currentSessionId đã khớp (URL vừa được sync sau khi tạo session mới)
   useEffect(() => {
-    if (initialSessionId) loadSession(initialSessionId);
+    if (initialSessionId && initialSessionId !== currentSessionId) {
+      loadSession(initialSessionId);
+    }
   }, [initialSessionId]); // eslint-disable-line
 
   // Đồng bộ URL với session hiện tại để refresh không mất lịch sử
