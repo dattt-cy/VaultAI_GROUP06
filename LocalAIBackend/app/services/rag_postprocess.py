@@ -170,6 +170,10 @@ def process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
     return '\n'.join(result_lines), citation_source_lines
 
 
+_MAX_UNITS = 12
+_MAX_CHUNKS = 8
+
+
 def verify_citations_post_hoc(
     response: str,
     chunks: list,
@@ -215,9 +219,13 @@ def verify_citations_post_hoc(
     if not units or not chunks:
         return response, {}, [[] for _ in chunks], []
 
+    # Cap để giới hạn số pairs reranker phải xử lý (tránh 30s delay trên CPU)
+    units = units[:_MAX_UNITS]
+    capped_chunks = chunks[:_MAX_CHUNKS]
+
     all_pairs = []
     for _, _, text in units:
-        for chunk in chunks:
+        for chunk in capped_chunks:
             all_pairs.append([text, chunk.content])
 
     try:
@@ -226,14 +234,14 @@ def verify_citations_post_hoc(
         print(f"[PostHocCite ERROR] {e}")
         return response, {}, [[] for _ in chunks], []
 
-    num_chunks = len(chunks)
+    num_capped = len(capped_chunks)
     line_to_chunk: dict[int, int] = {}
     citation_source_lines: dict[int, list[str]] = {}
 
     for i, (line_idx, _, text) in enumerate(units):
-        scores = all_scores[i * num_chunks: (i + 1) * num_chunks]
+        scores = all_scores[i * num_capped: (i + 1) * num_capped]
         scores_list = scores.tolist() if hasattr(scores, 'tolist') else list(scores)
-        best_idx = int(max(range(num_chunks), key=lambda j: scores_list[j]))
+        best_idx = int(max(range(num_capped), key=lambda j: scores_list[j]))
         best_score = scores_list[best_idx]
         if best_score >= threshold:
             if line_idx not in line_to_chunk or scores_list[line_to_chunk[line_idx]] < best_score:
@@ -261,27 +269,7 @@ def verify_citations_post_hoc(
 
     new_response = '\n'.join(result_lines)
 
-    # Tính relevant_spans cho từng chunk được cite
-    relevant_spans: list[list[str]] = [[] for _ in chunks]
-    for c_idx, src_lines in citation_source_lines.items():
-        query_text = " ".join(src_lines[:3])
-        chunk = chunks[c_idx]
-        chunk_sentences = [
-            s.strip() for s in re.split(r'(?<=[.!?\n])\s+', chunk.content)
-            if len(s.strip()) > 15
-        ]
-        if not chunk_sentences:
-            continue
-        pairs = [[query_text, s] for s in chunk_sentences]
-        try:
-            span_scores = reranker.predict(pairs)
-            span_list = span_scores.tolist() if hasattr(span_scores, 'tolist') else list(span_scores)
-            scored = sorted(zip(span_list, chunk_sentences), key=lambda x: x[0], reverse=True)
-            relevant_spans[c_idx] = [s for score, s in scored if score > -2.0][:3]
-        except Exception:
-            pass
-
-    return new_response, citation_source_lines, relevant_spans, used_chunk_indices
+    return new_response, citation_source_lines, [[] for _ in chunks], used_chunk_indices
 
 
 def extract_relevant_spans_dynamic(chunk_queries: list[str], chunks: list) -> list[list[str]]:

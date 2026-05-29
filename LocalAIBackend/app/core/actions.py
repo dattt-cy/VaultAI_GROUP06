@@ -34,6 +34,8 @@ ACTIONS: list[ActionDef] = [
     # ── Tài liệu công ty ──────────────────────────────────────────────────
     ActionDef("docs.company.view",    "Xem tài liệu công ty",    "Tài liệu - Công ty",
               "Truy cập và đọc tài liệu thuộc kho chung", default_min_level=1),
+    ActionDef("docs.view_all",        "Xem toàn bộ tài liệu",   "Tài liệu - Công ty",
+              "Bỏ qua giới hạn phòng ban — xem tất cả tài liệu công ty (chỉ admin cấp)", default_min_level=99),
     ActionDef("docs.company.upload",  "Upload tài liệu công ty", "Tài liệu - Công ty",
               "Tải lên tài liệu vào kho chung của công ty", default_min_level=5),
     ActionDef("docs.company.delete",  "Xóa tài liệu công ty",   "Tài liệu - Công ty",

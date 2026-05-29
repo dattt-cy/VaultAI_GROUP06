@@ -172,16 +172,20 @@ async def list_documents(
 
     docs = query.order_by(Document.created_at.desc()).all()
 
-    # Tính quyền xem COMPANY docs cho non-admin
-    if current_user.role.name != "admin":
-        # 1. Doc-level permissions (user-specific)
+    # Tính quyền xem COMPANY docs
+    from app.api.dependencies import _is_action_allowed
+    from app.models.doc_model import DepartmentDocPermission
+
+    is_admin = current_user.role.name == "admin"
+    can_view_all = is_admin or _is_action_allowed(current_user, "docs.view_all", db)
+
+    if not can_view_all:
+        # Chỉ xem tài liệu được phân quyền qua phòng ban hoặc cấp trực tiếp cho user
         user_doc_ids = {
             p.document_id for p in db.query(UserDocPermission).filter(
                 UserDocPermission.user_id == current_user.id
             ).all()
         }
-        # 2. Department-level permissions
-        from app.models.doc_model import DepartmentDocPermission
         dept_doc_ids = set()
         if current_user.department_id:
             dept_doc_ids = {
@@ -189,21 +193,9 @@ async def list_documents(
                     DepartmentDocPermission.department_id == current_user.department_id
                 ).all()
             }
-        # 3. Category-level permissions (role-based fallback — chỉ dùng khi không có dept perms)
-        allowed_cat_ids = set()
-        if not dept_doc_ids:
-            allowed_cat_ids = {
-                p.category_id for p in db.query(CategoryPermission).filter(
-                    CategoryPermission.role_id == current_user.role_id,
-                    CategoryPermission.can_view == True,
-                ).all()
-            }
+        allowed_ids = user_doc_ids | dept_doc_ids
     else:
-        user_doc_ids = None
-        dept_doc_ids = None
-        allowed_cat_ids = None
-
-    print(f"[DOC PERM] user={current_user.username} role={current_user.role.name} dept_id={current_user.department_id} | user_doc_ids={user_doc_ids} dept_doc_ids={dept_doc_ids} allowed_cat_ids={allowed_cat_ids}")
+        allowed_ids = None  # None = không giới hạn
 
     result = []
     for d in docs:
@@ -212,14 +204,9 @@ async def list_documents(
                 continue
             if session_id is not None and d.session_id != session_id:
                 continue
-        if d.document_scope == "COMPANY" and user_doc_ids is not None:
-            if dept_doc_ids:
-                # Dept perms là giới hạn tối đa — user_doc_ids không được vượt qua
-                if d.id not in dept_doc_ids:
-                    continue
-            else:
-                if d.id not in user_doc_ids and d.category_id not in allowed_cat_ids:
-                    continue
+        if d.document_scope == "COMPANY" and allowed_ids is not None:
+            if d.id not in allowed_ids:
+                continue
         result.append({
             "id": d.id,
             "title": d.title,

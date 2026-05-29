@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.chat_model import ChatSession, Message
-from app.models.doc_model import Document, CategoryPermission, UserDocPermission
+from app.models.doc_model import Document, UserDocPermission
 from app.models.user_model import User
 from app.schemas.chat_schema import ChatRequest
 from app.services.rag_pipeline import query_rag, query_rag_stream
@@ -19,52 +19,47 @@ router = APIRouter()
 
 
 def _resolve_allowed_doc_ids(db: Session, user: User, selected_doc_ids: list | None) -> list | None:
-    """Trả về danh sách doc_id được phép search.
-    - Admin: None (không giới hạn)
-    - User chọn tay: dùng selection đó
-    - User không chọn: tính từ UserDocPermission + CategoryPermission
+    """Trả về danh sách doc_id được phép search trong RAG.
+    - Admin hoặc có quyền docs.view_all: None (không giới hạn)
+    - User chọn tay: dùng selection đó (đã qua gate list_documents)
+    - User không chọn: chỉ tài liệu được phân theo phòng ban + cấp trực tiếp
     """
-    if user.role.name == "admin":
+    from app.api.dependencies import _is_action_allowed
+    from app.models.doc_model import DepartmentDocPermission
+
+    is_admin = user.role.name == "admin"
+    can_view_all = is_admin or _is_action_allowed(user, "docs.view_all", db)
+
+    if can_view_all:
         return selected_doc_ids or None
 
     if selected_doc_ids:
-        return selected_doc_ids
+        # Lọc lại: chỉ cho phép doc_id mà user thực sự có quyền
+        user_doc_ids = {
+            p.document_id for p in db.query(UserDocPermission)
+            .filter(UserDocPermission.user_id == user.id).all()
+        }
+        dept_doc_ids = set()
+        if user.department_id:
+            dept_doc_ids = {
+                p.document_id for p in db.query(DepartmentDocPermission)
+                .filter(DepartmentDocPermission.department_id == user.department_id).all()
+            }
+        allowed = user_doc_ids | dept_doc_ids
+        return [d for d in selected_doc_ids if d in allowed] or []
 
-    # Doc-level permissions
+    # Không chọn tay → dùng toàn bộ quyền phòng ban + user
     user_doc_ids = {
         p.document_id for p in db.query(UserDocPermission)
         .filter(UserDocPermission.user_id == user.id).all()
     }
-    # Category-level permissions (role-based)
-    allowed_cat_ids = {
-        p.category_id for p in db.query(CategoryPermission)
-        .filter(CategoryPermission.role_id == user.role_id, CategoryPermission.can_view == True).all()
-    }
-    cat_doc_ids = {
-        d.id for d in db.query(Document)
-        .filter(Document.document_scope == "COMPANY", Document.category_id.in_(allowed_cat_ids)).all()
-    } if allowed_cat_ids else set()
-
-    # Department-level permissions
-    from app.models.doc_model import DepartmentDocPermission
     dept_doc_ids = set()
     if user.department_id:
         dept_doc_ids = {
             p.document_id for p in db.query(DepartmentDocPermission)
             .filter(DepartmentDocPermission.department_id == user.department_id).all()
         }
-
-    # Dept perms là giới hạn tối đa — user_doc_ids không được vượt qua giới hạn này
-    if dept_doc_ids:
-        combined = list(dept_doc_ids)
-    else:
-        combined = list(user_doc_ids | cat_doc_ids)
-    print(f"DEBUG _resolve_allowed_doc_ids for User {user.username} (Role: {user.role.name}):")
-    print(f"  - user_doc_ids: {user_doc_ids}")
-    print(f"  - cat_doc_ids: {cat_doc_ids}")
-    print(f"  - dept_doc_ids: {dept_doc_ids}")
-    print(f"  - combined: {combined}")
-    return combined
+    return list(user_doc_ids | dept_doc_ids)
 
 
 def _get_or_create_session(db: Session, user_id: int, session_id: Optional[int]) -> ChatSession:
@@ -251,10 +246,11 @@ async def get_sessions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from sqlalchemy import desc, case
     sessions = (
         db.query(ChatSession)
         .filter(ChatSession.user_id == current_user.id, ChatSession.is_archived == False)
-        .order_by(ChatSession.updated_at.desc())
+        .order_by(case((ChatSession.is_pinned == True, 0), else_=1), ChatSession.updated_at.desc())
         .limit(50)
         .all()
     )
@@ -269,6 +265,7 @@ async def get_sessions(
             "updated_at": s.updated_at.isoformat(),
             "message_count": len(msgs),
             "last_message": last_msg.content[:80] if last_msg else None,
+            "is_pinned": s.is_pinned,
         })
     return {"sessions": result}
 
@@ -342,10 +339,14 @@ async def save_feedback(
     return {"success": True}
 
 
+class UpdateSessionBody(BaseModel):
+    title: Optional[str] = None
+    is_pinned: Optional[bool] = None
+
 @router.patch("/sessions/{session_id}")
 async def update_session(
     session_id: int,
-    title: str,
+    body: UpdateSessionBody,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -355,9 +356,12 @@ async def update_session(
     ).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session không tồn tại")
-    session.session_title = title[:100]
+    if body.title is not None:
+        session.session_title = body.title[:100]
+    if body.is_pinned is not None:
+        session.is_pinned = body.is_pinned
     db.commit()
-    return {"success": True, "title": session.session_title}
+    return {"success": True, "title": session.session_title, "is_pinned": session.is_pinned}
 
 
 @router.delete("/sessions/{session_id}/messages/truncate")

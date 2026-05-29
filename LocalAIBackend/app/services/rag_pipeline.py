@@ -593,7 +593,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    # Start suggestions generation in background while post-processing runs in parallel
+    # Suggestions chạy song song với post-processing
     with ThreadPoolExecutor(max_workers=1) as executor:
         suggestion_future = executor.submit(_generate_suggestions, merged_context, full_response)
 
@@ -611,10 +611,13 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         safe_response = strip_inline_article_refs(safe_response)
         safe_response = strip_standalone_article_headings(safe_response)
 
-        yield _sse({"type": "corrected_text", "content": safe_response})
-
         citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
 
+        # Emit corrected_text + done ngay — UI unlock, citations + số [1][2] hiện cùng lúc
+        yield _sse({"type": "corrected_text", "content": safe_response})
+        yield _sse({"type": "done", "citations": citations})
+
+        # Lấy suggestions sau done — hiện ra 2-3s sau
         try:
             suggestions = suggestion_future.result(timeout=15)
         except Exception:
@@ -622,4 +625,3 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     if suggestions:
         yield _sse({"type": "suggestions", "suggestions": suggestions})
-    yield _sse({"type": "done", "citations": citations})
