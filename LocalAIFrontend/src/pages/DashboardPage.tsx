@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Book, MoreVertical, Trash2, Bot, LogOut, MessageSquare, Search, Pencil, ArrowUpDown } from 'lucide-react';
+import { Plus, Book, MoreVertical, Trash2, Bot, LogOut, MessageSquare, Search, Pencil, ArrowUpDown, Pin, PinOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { API_BASE } from '../utils/apiClient';
 
@@ -10,6 +10,7 @@ interface Notebook {
   updatedAt: Date;
   messageCount: number;
   lastMessage?: string;
+  isPinned: boolean;
 }
 
 function timeAgo(date: Date): string {
@@ -60,6 +61,7 @@ export const DashboardPage: React.FC = () => {
           updatedAt: new Date(s.updated_at),
           messageCount: s.message_count,
           lastMessage: s.last_message,
+          isPinned: s.is_pinned ?? false,
         }))
       );
     } catch { /* ignore */ }
@@ -108,6 +110,22 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
+  const togglePin = async (nb: Notebook) => {
+    const newVal = !nb.isPinned;
+    setNotebooks(prev => prev.map(n => n.id === nb.id ? { ...n, isPinned: newVal } : n));
+    setMenuOpen(null);
+    try {
+      await fetch(`${API_BASE}/api/chat/sessions/${nb.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_pinned: newVal }),
+      });
+    } catch {
+      setNotebooks(prev => prev.map(n => n.id === nb.id ? { ...n, isPinned: !newVal } : n));
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -123,6 +141,7 @@ export const DashboardPage: React.FC = () => {
       n.title.toLowerCase().includes(search.toLowerCase())
     );
     list = [...list].sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
       let cmp = 0;
       if (sortKey === 'updatedAt') cmp = a.updatedAt.getTime() - b.updatedAt.getTime();
       else if (sortKey === 'title') cmp = a.title.localeCompare(b.title, 'vi');
@@ -260,15 +279,20 @@ export const DashboardPage: React.FC = () => {
               <div
                 key={nb.id}
                 onClick={() => navigate(`/workspace?id=${nb.id}`)}
-                className="group relative flex flex-col h-52 bg-surface border border-border rounded-2xl cursor-pointer hover:shadow-lg hover:border-accent/40 hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+                className={`group relative flex flex-col h-52 bg-surface border rounded-2xl cursor-pointer hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden ${nb.isPinned ? 'border-accent/50 shadow-sm shadow-accent/10' : 'border-border hover:border-accent/40'}`}
               >
                 {/* Color ribbon */}
                 <div className={`h-1.5 w-full bg-gradient-to-r ${CARD_COLORS[idx % CARD_COLORS.length]} opacity-70 group-hover:opacity-100 transition-opacity`} />
 
                 <div className="p-4 flex-1 flex flex-col">
                   <div className="flex justify-between items-start mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-base flex items-center justify-center shadow-sm">
+                    <div className="w-10 h-10 rounded-xl bg-base flex items-center justify-center shadow-sm relative">
                       <Book className={`w-5 h-5 bg-gradient-to-r ${CARD_COLORS[idx % CARD_COLORS.length]} bg-clip-text text-accent`} />
+                      {nb.isPinned && (
+                        <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-accent rounded-full flex items-center justify-center">
+                          <Pin className="w-2 h-2 text-white" />
+                        </span>
+                      )}
                     </div>
 
                     {/* Menu button */}
@@ -285,6 +309,13 @@ export const DashboardPage: React.FC = () => {
                         className="absolute top-12 right-3 z-20 bg-surface border border-border rounded-xl shadow-xl py-1 min-w-[160px]"
                         onClick={e => e.stopPropagation()}
                       >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); togglePin(nb); }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-text-secondary hover:bg-hover transition-colors"
+                        >
+                          {nb.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                          {nb.isPinned ? 'Bỏ ghim' : 'Ghim lên đầu'}
+                        </button>
                         <button
                           onClick={() => { setRenameTarget(nb); setRenameValue(nb.title); setMenuOpen(null); }}
                           className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-text-secondary hover:bg-hover transition-colors"

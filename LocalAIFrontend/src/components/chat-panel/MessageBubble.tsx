@@ -17,11 +17,12 @@ interface MessageBubbleProps {
   onEditUserMessage?: (id: string, newText: string) => void;
   isLastAssistant?: boolean;
   showSuggestions?: boolean;
+  suggestionsDisabled?: boolean;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message, onCitationClick, onFeedback, onReport, onSuggestionClick,
-  onRegenerate, onEditUserMessage, isLastAssistant, showSuggestions,
+  onRegenerate, onEditUserMessage, isLastAssistant, showSuggestions, suggestionsDisabled,
 }) => {
   const isUser = message.role === 'user';
 
@@ -415,11 +416,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>}
 
         {showSuggestions && !message.isStreaming && message.suggestions && message.suggestions.length > 0 && (
-          <div className="flex flex-col gap-2 mt-3 pl-1">
+          <div className={`flex flex-col gap-2 mt-3 pl-1 transition-opacity duration-200 ${suggestionsDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
             {message.suggestions.map((suggestion, index) => (
               <button
                 key={index}
                 onClick={() => onSuggestionClick?.(suggestion)}
+                disabled={suggestionsDisabled}
                 className="text-left w-fit max-w-[90%] px-4 py-2.5 rounded-2xl bg-hover border border-border/50 text-[13px] text-text-primary
                            hover:bg-accent/10 hover:border-accent/30 hover:text-accent transition-colors duration-200"
               >

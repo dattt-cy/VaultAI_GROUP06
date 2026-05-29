@@ -90,6 +90,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return undefined;
   })();
 
+  // 2 message gần nhất có suggestions — chỉ hiện suggestions cho 2 cái này
+  const recentSuggestionIds = (() => {
+    const ids: string[] = [];
+    for (let i = messages.length - 1; i >= 0 && ids.length < 2; i--) {
+      const m = messages[i];
+      if (m.role === 'assistant' && !m.isStreaming && !m.isCancelled && m.id !== 'welcome' && m.suggestions && m.suggestions.length > 0) {
+        ids.push(m.id);
+      }
+    }
+    return new Set(ids);
+  })();
+
   const sourceLabel = (() => {
     if (checkedCount === 0) return null;
     if (selectedDocNames.length === 0) return `${checkedCount} nguồn`;
@@ -206,7 +218,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onRegenerate={onRegenerate}
               onEditUserMessage={onEditUserMessage}
               isLastAssistant={msg.id === lastCompletedAssistantId}
-              showSuggestions={msg.id === lastCompletedAssistantId}
+              showSuggestions={recentSuggestionIds.has(msg.id)}
+              suggestionsDisabled={isGenerating}
             />
           ))
         )}
