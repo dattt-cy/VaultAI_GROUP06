@@ -85,7 +85,7 @@ const ChatMonitorPage: React.FC = () => {
     } finally {
       setMessagesLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 

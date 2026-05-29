@@ -85,7 +85,7 @@ const UsersPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   const fetchRoles = useCallback(async () => {
     const res = await apiGet('/api/admin/roles');

@@ -30,7 +30,7 @@ const RolesPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { fetchRoles(); }, [fetchRoles]);
 

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Pencil, Trash2, X, Check, Building2, Users, AlertCircle,
-  Search, Mail, Shield, Clock, ChevronRight, UserX, Loader2,
+  Search, Mail, Shield, Clock, ChevronRight, UserX, Loader2, UserPlus, UserMinus,
 } from 'lucide-react';
 import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from '../../utils/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
@@ -53,6 +53,170 @@ const UserAvatar = ({ user, size = 'md' }: { user: DeptUser; size?: 'sm' | 'md' 
   return (
     <div className={cn(sz, 'rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold flex-shrink-0', avatarGradient(user.id))}>
       {initials(user.full_name)}
+    </div>
+  );
+};
+
+interface AllUser {
+  id: number;
+  username: string;
+  full_name: string;
+  email: string | null;
+  department_id: number | null;
+  avatar_url: string | null;
+}
+
+// ── Add Members Modal ────────────────────────────────────────────────────
+const AddMembersModal = ({
+  deptId, deptName, onClose, onDone,
+}: {
+  deptId: number; deptName: string; onClose: () => void; onDone: () => void;
+}) => {
+  const [allUsers, setAllUsers] = useState<AllUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    apiGet('/api/admin/users')
+      .then(r => r.json())
+      .then((data: AllUser[]) => {
+        setAllUsers(data.filter(u => u.department_id !== deptId));
+      })
+      .finally(() => setLoading(false));
+  }, [deptId]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return !q ? allUsers : allUsers.filter(u =>
+      u.full_name.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      (u.email ?? '').toLowerCase().includes(q)
+    );
+  }, [allUsers, search]);
+
+  const toggle = (id: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleAdd = async () => {
+    if (selected.size === 0) return;
+    setSaving(true);
+    try {
+      await Promise.all([...selected].map(uid =>
+        apiPatch(`/api/admin/users/${uid}`, { department_id: deptId })
+      ));
+      toast.success(`Đã thêm ${selected.size} nhân viên vào phòng ban`);
+      onDone();
+    } catch {
+      toast.error('Có lỗi khi thêm nhân viên');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-surface border border-border rounded-2xl shadow-2xl animate-fade-in w-full max-w-lg mx-4 flex flex-col" style={{ maxHeight: '80vh' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-accent/10">
+              <UserPlus className="w-4 h-4 text-accent" />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-text-primary">Thêm nhân viên</h2>
+              <p className="text-[11px] text-text-muted">Vào {deptName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-hover text-text-muted transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="px-4 py-3 border-b border-border flex-shrink-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Tìm theo tên, username, email..."
+              className="input-base pl-9 py-2 text-[13px] w-full"
+            />
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-10 gap-2 text-text-muted">
+              <Loader2 className="w-4 h-4 animate-spin" /><span className="text-[13px]">Đang tải...</span>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-text-muted">
+              <UserX className="w-8 h-8 mb-2 opacity-30" />
+              <p className="text-[13px]">{search ? 'Không tìm thấy' : 'Tất cả nhân viên đã trong phòng ban này'}</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {filtered.map(u => {
+                const sel = selected.has(u.id);
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => toggle(u.id)}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-4 py-3 transition-colors text-left',
+                      sel ? 'bg-accent/8' : 'hover:bg-hover'
+                    )}
+                  >
+                    <div className={cn('w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+                      sel ? 'bg-accent border-accent' : 'border-border'
+                    )}>
+                      {sel && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div className={cn('w-9 h-9 rounded-full bg-gradient-to-br flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0', AVATAR_COLORS[u.id % AVATAR_COLORS.length])}>
+                      {initials(u.full_name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-text-primary truncate">{u.full_name}</p>
+                      <p className="text-[11px] text-text-muted truncate">@{u.username}{u.email ? ` · ${u.email}` : ''}</p>
+                    </div>
+                    {u.department_id && (
+                      <span className="text-[10px] text-text-muted bg-elevated border border-border px-2 py-0.5 rounded-full flex-shrink-0">Phòng khác</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-border flex-shrink-0 bg-elevated/40 rounded-b-2xl">
+          <span className="text-[12px] text-text-muted">
+            {selected.size > 0 ? `Đã chọn ${selected.size} nhân viên` : 'Chưa chọn ai'}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-3.5 py-1.5 rounded-lg border border-border text-text-secondary text-[13px] hover:bg-hover transition-colors">Hủy</button>
+            <button
+              onClick={handleAdd}
+              disabled={selected.size === 0 || saving}
+              className="px-4 py-1.5 rounded-lg bg-accent text-white text-[13px] font-semibold hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Đang thêm...</> : <><UserPlus className="w-3.5 h-3.5" />Thêm {selected.size > 0 ? selected.size : ''}</>}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -118,6 +282,9 @@ const DepartmentsPage: React.FC = () => {
   const [createForm, setCreateForm] = useState({ name: '', description: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
+  const [showAddMembers, setShowAddMembers] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<number | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,7 +305,7 @@ const DepartmentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   const fetchDeptUsers = useCallback(async (deptId: number) => {
     setLoadingUsers(true);
@@ -210,6 +377,22 @@ const DepartmentsPage: React.FC = () => {
       const err = await res.json();
       setDeleteConfirmId(null);
       showToast(err.detail ?? 'Lỗi xóa phòng ban', false);
+    }
+  };
+
+  const handleRemoveUser = async (userId: number) => {
+    setRemovingUserId(userId);
+    try {
+      const res = await apiPatch(`/api/admin/users/${userId}`, { department_id: null });
+      if (res.ok) {
+        toast.success('Đã xóa nhân viên khỏi phòng ban');
+        if (selectedDept) fetchDeptUsers(selectedDept.id);
+        fetchDepartments();
+      } else {
+        toast.error('Không thể xóa nhân viên');
+      }
+    } finally {
+      setRemovingUserId(null);
     }
   };
 
@@ -358,8 +541,8 @@ const DepartmentsPage: React.FC = () => {
             {/* Search + table */}
             <div className="bg-elevated border border-border rounded-xl overflow-hidden flex flex-col flex-1">
               {/* Search bar */}
-              <div className="px-4 py-3 border-b border-border">
-                <div className="relative">
+              <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
                   <input
                     value={userSearch}
@@ -368,6 +551,15 @@ const DepartmentsPage: React.FC = () => {
                     className="input-base pl-9 py-2 text-[13px] w-full"
                   />
                 </div>
+                {canDo('admin.departments.members') && (
+                  <button
+                    onClick={() => setShowAddMembers(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-accent text-white text-[13px] font-semibold hover:bg-accent-hover transition-colors flex-shrink-0"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    Thêm nhân viên
+                  </button>
+                )}
               </div>
 
               {/* User table */}
@@ -396,6 +588,7 @@ const DepartmentsPage: React.FC = () => {
                         <th className="px-5 py-3.5 text-center">Vai trò</th>
                         <th className="px-5 py-3.5 text-center">Trạng thái</th>
                         <th className="px-5 py-3.5">Đăng nhập cuối</th>
+                        {canDo('admin.departments.members') && <th className="px-5 py-3.5 w-12" />}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -439,6 +632,20 @@ const DepartmentsPage: React.FC = () => {
                               {fmtDate(u.last_login)}
                             </div>
                           </td>
+                          {canDo('admin.departments.members') && (
+                            <td className="px-3 py-3 text-center">
+                              <button
+                                onClick={() => handleRemoveUser(u.id)}
+                                disabled={removingUserId === u.id}
+                                title="Xóa khỏi phòng ban"
+                                className="w-7 h-7 rounded-lg flex items-center justify-center border border-border text-text-muted hover:border-danger/50 hover:text-danger hover:bg-danger/5 transition-colors disabled:opacity-40 mx-auto"
+                              >
+                                {removingUserId === u.id
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <UserMinus className="w-3 h-3" />}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -467,6 +674,20 @@ const DepartmentsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* ── Add Members Modal ── */}
+      {showAddMembers && selectedDept && (
+        <AddMembersModal
+          deptId={selectedDept.id}
+          deptName={selectedDept.name}
+          onClose={() => setShowAddMembers(false)}
+          onDone={() => {
+            setShowAddMembers(false);
+            fetchDeptUsers(selectedDept.id);
+            fetchDepartments();
+          }}
+        />
+      )}
 
       {/* ── Delete confirm modal ── */}
       {deleteConfirmId !== null && (() => {

@@ -69,7 +69,7 @@ const FeedbackPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { fetchFeedback(); }, [fetchFeedback]);
 

@@ -1,6 +1,31 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Send, Square, BookOpen, X, FileText, AtSign } from 'lucide-react';
+import { Send, Square, BookOpen, X, FileText, AtSign, Mic, MicOff } from 'lucide-react';
+
+// Web Speech API types
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((e: SpeechRecognitionEvent) => void) | null;
+  onerror: ((e: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+}
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  }
+}
 
 const CHAR_WARN_THRESHOLD = 200;
 const CHAR_MAX = 2000;
@@ -31,10 +56,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionAnchor, setMentionAnchor] = useState(0);
   const [mentionIdx, setMentionIdx] = useState(0);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported] = useState(() =>
+    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  );
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const interimRef = useRef('');
   const ref = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState<{ bottom: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    return () => { recognitionRef.current?.stop(); };
+  }, []);
 
   useEffect(() => {
     if (prefill !== undefined && prefill !== '') {
@@ -139,6 +174,55 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const removeTagged = (id: number) => {
     setTaggedDocs(prev => prev.filter(d => d.id !== id));
   };
+
+  const toggleVoice = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = 'vi-VN';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    interimRef.current = '';
+
+    recognition.onresult = (e: SpeechRecognitionEvent) => {
+      let interim = '';
+      let finalChunk = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalChunk += t;
+        else interim += t;
+      }
+      if (finalChunk) {
+        setValue(prev => {
+          const base = prev.endsWith(' ') || prev === '' ? prev : prev + ' ';
+          return base + finalChunk.trim();
+        });
+        interimRef.current = '';
+      } else {
+        interimRef.current = interim;
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      ref.current?.focus();
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [isListening]);
 
   const send = () => {
     const t = value.trim();
@@ -346,6 +430,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 pb-0.5">
+            {voiceSupported && !isGenerating && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                title={isListening ? 'Dừng ghi âm' : 'Nhập liệu bằng giọng nói (vi-VN)'}
+                aria-label={isListening ? 'Dừng ghi âm' : 'Ghi âm giọng nói'}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 border
+                  ${isListening
+                    ? 'bg-red-500/10 border-red-400/60 text-red-500 animate-pulse cursor-pointer'
+                    : 'border-border text-text-muted hover:border-accent/50 hover:text-accent hover:bg-accent/5 cursor-pointer'
+                  }`}
+              >
+                {isListening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+              </button>
+            )}
             {isGenerating ? (
               <button
                 onClick={onCancel}

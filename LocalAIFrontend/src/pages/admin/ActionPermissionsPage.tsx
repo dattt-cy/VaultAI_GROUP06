@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   KeyRound, ShieldCheck, Check, X, ChevronDown, ChevronRight,
   Save, RotateCcw, Users,
@@ -49,6 +49,8 @@ function levelColor(lvl: number) {
 
 const ActionPermissionsPage: React.FC = () => {
   const toast = useToast();
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
   // Data
   const [roles, setRoles] = useState<RoleInfo[]>([]);
@@ -74,17 +76,16 @@ const ActionPermissionsPage: React.FC = () => {
       const res = await apiGet('/api/admin/roles');
       const data: RoleInfo[] = await res.json();
       setRoles(data);
-      // Auto-select first non-admin role only on initial load (selectedRole still null)
       setSelectedRole(prev => {
         if (prev !== null) return prev;
         return data.find(r => r.name !== 'admin') ?? data[0] ?? null;
       });
     } catch {
-      toast.error('Không tải được danh sách vai trò');
+      toastRef.current.error('Không tải được danh sách vai trò');
     } finally {
       setLoadingRoles(false);
     }
-  }, [toast]);
+  }, []);
 
   const fetchActions = useCallback(async () => {
     try {
@@ -92,9 +93,9 @@ const ActionPermissionsPage: React.FC = () => {
       const data = await res.json();
       setGroups(data.groups ?? []);
     } catch {
-      toast.error('Không tải được danh sách action');
+      toastRef.current.error('Không tải được danh sách action');
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     fetchRoles();
@@ -111,11 +112,11 @@ const ActionPermissionsPage: React.FC = () => {
       setPermissions({ ...data.permissions });
       setSavedPermissions({ ...data.permissions });
     } catch {
-      toast.error('Không tải được quyền của vai trò');
+      toastRef.current.error('Không tải được quyền của vai trò');
     } finally {
       setLoadingPerms(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     if (selectedRole) fetchRolePerms(selectedRole.id);

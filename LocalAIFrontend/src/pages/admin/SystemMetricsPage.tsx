@@ -61,7 +61,7 @@ const SystemMetricsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 

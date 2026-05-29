@@ -66,7 +66,7 @@ const OverviewPage: React.FC = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { fetchAll(true); }, [fetchAll]);
 

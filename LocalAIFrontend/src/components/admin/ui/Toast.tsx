@@ -51,13 +51,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [dismiss]);
 
-  const ctx: ToastContextType = {
+  const ctx: ToastContextType = React.useMemo(() => ({
     show,
     success: (title, description) => show({ type: 'success', title, description }),
     error:   (title, description) => show({ type: 'error',   title, description }),
     warning: (title, description) => show({ type: 'warning', title, description }),
     info:    (title, description) => show({ type: 'info',    title, description }),
-  };
+  }), [show]);
 
   return (
     <ToastContext.Provider value={ctx}>

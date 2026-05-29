@@ -32,7 +32,7 @@ const CategoriesPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
 

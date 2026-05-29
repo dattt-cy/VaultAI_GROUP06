@@ -46,7 +46,7 @@ const AIConfigPage: React.FC = () => {
     } catch (err) {
       toast.error('Không tải được cấu hình AI', String(err));
     }
-  }, [toast]);
+  }, []);
 
   const fetchPrompts = useCallback(async () => {
     try {
@@ -55,7 +55,7 @@ const AIConfigPage: React.FC = () => {
     } catch (err) {
       toast.error('Không tải được system prompts', String(err));
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     Promise.all([fetchConfig(), fetchPrompts()]).finally(() => setIsLoading(false));
