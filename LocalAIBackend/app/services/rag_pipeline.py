@@ -1,5 +1,6 @@
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Generator
 
 from sqlalchemy.orm import Session
@@ -592,21 +593,33 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         yield _sse({"type": "done", "citations": [], "suggestions": []})
         return
 
-    safe_response = apply_pii_masking(full_response)
-    safe_response = _clean_response(safe_response)
-    log_english_leakage(safe_response)
+    # Start suggestions generation in background while post-processing runs in parallel
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        suggestion_future = executor.submit(_generate_suggestions, merged_context, full_response)
 
-    safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
-        verify_citations_post_hoc(safe_response, chunks)
-    safe_response = fix_bullet_indentation(safe_response)
-    safe_response = fix_missing_doc_name(safe_response, chunks)
-    safe_response = strip_question_echo(safe_response, query)
-    safe_response = strip_nguon_blocks(safe_response)
-    safe_response = strip_tai_lieu_labels(safe_response)
-    safe_response = strip_inline_article_refs(safe_response)
-    safe_response = strip_standalone_article_headings(safe_response)
+        safe_response = apply_pii_masking(full_response)
+        safe_response = _clean_response(safe_response)
+        log_english_leakage(safe_response)
 
-    yield _sse({"type": "corrected_text", "content": safe_response})
+        safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
+            verify_citations_post_hoc(safe_response, chunks)
+        safe_response = fix_bullet_indentation(safe_response)
+        safe_response = fix_missing_doc_name(safe_response, chunks)
+        safe_response = strip_question_echo(safe_response, query)
+        safe_response = strip_nguon_blocks(safe_response)
+        safe_response = strip_tai_lieu_labels(safe_response)
+        safe_response = strip_inline_article_refs(safe_response)
+        safe_response = strip_standalone_article_headings(safe_response)
 
-    citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
+        yield _sse({"type": "corrected_text", "content": safe_response})
+
+        citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
+
+        try:
+            suggestions = suggestion_future.result(timeout=15)
+        except Exception:
+            suggestions = []
+
+    if suggestions:
+        yield _sse({"type": "suggestions", "suggestions": suggestions})
     yield _sse({"type": "done", "citations": citations})

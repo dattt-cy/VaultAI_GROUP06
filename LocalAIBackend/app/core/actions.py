@@ -102,8 +102,6 @@ ACTIONS: list[ActionDef] = [
               "Chính sách mật khẩu, session timeout, giới hạn đăng nhập", default_min_level=9),
     ActionDef("admin.eval",            "Đánh giá RAG",          "Hệ thống",
               "Chạy bộ đánh giá chất lượng trả lời RAG", default_min_level=9),
-    ActionDef("admin.legal_import",    "Import pháp luật",      "Hệ thống",
-              "Import tài liệu pháp lý hàng loạt vào hệ thống", default_min_level=5),
 ]
 
 # Dict để lookup nhanh
