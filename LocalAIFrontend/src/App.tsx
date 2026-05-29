@@ -23,7 +23,6 @@ const ModelManagementPage   = lazy(() => import('./pages/admin/ModelManagementPa
 const RAGConfigPage         = lazy(() => import('./pages/admin/RAGConfigPage'));
 const BackupPage            = lazy(() => import('./pages/admin/BackupPage'));
 const SecuritySettingsPage  = lazy(() => import('./pages/admin/SecuritySettingsPage'));
-const LegalImportPage       = lazy(() => import('./pages/admin/LegalImportPage'));
 const EvalPage              = lazy(() => import('./pages/admin/EvalPage'));
 const ActionPermissionsPage = lazy(() => import('./pages/admin/ActionPermissionsPage'));
 
@@ -72,7 +71,6 @@ function AppRoutes() {
           <Route path="rag-config"       element={<RequireAction actionKey="admin.rag_config.edit"><RAGConfigPage /></RequireAction>} />
           <Route path="backup"           element={<RequireAction actionKey="admin.backup"><BackupPage /></RequireAction>} />
           <Route path="security"         element={<RequireAction actionKey="admin.security"><SecuritySettingsPage /></RequireAction>} />
-          <Route path="legal-import"     element={<RequireAction actionKey="admin.legal_import"><LegalImportPage /></RequireAction>} />
           <Route path="eval"             element={<RequireAction actionKey="admin.eval"><EvalPage /></RequireAction>} />
           <Route path="action-permissions" element={<RequireAction actionKey="admin.permissions.edit"><ActionPermissionsPage /></RequireAction>} />
         </Route>

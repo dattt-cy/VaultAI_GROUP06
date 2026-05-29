@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Shield, FileKey, FileText,
   FolderOpen, Settings2, MessageSquare, ThumbsUp,
   ClipboardList, Activity, Building2,
-  Cpu, Sliders, HardDrive, ShieldCheck, Scale, FlaskConical, KeyRound,
+  Cpu, Sliders, HardDrive, ShieldCheck, FlaskConical, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiGet } from '../../utils/apiClient';
@@ -29,7 +29,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Quyền thao tác',      path: '/admin/action-permissions',icon: KeyRound,        minLevel: 10, actionKey: 'admin.permissions.edit'    },
   { label: 'Phân quyền Tài liệu', path: '/admin/doc-permissions',   icon: FileKey,         minLevel: 5,  actionKey: 'admin.doc_perm.manage'     },
   { label: 'Tài liệu',            path: '/admin/documents',         icon: FileText,        minLevel: 5,  badgeKey: 'failed_ingestion'           },
-  { label: 'Import Pháp luật',    path: '/admin/legal-import',      icon: Scale,           minLevel: 5,  actionKey: 'admin.legal_import'        },
   { label: 'Danh mục',            path: '/admin/categories',        icon: FolderOpen,      minLevel: 5,  actionKey: 'admin.categories.manage'   },
   { label: 'Cấu hình AI',         path: '/admin/ai-config',         icon: Settings2,       minLevel: 9,  actionKey: 'admin.ai_config.view'      },
   { label: 'Quản lý Model',       path: '/admin/model-management',  icon: Cpu,             minLevel: 9,  actionKey: 'admin.ai_config.view'      },

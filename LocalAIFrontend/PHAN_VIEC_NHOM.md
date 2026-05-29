@@ -3,137 +3,176 @@
 > **Dự án**: LocalAI — Hệ thống hỏi-đáp tài liệu nội bộ thông minh (RAG + LLM chạy offline)
 > **Nhóm**: 3 thành viên
 > **Thời gian**: Học kỳ 1, 2025–2026
+> **Nguồn phân công**: Jira Board (QN-1 → QN-63)
 
 ---
 
 ## 👥 Danh Sách Thành Viên
 
-| STT | Họ và Tên | Vai trò chính |
-|:---:|---|---|
-| 1 | **Hoàng Văn Tấn Đạt** | AI Engineer — Hệ thống AI lõi & RAG Pipeline |
-| 2 | **Cao Minh Đức** | Backend Developer — API Server & Database |
-| 3 | **Nguyễn Lê Dung** | Frontend Developer — Giao diện & UX |
-
----
+| STT | Họ và Tên | Tài khoản Jira | Vai trò chính |
+|:---:|---|---|---|
+| 1 | **Hoàng Văn Tấn Đạt** | hoangdat10102005 | AI Engineer — Hạ tầng Local & Suy luận AI |
+| 2 | **Cao Minh Đức** | Minh Đức Cao | Backend Developer — Xử lý dữ liệu & API |
+| 3 | **Nguyễn Lê Dung** | Lê Dung Nguyễn | Full-stack — RAG Indexing, Bảo mật & Bàn giao |
 
 ---
 
 ## 🤖 Hoàng Văn Tấn Đạt — AI Engineer
 
-> **Phụ trách**: Toàn bộ hệ thống trí tuệ nhân tạo, pipeline RAG, xử lý ngôn ngữ và tài liệu
+> **Phụ trách**: Hạ tầng chạy Local, tối ưu tài nguyên, lõi suy luận AI, đánh giá chất lượng
 
-### Công việc đã hoàn thành
+### [QN-1] Hạ tầng & Tối ưu Local ✅
 
-#### 🧠 RAG Pipeline & Suy Luận
-- Thiết kế và xây dựng toàn bộ pipeline RAG (`app/services/rag_pipeline.py`)  
-  — Hệ thống hỏi-đáp thông minh: nhận câu hỏi → tìm kiếm tài liệu liên quan → sinh câu trả lời có trích dẫn nguồn
-- Xây dựng **Hybrid Retriever** (`hybrid_retriever.py`)  
-  — Kết hợp Vector Search (ChromaDB) + BM25 keyword search để tăng độ chính xác tìm kiếm
-- Triển khai chiến lược **Parent-Child Chunking**  
-  — Child chunk (300 tokens) dùng để tìm kiếm, Parent chunk (800 tokens) dùng để đưa vào LLM context
-- Xây dựng **Context Manager** (`context_manager.py`)  
-  — Quản lý lịch sử hội thoại, giới hạn context window phù hợp với VRAM
+| Task | Mô tả |
+|---|---|
+| QN-2 | Cài đặt Docker 1-click |
+| QN-3 | Tự động phát hiện Phần cứng |
+| QN-4 | Quản lý Giới hạn Ngữ cảnh (Context Window) |
+| QN-5 | Quản lý nén mô hình |
+| QN-6 | Tối ưu hóa bộ nhớ đệm |
 
-#### 🦙 Tích Hợp LLM (Ollama)
-- Xây dựng **LLM Engine** (`llm_engine.py`)  
-  — Giao tiếp với Ollama API để gọi model `qwen2.5:7b` và `qwen3:8b`
+**Chi tiết kỹ thuật:**
+- Xây dựng **LLM Engine** (`llm_engine.py`) — giao tiếp Ollama API, model `qwen2.5:7b` / `qwen3:8b`
 - Tối ưu tham số inference cho GPU 4GB VRAM (RTX 3050):
-  - `num_ctx = 8192` — context window vừa khít VRAM
-  - `temperature = 0.1` — giảm hallucination, bám sát tài liệu
-  - `num_predict = 4096` — độ dài trả lời đủ chi tiết
-- Tích hợp chế độ **Thinking/Reasoning** với `qwen3:8b` (có thể bật/tắt)
+  - `num_ctx = 8192`, `temperature = 0.1`, `num_predict = 4096`
+- Xây dựng **Context Manager** (`context_manager.py`) — giới hạn context window phù hợp VRAM
+- Tích hợp chế độ **Thinking/Reasoning** với `qwen3:8b`
+- Cấu hình **Docker Compose** khởi động toàn bộ stack 1 lệnh
 
-#### 📄 Xử Lý & Nhập Tài Liệu
-- Xây dựng **Document Parser** (`document_parser.py`)  
-  — Hỗ trợ đa dạng định dạng: PDF, Word (.docx), ảnh (OCR), TXT, Markdown
-  — Tích hợp **EasyOCR** để nhận dạng văn bản trong hình ảnh, scan
-  — Tích hợp **pdfplumber** + **PyMuPDF** để extract text từ PDF
-  — Tích hợp **mammoth** để đọc file Word
-- Xây dựng **Ingestion Service** (`ingestion_service.py`)  
-  — Tự động parse → chunk → embed → lưu vào ChromaDB khi upload tài liệu mới
-- Xây dựng **Legal Importer** (`legal_importer.py`)  
-  — Nhập hàng loạt văn bản pháp luật từ thư mục `uploads/legal/`
+### [QN-22] Lõi Suy luận & Logic AI ✅ *(một phần)*
 
-#### 🗄️ Vector Database & Embedding
-- Tích hợp và quản lý **ChromaDB** (`vector_store.py`)  
-  — Lưu trữ và truy vấn vector embeddings của các đoạn văn bản
-- Cấu hình **Embedding Model**: `paraphrase-multilingual-MiniLM-L12-v2`  
-  — Model đa ngôn ngữ hỗ trợ tốt tiếng Việt
-- Cấu hình **Reranker**: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`  
-  — Tái xếp hạng kết quả tìm kiếm để chọn đoạn văn phù hợp nhất
-- Xây dựng **Config Loader** (`config_loader.py`)  
-  — Tải cấu hình RAG động từ database (không cần restart server)
+| Task | Mô tả |
+|---|---|
+| QN-23 | Suy luận dựa trên Tài liệu |
+| QN-25 | Trích dẫn nguồn (Citations) |
+| QN-26 | Tổng hợp đa tài liệu |
+| QN-28 | So sánh & Tìm mâu thuẫn tài liệu |
 
-#### 📁 Files phụ trách
+**Chi tiết kỹ thuật:**
+- Thiết kế **RAG Pipeline** (`rag_pipeline.py`) — nhận câu hỏi → tìm kiếm → sinh câu trả lời có trích dẫn
+- Xây dựng **Config Loader** (`config_loader.py`) — tải cấu hình RAG động từ database
+- Tích hợp **Citations** vào response — mỗi câu trả lời kèm nguồn tài liệu cụ thể
+- Tổng hợp thông tin từ nhiều tài liệu khác nhau trong một câu trả lời
+
+### [QN-30] Giao diện Chat & Tương tác ✅ *(một phần)*
+
+| Task | Mô tả |
+|---|---|
+| QN-33 | Viewer PDF tích hợp |
+| QN-38 | Giao diện thu âm |
+
+### [QN-53] Giám sát & Đảm bảo Chất lượng 🔄 *(một phần)*
+
+| Task | Mô tả | Trạng thái |
+|---|---|---|
+| QN-54 | Kiểm thử Accuracy (Độ chính xác) | ✅ Done |
+| QN-55 | Đo lường Latency (Độ trễ) | ✅ Done |
+| QN-56 | Đánh giá Thích/Không thích | ✅ Done |
+
+**Chi tiết kỹ thuật:**
+- Bộ eval RAG pipeline — câu hỏi mẫu, script đánh giá, kết quả benchmark
+- Đo latency end-to-end từ lúc nhận câu hỏi đến khi stream xong
+- Tích hợp feedback thumbs up/down vào pipeline cải thiện
+
+### Tính năng AI nâng cao *(ngoài Jira)*
+
+- **Multi-intent detection** — Tự động nhận diện 6 loại ý định: hỏi-đáp, so sánh, tóm tắt, liệt kê, trích xuất bảng, định vị đoạn văn
+- **Query rewriting** — Viết lại câu hỏi mơ hồ / thiếu ngữ cảnh trước khi tìm kiếm
+- **PII masking** — Tự động che thông tin nhạy cảm (số CMND, SĐT...) trong câu trả lời
+- **Gợi ý câu hỏi** (`GET /suggestions`) — AI sinh câu hỏi gợi ý dựa trên nội dung tài liệu
+
+### Trang Eval *(ngoài Jira)*
+
+- **EvalPage** (`admin/EvalPage.tsx`) — Xem kết quả đánh giá chất lượng RAG, chạy bộ test trực tiếp từ giao diện
+
+### 📁 Files phụ trách
 ```
 LocalAIBackend/app/services/
-├── rag_pipeline.py        ✅ Pipeline RAG chính (~48KB)
-├── hybrid_retriever.py    ✅ Tìm kiếm hybrid vector + BM25 (~21KB)
-├── llm_engine.py          ✅ Giao tiếp Ollama LLM (~11KB)
-├── document_parser.py     ✅ Parse PDF, Word, OCR ảnh (~10KB)
-├── ingestion_service.py   ✅ Index tài liệu vào vector DB (~10KB)
-├── vector_store.py        ✅ ChromaDB wrapper (~2KB)
-├── context_manager.py     ✅ Quản lý context hội thoại (~8KB)
-├── config_loader.py       ✅ Load cấu hình RAG động (~3KB)
-└── legal_importer.py      ✅ Import văn bản pháp luật (~6KB)
-```
+├── rag_pipeline.py        ✅ Pipeline RAG chính + multi-intent
+├── llm_engine.py          ✅ Giao tiếp Ollama LLM
+├── context_manager.py     ✅ Quản lý context + query rewriting
+├── config_loader.py       ✅ Load cấu hình RAG động
+├── rag_prompts.py         ✅ System prompts & templates
+└── rag_postprocess.py     ✅ PII masking, chuẩn hóa output
 
----
+LocalAIBackend/app/api/routes/
+└── admin_eval.py          ✅ API chạy & xem kết quả eval RAG
+
+LocalAIBackend/eval/       ✅ Bộ đánh giá RAG
+docker-compose.yml         ✅ Docker stack
+```
 
 ---
 
 ## 🖥️ Cao Minh Đức — Backend Developer
 
-> **Phụ trách**: Xây dựng REST API server, thiết kế cơ sở dữ liệu, hệ thống xác thực và phân quyền
+> **Phụ trách**: Nạp & tiền xử lý tài liệu, API server, database, xử lý logic AI phụ trợ
 
-### Công việc đã hoàn thành
+### [QN-7] Nạp & Tiền xử lý Dữ liệu ✅
 
-#### 🚀 API Server & Cấu Hình
-- Khởi tạo và cấu hình **FastAPI** application (`app/main.py`)  
-  — Đăng ký toàn bộ router, middleware CORS, static files
-- Cấu hình **Uvicorn** ASGI server (`main.py`)  
-  — Hot-reload cho môi trường development
-- Thiết kế cấu hình tập trung (`app/core/config.py`)  
-  — Quản lý tất cả biến môi trường: DB URI, JWT secret, Ollama URL, LLM params
-- Xây dựng hệ thống **migration tự động**  
-  — Tự động thêm cột mới vào bảng khi nâng cấp phiên bản (không mất dữ liệu)
-- Seed dữ liệu khởi tạo tự động (admin account, LLM config mặc định, System Prompt)
+| Task | Mô tả |
+|---|---|
+| QN-8 | Tải lên Thư mục (Bulk) |
+| QN-9 | Xử lý file Docx/Excel |
+| QN-10 | Nhận diện chữ viết OCR |
+| QN-11 | Làm sạch nội dung (Clean) |
+| QN-12 | Trích xuất Metadata tự động |
+| QN-13 | Phát hiện tài liệu trùng |
+| QN-14 | Xóa vĩnh viễn & Dọn chỉ mục (Purge) |
 
-#### 🗃️ Database Design & ORM
-- Thiết kế toàn bộ **database schema** với SQLAlchemy:
+**Chi tiết kỹ thuật:**
+- Xây dựng **Document Parser** (`document_parser.py`) — hỗ trợ PDF, Word (.docx), ảnh OCR, TXT, Markdown
+  - Tích hợp **EasyOCR** nhận dạng văn bản trong hình ảnh / scan
+  - Tích hợp **pdfplumber + PyMuPDF** extract text từ PDF
+  - Tích hợp **mammoth** đọc file Word
+- Xây dựng **Ingestion Service** (`ingestion_service.py`) — parse → chunk → embed → lưu ChromaDB
+- Xây dựng **RAG Postprocess** (`rag_postprocess.py`) — làm sạch và chuẩn hóa output
+- Phát hiện tài liệu trùng lặp trước khi index
 
-  | Model | Bảng | Mô tả |
-  |---|---|---|
-  | `user_model.py` | `users`, `roles` | Người dùng, vai trò, phân cấp quyền |
-  | `doc_model.py` | `documents`, `chunks`, `categories`, `departments` | Tài liệu, phân loại |
-  | `chat_model.py` | `conversations`, `messages`, `feedbacks` | Lịch sử chat, phản hồi |
-  | `sys_model.py` | `llm_configs`, `system_prompts`, `rag_configs`, `audit_logs` | Cấu hình hệ thống |
+### [QN-22] Lõi Suy luận & Logic AI ✅ *(một phần)*
 
-- Quản lý **session database** (`db/session.py`) — connection pool, SessionLocal
-- Xây dựng **CRUD operations** (`crud/`) — các hàm thao tác DB tái sử dụng được
+| Task | Mô tả |
+|---|---|
+| QN-24 | Chặn ảo giác (Anti-Hallucination) |
+| QN-27 | Luồng suy nghĩ (Chain-of-Thought) |
 
-#### 🔐 Bảo Mật & Xác Thực
-- Xây dựng hệ thống **JWT Authentication** (`api/routes/auth.py`, `core/security.py`)  
-  — Đăng nhập → cấp access token (8 ngày) → xác thực mọi request
-- Triển khai **bcrypt password hashing** (`passlib[bcrypt]`)  
-  — Mã hóa an toàn mật khẩu người dùng
-- Xây dựng **hệ thống phân quyền theo cấp độ** (`api/dependencies.py`)  
-  — Access level từ 1 (user) đến 10 (admin), middleware `require_min_level(n)`
-- Quản lý **Security Settings** (`admin_security.py`)  
-  — Cấu hình bảo mật, audit logs, giám sát hoạt động
+**Chi tiết kỹ thuật:**
+- Xây dựng cơ chế **Anti-Hallucination** — kiểm tra câu trả lời có nguồn gốc từ tài liệu
+- Tích hợp **Chain-of-Thought** vào prompt để cải thiện độ chính xác suy luận
 
-#### 📡 API Endpoints
-- **Auth API** (`auth.py`): Đăng nhập, đăng xuất, lấy thông tin user hiện tại
-- **Documents API** (`documents.py`, ~20KB): Upload, download, xóa tài liệu; gắn category/department; phân quyền xem
-- **Chat API** (`chat.py`, ~13KB): Gửi câu hỏi → gọi RAG pipeline → trả lời; quản lý hội thoại; feedback
-- **Admin API** (`admin.py`, ~44KB): CRUD users, roles, categories, departments, system prompts
-- **Admin Ollama** (`admin_ollama.py`): Liệt kê, pull, xóa model Ollama
-- **Admin RAG Config** (`admin_rag_config.py`): Cấu hình tham số RAG qua giao diện web
-- **Admin Backup** (`admin_backup.py`): Backup/restore database và vector store
-- **Admin Security** (`admin_security.py`): Cấu hình bảo mật, xem audit logs
-- **Admin Legal Import** (`admin_legal_import.py`): Trigger import văn bản pháp luật hàng loạt
+### [QN-30] Giao diện Chat & Tương tác ✅ *(một phần)*
 
-#### 📁 Files phụ trách
+| Task | Mô tả |
+|---|---|
+| QN-31 | Phản hồi Streaming (Gõ chữ từng ký tự) |
+| QN-32 | Tóm tắt tài liệu AI |
+| QN-34 | Highlight văn bản trích dẫn |
+| QN-35 | Chế độ Nền tối (Dark mode) |
+| QN-36 | Tùy chỉnh Cỡ chữ UI |
+| QN-37 | Thông báo lỗi tiếng Việt |
+
+**Chi tiết kỹ thuật:**
+- Xây dựng **FastAPI** application (`app/main.py`) — đăng ký router, CORS, static files
+- Thiết kế toàn bộ **database schema** với SQLAlchemy (`users`, `documents`, `conversations`, `llm_configs`...)
+- Xây dựng **JWT Authentication** — đăng nhập → access token (8 ngày)
+- Xây dựng **hệ thống phân quyền** — access level 1–10, middleware `require_min_level(n)`
+- Streaming response qua Server-Sent Events
+
+### [QN-53] Giám sát & Đảm bảo Chất lượng 🔄 *(một phần)*
+
+| Task | Mô tả | Trạng thái |
+|---|---|---|
+| QN-57 | Hệ thống báo cáo lỗi trực tiếp | ✅ Done |
+| QN-58 | Xác nhận của con người (Human-in-the-loop) | 🔄 In Progress |
+
+### Tính năng bổ sung *(ngoài Jira)*
+
+- **Active session management** — Xem & thu hồi phiên đăng nhập đang hoạt động (`POST /security/sessions/{id}/revoke`)
+- **Failed login tracking** — Theo dõi số lần đăng nhập sai, tự động khóa tài khoản
+- **Force password reset** — Admin ép người dùng đổi mật khẩu (`POST /security/password-reset/{user_id}`)
+- **Truncate messages** — Xóa tin nhắn từ một điểm nhất định để edit & resend
+
+### 📁 Files phụ trách
 ```
 LocalAIBackend/
 ├── main.py                         ✅ Entrypoint server
@@ -146,162 +185,157 @@ LocalAIBackend/
     ├── db/
     │   ├── base.py                 ✅ SQLAlchemy Base
     │   └── session.py              ✅ DB engine, session
-    ├── models/
-    │   ├── user_model.py           ✅ User, Role schema
-    │   ├── doc_model.py            ✅ Document, Chunk schema
-    │   ├── chat_model.py           ✅ Conversation, Message schema
-    │   └── sys_model.py            ✅ LlmConfig, SystemPrompt schema
+    ├── models/                     ✅ User, Doc, Chat, Sys models
     ├── crud/                       ✅ Database CRUD operations
     ├── schemas/                    ✅ Pydantic request/response schemas
-    └── api/
-        ├── dependencies.py         ✅ Auth middleware, permission levels
-        └── routes/
-            ├── auth.py             ✅ Xác thực JWT
-            ├── documents.py        ✅ Quản lý tài liệu
-            ├── chat.py             ✅ Chat & RAG endpoint
-            ├── admin.py            ✅ Quản trị tổng hợp
-            ├── admin_ollama.py     ✅ Quản lý Ollama model
-            ├── admin_rag_config.py ✅ Cấu hình RAG
-            ├── admin_backup.py     ✅ Backup hệ thống
-            ├── admin_security.py   ✅ Cài đặt bảo mật
-            └── admin_legal_import.py ✅ Import pháp luật
+    └── api/routes/
+        ├── auth.py                 ✅ Xác thực JWT
+        ├── documents.py            ✅ Quản lý tài liệu
+        ├── chat.py                 ✅ Chat & RAG endpoint + truncate messages
+        ├── admin_system.py         ✅ Dashboard stats, overview
+        ├── admin_users.py          ✅ CRUD users, roles, departments
+        ├── admin_ollama.py         ✅ Quản lý Ollama model
+        ├── admin_rag_config.py     ✅ Cấu hình RAG + re-ingestion
+        ├── admin_backup.py         ✅ Backup & restore
+        └── admin_security.py       ✅ Security settings, session revoke, failed login
+
+    services/
+    ├── document_parser.py          ✅ Parse PDF, Word, OCR ảnh
+    ├── ingestion_service.py        ✅ Index tài liệu vào vector DB
+    └── vector_store.py             ✅ ChromaDB wrapper
 ```
 
 ---
 
----
+## 🎨 Nguyễn Lê Dung — Full-stack Developer
 
-## 🎨 Nguyễn Lê Dung — Frontend Developer
+> **Phụ trách**: RAG Indexing & tìm kiếm, quản lý hội thoại, bảo mật, đóng gói & bàn giao
 
-> **Phụ trách**: Toàn bộ giao diện người dùng, trải nghiệm UX, tích hợp API backend
+### [QN-16] Chỉ mục & Tìm kiếm (RAG) ✅
 
-### Công việc đã hoàn thành
+| Task | Mô tả |
+|---|---|
+| QN-17 | Phân đoạn ngữ nghĩa (Chunk) |
+| QN-18 | Cấu hình Overlap (Chồng lấp) |
+| QN-19 | Tích hợp VectorDB & Page Index |
+| QN-20 | Tìm kiếm lai Hybrid (Vector + Page-level) |
+| QN-21 | Re-ranking (Tái xếp hạng) |
 
-#### 🏗️ Khởi Tạo & Cấu Hình Dự Án
-- Khởi tạo project với **Vite + React 19 + TypeScript**  
-  — Build tool hiện đại, hot module replacement cực nhanh
-- Cấu hình **TailwindCSS** + **PostCSS** + **Autoprefixer**  
-  — Design system utility-first, responsive layout
-- Cấu hình **ESLint + TypeScript-ESLint**  
-  — Đảm bảo code chất lượng, type-safe
-- Tích hợp **Material UI (MUI v9)** + **Emotion**  
-  — Component library premium cho admin dashboard
-- Cấu hình **React Router DOM v7**  
-  — Client-side routing, protected routes phân quyền
+**Chi tiết kỹ thuật:**
+- Xây dựng **Hybrid Retriever** (`hybrid_retriever.py`) — kết hợp Vector Search (ChromaDB) + BM25
+- Triển khai **Parent-Child Chunking** — Child chunk (300 tokens) tìm kiếm, Parent (800 tokens) đưa vào LLM
+- Cấu hình **Embedding Model**: `paraphrase-multilingual-MiniLM-L12-v2` — hỗ trợ tốt tiếng Việt
+- Cấu hình **Reranker**: `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`
+- Tích hợp **ChromaDB** (`vector_store.py`) — lưu trữ và truy vấn vector embeddings
 
-#### 💬 Giao Diện Chat (Core Feature)
-- **ChatPanel** (`components/chat-panel/ChatPanel.tsx`, ~11KB)  
-  — Màn hình chat chính, hiển thị lịch sử hội thoại
-- **MessageBubble** (`MessageBubble.tsx`, ~21KB)  
-  — Hiển thị tin nhắn user/AI với Markdown rendering, code highlighting
-- **ChatInput** (`ChatInput.tsx`, ~16KB)  
-  — Ô nhập câu hỏi, hỗ trợ multiline, gửi bằng Enter/Shift+Enter
-- **CitationPopup** + **CitationTag** (`CitationPopup.tsx`, `CitationTag.tsx`)  
-  — Hiển thị trích dẫn nguồn tài liệu khi AI trả lời (click để xem chi tiết)
-- **ChatActions** (`ChatActions.tsx`, ~8KB)  
-  — Các hành động: copy, thumbs up/down (feedback), xuất báo cáo
-- **ReportDialog** (`ReportDialog.tsx`)  
-  — Dialog báo cáo câu trả lời không phù hợp
-- **DataTable** + **ExportButtons**  
-  — Hiển thị dữ liệu dạng bảng, xuất Excel/PDF
+### [QN-39] Quản lý Hội thoại & Workspace ✅
 
-#### 📄 Giao Diện Xem Tài Liệu
-- **Document Panel** (`components/document-panel/`)  
-  — Panel xem file PDF trực tiếp trong trình duyệt (`react-pdf`)
-  — Xem song song tài liệu và chat (split-view layout)
+| Task | Mô tả |
+|---|---|
+| QN-40 | Quản lý Sessions (Phiên) |
+| QN-41 | Thư viện Prompt mẫu |
+| QN-42 | Chọn Vai trò AI (Persona) |
+| QN-43 | Xuất báo cáo (PDF/Docx) |
+| QN-44 | Xuất báo cáo dạng bảng |
 
-#### 🗂️ Giao Diện Quản Lý Workspace
-- **DashboardPage** (`pages/DashboardPage.tsx`, ~12KB)  
-  — Trang chủ chính với sidebar hội thoại, workspace tài liệu
-- **WorkspacePage** (`pages/WorkspacePage.tsx`)  
-  — Không gian làm việc tổng hợp
-- **LoginPage** (`pages/LoginPage.tsx`, ~5KB)  
-  — Form đăng nhập với validation, UX mượt mà
-- **Left Panel** (`components/left-panel/`)  
-  — Sidebar danh sách hội thoại, tìm kiếm, tạo mới
+**Chi tiết kỹ thuật:**
+- Khởi tạo project **Vite + React 19 + TypeScript** — hot module replacement cực nhanh
+- Cấu hình **TailwindCSS + MUI v9** — design system + component library
+- Xây dựng **ChatPanel**, **MessageBubble**, **ChatInput**, **CitationPopup**
+- Xây dựng **DashboardPage**, **WorkspacePage**, **Left Panel** sidebar hội thoại
+- **DataTable + ExportButtons** — xuất Excel/PDF
+- **Zustand stores** — auth state, chat state, UI state
 
-#### 🛠️ Trang Quản Trị Admin (18 trang)
+### [QN-45] Bảo mật & Quyền riêng tư ✅
 
-| Trang | File | Mô tả |
-|---|---|---|
-| Tổng quan | `OverviewPage.tsx` (~16KB) | Dashboard thống kê hệ thống |
-| Người dùng | `UsersPage.tsx` (~30KB) | CRUD users, đổi role, khóa tài khoản |
-| Vai trò | `RolesPage.tsx` (~14KB) | Quản lý roles & access levels |
-| Tài liệu | `DocumentsPage.tsx` (~36KB) | Upload, phân loại, phân quyền tài liệu |
-| Phân quyền | `DocPermissionsPage.tsx` (~19KB) | Cấp/thu quyền xem tài liệu theo user/role |
-| Phòng ban | `DepartmentsPage.tsx` (~24KB) | Quản lý phòng ban tổ chức |
-| Danh mục | `CategoriesPage.tsx` (~8KB) | Quản lý danh mục tài liệu |
-| Cấu hình AI | `AIConfigPage.tsx` (~12KB) | Chỉnh sửa System Prompt, thông số LLM |
-| Cấu hình RAG | `RAGConfigPage.tsx` (~10KB) | Tùy chỉnh chunking, retrieval, reranker |
-| Quản lý Model | `ModelManagementPage.tsx` (~16KB) | Pull/xóa model Ollama, chọn model active |
-| Giám sát Chat | `ChatMonitorPage.tsx` (~12KB) | Xem toàn bộ lịch sử chat người dùng |
-| Phản hồi | `FeedbackPage.tsx` (~20KB) | Xem & xử lý feedback câu trả lời |
-| Nhập pháp luật | `LegalImportPage.tsx` (~17KB) | Import hàng loạt văn bản pháp luật |
-| Backup | `BackupPage.tsx` (~13KB) | Backup/restore database & vector store |
-| Bảo mật | `SecuritySettingsPage.tsx` (~15KB) | Cấu hình bảo mật hệ thống |
-| Audit Logs | `AuditLogsPage.tsx` (~7KB) | Xem nhật ký hoạt động hệ thống |
-| Hiệu năng | `SystemMetricsPage.tsx` (~9KB) | Giám sát CPU, RAM, GPU usage |
-| Layout Admin | `AdminLayout.tsx` (~7KB) | Khung layout chung cho admin panel |
+| Task | Mô tả |
+|---|---|
+| QN-46 | Chế độ Air-Gapped (Offline) |
+| QN-47 | Xác thực đăng nhập (Login) |
+| QN-48 | Phân quyền tài liệu (RBAC) |
+| QN-49 | Nhật ký truy cập (Audit Log) |
+| QN-50 | Chế độ Chống sao chép |
+| QN-51 | Tự động khóa & Đăng xuất bảo mật |
+| QN-52 | Phát hiện thông tin nhạy cảm |
 
-#### 🔧 Hạ Tầng Frontend
-- **State Management** (`src/store/`)  
-  — Zustand stores: auth state, chat state, UI state
-- **React Context** (`src/contexts/`)  
-  — Auth context, theme context
-- **Custom Hooks** (`src/hooks/`)  
-  — Reusable logic: useAuth, useFetch, useDebounce...
-- **API Service Layer** (`src/services/`)  
-  — Tập trung tất cả HTTP calls đến backend API
-- **MUI Theme** (`src/theme/`)  
-  — Customization theme Material UI theo brand
-- **Utility Functions** (`src/utils/`, `src/lib/`)  
-  — Helper functions, cn() merger, date formatting...
-- **Mock Data** (`src/mocks/`)  
-  — Dữ liệu giả cho development/testing
+**Chi tiết kỹ thuật:**
+- **LoginPage** với validation, UX mượt mà
+- Trang **DocPermissionsPage** — cấp/thu quyền xem tài liệu theo user/role
+- Trang **SecuritySettingsPage** — cấu hình bảo mật hệ thống
+- Trang **AuditLogsPage** — xem nhật ký hoạt động
+- Tích hợp chế độ Air-Gapped — toàn bộ hoạt động offline không cần internet
 
-#### 📁 Files phụ trách
+### [QN-59] Đóng gói & Bàn giao ✅
+
+| Task | Mô tả |
+|---|---|
+| QN-60 | Công cụ Sao lưu (Backup) |
+| QN-61 | Hướng dẫn sử dụng (Manual) |
+| QN-62 | Tài liệu Kỹ thuật (Dev Docs) |
+| QN-63 | Lịch sao lưu tự động định kỳ |
+
+**Chi tiết kỹ thuật:**
+- Trang **BackupPage** — backup/restore database & vector store
+- Viết **Hướng dẫn sử dụng** cho người dùng cuối
+- Viết **Tài liệu kỹ thuật** (Dev Docs) cho developer
+- Cấu hình lịch sao lưu tự động định kỳ
+
+### Hệ thống phân quyền Action *(ngoài Jira)*
+
+- **`admin_actions.py`** (backend) — API quản lý 50+ action permissions, phân theo nhóm chức năng
+- **`ActionPermissionsPage.tsx`** (frontend) — Giao diện cấu hình quyền hành động chi tiết theo từng role
+
+### Giám sát Chat *(ngoài Jira)*
+
+- **`admin_monitor.py`** (backend) — API giám sát toàn bộ chat sessions, stats token/latency từng tin nhắn, resolve feedback
+- **`ChatMonitorPage.tsx`** (frontend) — Dashboard xem realtime chat của tất cả người dùng
+
+### Components bổ sung *(ngoài Jira)*
+
+- **`DropZone.tsx`** — Kéo thả tài liệu upload trực tiếp vào workspace
+- **`UploadQueuePanel.tsx`** — Theo dõi tiến trình upload & ingestion nhiều file
+- **`PermissionMatrix.tsx`** — Bảng phân quyền role-category dạng grid tương tác
+- **`SecurityOverlay.tsx`** — Overlay hiển thị khi tài liệu bị hạn chế quyền truy cập
+- **`SampleQuestions.tsx`** — Gợi ý câu hỏi mẫu từ AI trong sidebar
+- **`RoleSelector.tsx`** — Chọn vai trò AI (Persona) cho phiên chat
+- **`ClientWorkspace.tsx`** + **`TopHeader.tsx`** — Layout chính workspace (chat + tài liệu + sidebar)
+
+### 📁 Files phụ trách
 ```
-LocalAIFrontend/
-├── index.html                         ✅ HTML entry point
-├── package.json                       ✅ Dependencies & scripts
-├── vite.config.ts                     ✅ Vite build config
-├── tailwind.config.js                 ✅ TailwindCSS config
-├── tsconfig*.json                     ✅ TypeScript config
-├── eslint.config.js                   ✅ ESLint rules
-└── src/
-    ├── main.tsx                       ✅ React root entry
-    ├── App.tsx                        ✅ Root component & routes
-    ├── index.css                      ✅ Global styles, Tailwind
-    ├── components/
-    │   ├── chat-panel/                ✅ 9 components chat (~73KB)
-    │   ├── document-panel/            ✅ PDF viewer component
-    │   ├── left-panel/                ✅ Sidebar hội thoại
-    │   └── layout/                   ✅ Layout wrapper
-    ├── pages/
-    │   ├── LoginPage.tsx              ✅ Trang đăng nhập
-    │   ├── DashboardPage.tsx          ✅ Trang chủ
-    │   ├── WorkspacePage.tsx          ✅ Workspace
-    │   └── admin/ (18 trang)         ✅ Toàn bộ admin panel
-    ├── contexts/                      ✅ React contexts
-    ├── hooks/                         ✅ Custom hooks
-    ├── store/                         ✅ Zustand state
-    ├── theme/                         ✅ MUI theme
-    ├── services/                      ✅ API calls layer
-    ├── routes/                        ✅ Route definitions
-    └── utils/ & lib/                  ✅ Utility functions
+LocalAIBackend/app/services/
+├── hybrid_retriever.py    ✅ Tìm kiếm hybrid vector + BM25
+└── vector_store.py        ✅ ChromaDB wrapper
+
+LocalAIBackend/app/api/routes/
+├── admin_actions.py       ✅ API phân quyền action theo role
+└── admin_monitor.py       ✅ API giám sát chat, stats, feedback
+
+LocalAIFrontend/src/
+├── components/
+│   ├── chat-panel/        ✅ ChatPanel, MessageBubble, ChatInput, Citations
+│   ├── document-panel/    ✅ PDF viewer + SecurityOverlay
+│   ├── left-panel/        ✅ Sidebar, DropZone, SampleQuestions, RoleSelector
+│   ├── admin/             ✅ PermissionMatrix, UploadQueuePanel, AdminTable
+│   └── layout/            ✅ ClientWorkspace, TopHeader
+├── pages/
+│   ├── LoginPage.tsx      ✅ Đăng nhập
+│   ├── DashboardPage.tsx  ✅ Trang chủ
+│   ├── WorkspacePage.tsx  ✅ Workspace
+│   └── admin/             ✅ 20 trang admin panel (+ EvalPage, ActionPermissionsPage)
+├── store/                 ✅ Zustand state management
+├── services/              ✅ API calls layer
+├── hooks/                 ✅ Custom hooks
+└── contexts/              ✅ Auth, theme contexts
 ```
 
 ---
 
 ## 📊 Tổng Kết Phân Công
 
-| Thành viên | Lĩnh vực | Số file chính | Tỉ lệ đóng góp ước tính |
+| Thành viên | Epic phụ trách | Số task Jira | Trạng thái |
 |---|---|:---:|:---:|
-| **Hoàng Văn Tấn Đạt** | AI Core / RAG / LLM | 9 files (~128KB) | ~35% |
-| **Cao Minh Đức** | Backend API / Database / Auth | 15+ files (~110KB) | ~32% |
-| **Nguyễn Lê Dung** | Frontend / UI / UX | 30+ files (~450KB) | ~33% |
+| **Hoàng Văn Tấn Đạt** | QN-1 (Hạ tầng), QN-22 một phần, QN-30 một phần, QN-53 một phần + AI nâng cao | 14 tasks + | ✅ Gần hoàn thành |
+| **Cao Minh Đức** | QN-7 (Xử lý dữ liệu), QN-22 một phần, QN-30 một phần, QN-53 một phần | 17 tasks | 🔄 1 task In Progress |
+| **Nguyễn Lê Dung** | QN-16 (RAG Index), QN-39 (Workspace), QN-45 (Bảo mật), QN-59 (Bàn giao) + Monitor & Actions | 21 tasks + | ✅ Hoàn thành |
 
----
-
-> 📝 *File phân công này ghi lại những công việc đã hoàn thành trong quá trình phát triển dự án LocalAI.*
-> *Mọi thành viên đều phối hợp, hỗ trợ lẫn nhau trong quá trình tích hợp và kiểm thử hệ thống.*
+> 📝 *Phân công dựa theo Jira Board (Apr 16, 2026). QN-53 (Giám sát & Chất lượng) đang in-progress — QN-58 Xác nhận của con người chưa hoàn thành.*
