@@ -205,7 +205,7 @@ def _swap_children_for_parents(
     pages: list[DocumentPage],
 ) -> list[DocumentPage]:
     """
-    Với mỗi child chunk đã tìm được, lấy parent từ SQLite và thay thế.
+    Với mỗi child chunk đã tìm được, lấy parent từ MySQL và thay thế.
     Flat/parent chunks giữ nguyên.
     Dedup: nhiều children cùng parent → chỉ trả 1 parent row.
     Rerank score của parent = score tốt nhất trong các children của nó.
@@ -317,7 +317,7 @@ def hybrid_retrieve(
     if not candidate_ids:
         return []
 
-    # 3. Lấy nội dung từ SQLite để chuẩn bị chấm điểm
+    # 3. Lấy nội dung từ MySQL để chuẩn bị chấm điểm
     core_pages = (
         db.query(DocumentPage)
         .filter(DocumentPage.vector_id.in_(list(candidate_ids)))
@@ -428,7 +428,7 @@ def retrieve_for_summary(
     """
     Lấy chunks phân bổ đều từ đầu/giữa/cuối tài liệu thay vì dùng similarity.
     Dùng khi user yêu cầu tóm tắt toàn bộ tài liệu — query vague như "tóm tắt file này"
-    không khớp ngữ nghĩa tốt với content, nên cần scan trực tiếp qua SQLite.
+    không khớp ngữ nghĩa tốt với content, nên cần scan trực tiếp qua MySQL.
     """
     if allowed_doc_ids is not None and len(allowed_doc_ids) == 0:
         return []

@@ -216,7 +216,7 @@ def _save_parent_child_chunks(
     Lưu parent-child chunks vào MySQL.
     Pass 1: lưu parent rows → lấy DB ids.
     Pass 2: lưu child rows với parent_chunk_id → thêm vào ChromaDB batch.
-    Chỉ child rows được insert vào ChromaDB và FTS5.
+    Chỉ child rows được insert vào ChromaDB và MySQL FULLTEXT.
     Trả về tổng token count (tính từ child chunks).
     """
     parent_rows = [c for c in chunks if c["chunk_type"] == "parent"]

@@ -1,14 +1,14 @@
 """
 Shared fixtures cho toàn bộ test suite.
-- SQLite in-memory DB (scope=session → tạo 1 lần, dùng xuyên suốt)
+- MySQL test DB (scope=session → tạo 1 lần, dùng xuyên suốt)
 - Fake user để bypass JWT auth
 - FastAPI TestClient với dependency overrides
 """
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
 from app.api.dependencies import get_db, get_current_user
@@ -16,17 +16,15 @@ from app.api.dependencies import get_db, get_current_user
 # Import models để register với metadata
 from app.models import user_model, doc_model, chat_model, sys_model  # noqa: F401
 
-TEST_DB_URL = "sqlite://"
+TEST_DB_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "mysql+pymysql://root:1234567890aS@localhost:3306/localai_test?charset=utf8mb4",
+)
 
 
 @pytest.fixture(scope="session")
 def engine():
-    # StaticPool ensures all sessions share a single in-memory connection
-    e = create_engine(
-        TEST_DB_URL,
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    e = create_engine(TEST_DB_URL)
     Base.metadata.create_all(bind=e)
     yield e
     Base.metadata.drop_all(bind=e)

@@ -2,7 +2,7 @@
 Documents API
 =============
 - POST /upload            : Nhận file, lưu disk, chạy ingestion trong background
-- GET  /list              : Danh sách tài liệu thật từ SQLite (có filter scope/category)
+- GET  /list              : Danh sách tài liệu thật từ MySQL (có filter scope/category)
 - GET  /categories        : Danh sách category
 - DELETE /{doc_id}        : Xoá tài liệu
 - GET  /{doc_id}/download : Tải file gốc về máy
@@ -17,7 +17,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 
-from sqlalchemy import text
 from app.api.dependencies import get_db, get_current_user
 from app.models.doc_model import Document, Category, CategoryPermission, UserDocPermission
 from app.models.user_model import User
@@ -160,7 +159,7 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Trả về danh sách tài liệu thực từ SQLite, nhóm theo scope và category.
+    Trả về danh sách tài liệu thực từ MySQL, nhóm theo scope và category.
     Frontend dùng document.id (integer) làm key cho checkbox selection.
     """
     query = db.query(Document).options(joinedload(Document.category))
@@ -249,22 +248,12 @@ async def delete_document(
     if doc.uploaded_by != current_user.id and current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Không có quyền xóa tài liệu này")
 
-    # Thu thập vector_ids và page rowids TRƯỚC khi cascade xóa pages
     vector_ids = [p.vector_id for p in doc.pages if p.vector_id]
-    page_ids   = [p.id        for p in doc.pages]
 
     # 1. Xóa vectors khỏi ChromaDB
     delete_documents_from_store(vector_ids)
 
-    # 2. Xóa FTS index entries (content table sẽ bị xóa theo cascade, FTS phải xóa thủ công)
-    if page_ids:
-        placeholders = ",".join(str(i) for i in page_ids)
-        try:
-            db.execute(text(f"DELETE FROM document_pages_fts WHERE rowid IN ({placeholders})"))
-        except Exception:
-            pass  # FTS table có thể chưa tồn tại nếu chưa có search nào
-
-    # 3. Xóa file trên disk
+    # 2. Xóa file trên disk
     if doc.file_path and os.path.exists(doc.file_path):
         try:
             os.remove(doc.file_path)
@@ -308,7 +297,7 @@ async def get_document_content(
     # 1. Tìm exact match trước
     doc = db.query(Document).filter(Document.title == filename).order_by(Document.created_at.desc()).first()
 
-    # 2. Fallback: case-insensitive (SQLite ilike via lower())
+    # 2. Fallback: case-insensitive (MySQL LIKE via lower())
     if not doc:
         from sqlalchemy import func
         doc = (

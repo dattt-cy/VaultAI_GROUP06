@@ -1,16 +1,21 @@
-"""Add avatar_url column to users table."""
-import sqlite3, os
+"""Add avatar_url column to users table (MySQL)."""
+import os
+import pymysql
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "localai.db")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", "3306"))
+DB_NAME = os.getenv("DB_NAME", "localai")
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASS = os.getenv("DB_PASS", "1234567890aS")
 
-conn = sqlite3.connect(DB_PATH)
+conn = pymysql.connect(host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS, database=DB_NAME)
 cur = conn.cursor()
-cur.execute("PRAGMA table_info(users)")
-cols = [row[1] for row in cur.fetchall()]
-if "avatar_url" not in cols:
+cur.execute("SHOW COLUMNS FROM users LIKE 'avatar_url'")
+if cur.fetchone() is None:
     cur.execute("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500)")
     conn.commit()
     print("Added avatar_url column.")
 else:
     print("avatar_url already exists.")
+cur.close()
 conn.close()

@@ -1,7 +1,7 @@
 """
 Integration tests cho Documents API.
 Mock: _run_ingestion (background task), delete_documents_from_store (ChromaDB).
-Dùng SQLite in-memory từ conftest.py.
+Dùng MySQL test DB từ conftest.py.
 """
 import io
 import pytest

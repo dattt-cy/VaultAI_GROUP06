@@ -1,7 +1,7 @@
 """
 Integration tests cho Chat API.
 Mock: query_rag (LLM + ChromaDB), hybrid_retrieve.
-Dùng SQLite in-memory từ conftest.py.
+Dùng MySQL test DB từ conftest.py.
 """
 import pytest
 from unittest.mock import patch

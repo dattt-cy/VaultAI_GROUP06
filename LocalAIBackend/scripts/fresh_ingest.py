@@ -19,7 +19,6 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-from sqlalchemy import text
 from app.db.session import SessionLocal
 from app.models import user_model, doc_model, chat_model, sys_model
 from app.models.doc_model import Document, DocumentPage
@@ -53,18 +52,10 @@ def clear_all(db):
     finally:
         vs_module._vector_store = None
 
-    try:
-        db.execute(text("DELETE FROM document_pages_fts"))
-        db.commit()
-        print("  [OK] FTS5 index đã xóa")
-    except Exception as e:
-        db.rollback()
-        print(f"  [WARN] FTS5: {e}")
-
     page_count = db.query(DocumentPage).delete()
     doc_count = db.query(Document).delete()
     db.commit()
-    print(f"  [OK] Đã xóa {doc_count} documents, {page_count} pages khỏi SQLite")
+    print(f"  [OK] Đã xóa {doc_count} documents, {page_count} pages khỏi MySQL")
 
 
 def ingest_folder(db, folder_name):
