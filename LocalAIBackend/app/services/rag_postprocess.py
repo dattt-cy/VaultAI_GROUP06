@@ -9,7 +9,7 @@ _NOT_FOUND_PATTERN = re.compile(
 )
 
 _CITATION_BLOCK_PATTERN = re.compile(
-    r'\n{0,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Trích dẫn|Nguồn trích dẫn|Tham khảo|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu)\s*:.*',
+    r'\n{0,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Trích dẫn|Nguồn trích dẫn|Tham khảo|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu|Tài liệu)\s*[:\.]?.*',
     re.IGNORECASE | re.DOTALL,
 )
 

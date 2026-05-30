@@ -215,6 +215,68 @@ async def chat_message_stream(
     )
 
 
+class DiscoverRequest(BaseModel):
+    intent: str
+
+
+@router.post("/discover-documents")
+async def discover_documents(
+    request: DiscoverRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gợi ý tài liệu phù hợp dựa trên mục đích của user, không cần chọn tài liệu trước."""
+    from app.services.vector_store import search_documents
+
+    allowed = _resolve_allowed_doc_ids(db, current_user, None)
+
+    if allowed is not None and len(allowed) == 0:
+        return []
+
+    filter_dict = None
+    if allowed is not None:
+        filter_dict = {"document_id": {"$in": allowed}}
+
+    results = search_documents(request.intent, k=40, filter_dict=filter_dict)
+
+    MIN_SCORE = 0.45
+    doc_map: dict[int, dict] = {}
+    for doc, score in results:
+        if score < MIN_SCORE:
+            continue
+        raw_id = doc.metadata.get("document_id")
+        if raw_id is None:
+            continue
+        doc_id = int(raw_id)
+        if doc_id not in doc_map or score > doc_map[doc_id]["score"]:
+            doc_map[doc_id] = {
+                "score": score,
+                "preview": doc.page_content[:200].strip(),
+            }
+
+    if not doc_map:
+        return []
+
+    doc_ids = list(doc_map.keys())
+    docs = db.query(Document).filter(
+        Document.id.in_(doc_ids),
+        Document.document_scope != "PERSONAL",
+    ).all()
+    doc_titles = {d.id: d.title for d in docs}
+
+    sorted_docs = sorted(doc_map.items(), key=lambda x: x[1]["score"], reverse=True)[:7]
+    return [
+        {
+            "document_id": doc_id,
+            "title": doc_titles.get(doc_id, f"Tài liệu #{doc_id}"),
+            "preview": info["preview"],
+            "score": round(info["score"], 3),
+        }
+        for doc_id, info in sorted_docs
+        if doc_id in doc_titles
+    ]
+
+
 @router.get("/suggestions")
 async def get_suggestions(
     doc_ids: Optional[str] = Query(None),
