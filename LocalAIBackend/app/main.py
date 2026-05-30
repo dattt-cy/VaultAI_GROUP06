@@ -44,8 +44,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
-                   "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origins=[],
+    allow_origin_regex=r".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,6 +70,17 @@ app.include_router(admin_users.router, prefix="/api/admin", tags=["Admin - Users
 app.include_router(admin_permissions.router, prefix="/api/admin", tags=["Admin - Permissions"], dependencies=[Depends(require_min_level(5))])
 app.include_router(admin_monitor.router, prefix="/api/admin", tags=["Admin - Monitor"], dependencies=[Depends(require_min_level(5))])
 app.include_router(admin_actions.router, prefix="/api/admin", tags=["Admin - Actions"])
+
+
+@app.on_event("startup")
+def warmup_embedding_model():
+    """Pre-load embedding model trong main thread để background thread dùng lại singleton, tránh meta tensor error."""
+    try:
+        from app.services.vector_store import get_embedding_model
+        get_embedding_model()
+        print("[Startup] Embedding model đã được load sẵn.")
+    except Exception as e:
+        print(f"[Startup] WARNING: Không thể pre-load embedding model: {e}")
 
 
 @app.on_event("startup")

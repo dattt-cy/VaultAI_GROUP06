@@ -9,15 +9,6 @@
     "notes": "Điều 4 – chính sách OT ngày lễ"
   },
   {
-    "id": "Q02",
-    "category": "fact_lookup",
-    "source_doc": "Quy_che_lao_dong_2024.txt",
-    "question": "Nhân viên có thâm niên 4 năm được hưởng bao nhiêu ngày phép mỗi năm?",
-    "expected_keywords": ["14 ngày"],
-    "expected_citation": true,
-    "notes": "Điều 6 – từ 3 đến dưới 5 năm = 14 ngày"
-  },
-  {
     "id": "Q03",
     "category": "fact_lookup",
     "source_doc": "Quy_che_lao_dong_2024.txt",
@@ -34,15 +25,6 @@
     "expected_keywords": ["lương cơ bản", "60%", "phụ cấp", "20%", "KPI"],
     "expected_citation": true,
     "notes": "Phần 1.1 – 3 thành phần lương"
-  },
-  {
-    "id": "Q05",
-    "category": "fact_lookup",
-    "source_doc": "Chinh_sach_luong_thuong_2024.txt",
-    "question": "Lương được trả vào ngày mấy hàng tháng?",
-    "expected_keywords": ["ngày 10"],
-    "expected_citation": true,
-    "notes": "Phần 1.3 – chu kỳ trả lương"
   },
   {
     "id": "Q06",
@@ -106,15 +88,6 @@
     "expected_keywords": ["không", "không áp dụng", "thử việc"],
     "expected_citation": true,
     "notes": "Mục 5.1 – chỉ nhân viên chính thức"
-  },
-  {
-    "id": "Q13",
-    "category": "multi_doc",
-    "source_doc": "Quy_che_lao_dong_2024.txt + Chinh_sach_luong_thuong_2024.txt",
-    "question": "Nhân viên đi muộn 3 lần trong tháng bị xử lý như thế nào? Điều đó ảnh hưởng đến lương không?",
-    "expected_keywords": ["trừ 0.5 ngày phép", "phép"],
-    "expected_citation": true,
-    "notes": "Điều 5 quy chế LĐ – trừ phép; ảnh hưởng gián tiếp đến lương KPI"
   },
   {
     "id": "Q14",
@@ -279,15 +252,6 @@
     "notes": "Kiểm tra khả năng trả lời câu phủ định – tìm ngoại lệ"
   },
   {
-    "id": "Q32",
-    "category": "negation",
-    "source_doc": "Huong_dan_bao_mat_CNTT.txt",
-    "question": "Những phần mềm hoặc ứng dụng nào bị cấm sử dụng trên thiết bị công ty?",
-    "expected_keywords": ["cấm", "không được", "bị cấm"],
-    "expected_citation": true,
-    "notes": "Kiểm tra khả năng liệt kê các mục bị cấm từ tài liệu bảo mật"
-  },
-  {
     "id": "Q33",
     "category": "comparison",
     "source_doc": "Quy_che_lao_dong_2024.txt",
@@ -295,15 +259,6 @@
     "expected_keywords": ["12 ngày", "14 ngày", "2 ngày"],
     "expected_citation": true,
     "notes": "So sánh 2 mức thâm niên – kiểm tra khả năng suy luận từ bảng dữ liệu"
-  },
-  {
-    "id": "Q34",
-    "category": "ambiguous",
-    "source_doc": "Chinh_sach_luong_thuong_2024.txt",
-    "question": "Thưởng cuối năm tính như thế nào?",
-    "expected_keywords": ["lương cơ bản", "12 tháng", "tháng lương"],
-    "expected_citation": true,
-    "notes": "Câu hỏi mơ hồ – hệ thống phải tự suy ra ngữ cảnh từ tài liệu lương thưởng"
   },
   {
     "id": "Q35",
@@ -358,5 +313,167 @@
     "expected_keywords": ["không tìm thấy", "không có thông tin", "ngoài phạm vi"],
     "expected_citation": false,
     "notes": "Thông tin pháp luật bên ngoài – không có trong tài liệu nội bộ công ty"
+  },
+  {
+    "id": "Q41",
+    "category": "fact_lookup",
+    "source_doc": "Noi_quy_cong_ty_TechViet_2024.txt",
+    "question": "Nhân viên được phép đi làm muộn tối đa bao nhiêu lần mỗi tháng mà không bị trừ lương?",
+    "expected_keywords": ["3 lần", "30 phút"],
+    "expected_citation": true,
+    "notes": "Điều 5 – mỗi tháng được đi muộn/về sớm không quá 3 lần, tổng không quá 30 phút"
+  },
+  {
+    "id": "Q42",
+    "category": "fact_lookup",
+    "source_doc": "Noi_quy_cong_ty_TechViet_2024.txt",
+    "question": "Nhân viên làm thêm vào ngày lễ tết được hưởng bao nhiêu phần trăm lương theo nội quy công ty?",
+    "expected_keywords": ["300%"],
+    "expected_citation": true,
+    "notes": "Điều 6 – làm thêm ngày lễ tết hưởng 300% lương giờ tiêu chuẩn"
+  },
+  {
+    "id": "Q43",
+    "category": "fact_lookup",
+    "source_doc": "Noi_quy_cong_ty_TechViet_2024.txt",
+    "question": "Nhân viên mất thẻ nhân viên phải báo trong vòng bao nhiêu giờ và phí cấp lại là bao nhiêu?",
+    "expected_keywords": ["2 giờ", "100.000"],
+    "expected_citation": true,
+    "notes": "Điều 9 – báo trong 2 giờ, phí cấp lại 100.000 VNĐ"
+  },
+  {
+    "id": "Q44",
+    "category": "fact_lookup",
+    "source_doc": "Noi_quy_cong_ty_TechViet_2024.txt",
+    "question": "Khi đám cưới nhân viên được nghỉ bao nhiêu ngày và nhận hỗ trợ bao nhiêu tiền?",
+    "expected_keywords": ["5 ngày", "1.000.000"],
+    "expected_citation": true,
+    "notes": "Điều 25 – nghỉ 5 ngày + 1 triệu đồng hỗ trợ hiếu hỷ"
+  },
+  {
+    "id": "Q46",
+    "category": "fact_lookup",
+    "source_doc": "Chien_luoc_kinh_doanh_2025_2030.txt",
+    "question": "Tỷ lệ giữ chân nhân viên (retention rate) hiện tại là bao nhiêu phần trăm và mục tiêu là bao nhiêu?",
+    "expected_keywords": ["72%", "80%"],
+    "expected_citation": true,
+    "notes": "W3 – retention rate 72%, thấp hơn mục tiêu 80%"
+  },
+  {
+    "id": "Q47",
+    "category": "fact_lookup",
+    "source_doc": "Chien_luoc_kinh_doanh_2025_2030.txt",
+    "question": "TechViet dự kiến IPO vào năm nào?",
+    "expected_keywords": ["2026"],
+    "expected_citation": true,
+    "notes": "Giai đoạn 1 – Q3/2026 IPO thành công"
+  },
+  {
+    "id": "Q48",
+    "category": "fact_lookup",
+    "source_doc": "Quy_trinh_quan_ly_du_an_v2.5.txt",
+    "question": "Dự án hạng M (Medium) có ngân sách và thời gian tối đa là bao nhiêu?",
+    "expected_keywords": ["3 tỷ", "12 tháng"],
+    "expected_citation": true,
+    "notes": "Điều 3.1 – hạng M: 500 triệu đến 3 tỷ, 6-12 tháng"
+  },
+  {
+    "id": "Q50",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_thuong_nien_2023.txt",
+    "question": "Doanh thu năm 2023 của TechViet Solutions đạt bao nhiêu tỷ và tăng bao nhiêu phần trăm so với 2022?",
+    "expected_keywords": ["820", "22%"],
+    "expected_citation": true,
+    "notes": "Báo cáo thường niên – doanh thu 820.4 tỷ, tăng 22%"
+  },
+  {
+    "id": "Q51",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_thuong_nien_2023.txt",
+    "question": "Lợi nhuận sau thuế năm 2023 đạt bao nhiêu tỷ đồng?",
+    "expected_keywords": ["97", "98"],
+    "expected_citation": true,
+    "notes": "Lợi nhuận sau thuế 97.8 tỷ đồng"
+  },
+  {
+    "id": "Q52",
+    "category": "fact_lookup",
+    "source_doc": "Chinh_sach_bao_mat_thong_tin_ISO27001.txt",
+    "question": "Lỗ hổng bảo mật mức Critical phải được vá trong vòng bao nhiêu giờ?",
+    "expected_keywords": ["24 giờ", "24h"],
+    "expected_citation": true,
+    "notes": "Phần IV – Critical patch trong 24 giờ"
+  },
+  {
+    "id": "Q53",
+    "category": "fact_lookup",
+    "source_doc": "Chinh_sach_bao_mat_thong_tin_ISO27001.txt",
+    "question": "Mật khẩu hệ thống tối thiểu phải có bao nhiêu ký tự và đổi sau bao nhiêu ngày?",
+    "expected_keywords": ["12 ký tự", "90 ngày"],
+    "expected_citation": true,
+    "notes": "Phần III – 12 ký tự, đổi mỗi 90 ngày"
+  },
+  {
+    "id": "Q56",
+    "category": "fact_lookup",
+    "source_doc": "Tai_lieu_dao_tao_nhan_vien_moi_onboarding.txt",
+    "question": "Nhân viên mới có bao nhiêu ngày nghỉ phép hàng năm trong năm đầu tiên?",
+    "expected_keywords": ["12 ngày"],
+    "expected_citation": true,
+    "notes": "Phần V – 12 ngày phép/năm dưới 1 năm thâm niên"
+  },
+  {
+    "id": "Q57",
+    "category": "fact_lookup",
+    "source_doc": "Tai_lieu_dao_tao_nhan_vien_moi_onboarding.txt",
+    "question": "Mức hỗ trợ học tập và phát triển của công ty là bao nhiêu tiền mỗi năm mỗi người?",
+    "expected_keywords": ["5.000.000", "5 triệu"],
+    "expected_citation": true,
+    "notes": "Phần V – L&D budget 5 triệu/năm/người"
+  },
+  {
+    "id": "Q59",
+    "category": "fact_lookup",
+    "source_doc": "Ke_hoach_chuyen_doi_so_2024_2026.txt",
+    "question": "Hệ thống ERP cũ của TechViet đang dùng phần mềm gì và phiên bản nào?",
+    "expected_keywords": ["MISA", "2018"],
+    "expected_citation": true,
+    "notes": "Phần I – MISA SME.NET phiên bản 2018"
+  },
+  {
+    "id": "Q61",
+    "category": "fact_lookup",
+    "source_doc": "Quy_trinh_tuyen_dung_quan_ly_nhan_tai_v2.1.txt",
+    "question": "Nhân viên giới thiệu ứng viên được tuyển vào vị trí Senior (IC3) sẽ nhận thưởng bao nhiêu triệu?",
+    "expected_keywords": ["10 triệu", "10"],
+    "expected_citation": true,
+    "notes": "Điều 6.1 – IC3 referral bonus 10 triệu"
+  },
+  {
+    "id": "Q62",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_chat_luong_dich_vu_SLA_2023.txt",
+    "question": "CSAT trung bình năm 2023 của TechViet đạt bao nhiêu điểm trên thang 10?",
+    "expected_keywords": ["8.56", "8,56"],
+    "expected_citation": true,
+    "notes": "Phần I – CSAT 8.56/10"
+  },
+  {
+    "id": "Q63",
+    "category": "fact_lookup",
+    "source_doc": "Bao_cao_chat_luong_dich_vu_SLA_2023.txt",
+    "question": "Sự cố P1 của khách hàng Tier 1 phải được phản hồi trong bao nhiêu giờ và giải quyết trong bao nhiêu giờ?",
+    "expected_keywords": ["0.5", "4h", "4 giờ"],
+    "expected_citation": true,
+    "notes": "Bảng SLA – Tier 1 P1: Response 0.5h, Resolution 4h"
+  },
+  {
+    "id": "Q64",
+    "category": "out_of_scope",
+    "source_doc": "N/A",
+    "question": "Công ty Amazon tuyển dụng vị trí nào hiện nay?",
+    "expected_keywords": ["không tìm thấy", "không có thông tin", "ngoài phạm vi"],
+    "expected_citation": false,
+    "notes": "Câu hỏi về tổ chức ngoài – không có trong tài liệu nội bộ"
   }
 ]

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     THINKING_MODEL_NAME: str = "qwen3:8b"  # Model hỗ trợ native thinking qua Ollama think=true
     
     # Embedding Model Settings
-    EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
+    EMBEDDING_MODEL_NAME: str = "./models/bge-m3"
     
     # Reranker Model Settings (Cross-Encoder)
     # mmarco-mMiniLMv2-L12-H384-v1: ~400MB, trained on mMARCO (multilingual incl. Vietnamese)

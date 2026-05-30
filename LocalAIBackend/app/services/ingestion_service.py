@@ -1,12 +1,12 @@
 """
 Ingestion Service
 =================
-Luồng xử lý trọn gói từ file → vector store + SQLite:
+Luồng xử lý trọn gói từ file → vector store + MySQL:
 1. Hash file để kiểm tra trùng lặp
 2. Tạo Document record (PROCESSING)
 3. Trích text theo định dạng (pdf/txt/docx/xlsx)
 4. Chunk text → embeddings → ChromaDB
-5. Cross-reference chunks vào SQLite document_pages
+5. Cross-reference chunks vào MySQL document_pages
 6. Cập nhật status SUCCESS / FAILED
 """
 
@@ -117,7 +117,7 @@ def ingest_file(
 ) -> object:
     """
     Hàm chính: nhận file đã được lưu disk, trích xuất text, chunk,
-    đẩy vào ChromaDB và SQLite. Trả về Document ORM object.
+    đẩy vào ChromaDB và MySQL. Trả về Document ORM object.
     """
     # 1. Đo lường cơ bản
     file_size = os.path.getsize(file_path)
@@ -157,7 +157,7 @@ def ingest_file(
         if not chunks_with_pages:
             raise ValueError("File không có nội dung văn bản để xử lý")
 
-        # ── Lưu parent-child vào SQLite + ChromaDB ──
+        # ── Lưu parent-child vào MySQL + ChromaDB ──
         documents_for_vector: list = []
         metadatas_for_vector: list = []
         chroma_ids_input: list = []
@@ -213,7 +213,7 @@ def _save_parent_child_chunks(
     chroma_ids_input: list,
 ) -> int:
     """
-    Lưu parent-child chunks vào SQLite.
+    Lưu parent-child chunks vào MySQL.
     Pass 1: lưu parent rows → lấy DB ids.
     Pass 2: lưu child rows với parent_chunk_id → thêm vào ChromaDB batch.
     Chỉ child rows được insert vào ChromaDB và FTS5.

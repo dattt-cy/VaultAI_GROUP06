@@ -48,6 +48,7 @@ from .rag_prompts import (
 from .rag_postprocess import (
     fix_bullet_indentation,
     fix_missing_doc_name,
+    strip_citation_block,
     strip_inline_article_refs,
     strip_nguon_blocks,
     strip_question_echo,
@@ -420,6 +421,7 @@ def query_rag(query: str, db: Session, allowed_doc_ids: list = None,
     safe_response = fix_bullet_indentation(safe_response)
     safe_response = fix_missing_doc_name(safe_response, chunks)
     safe_response = strip_question_echo(safe_response, query)
+    safe_response = strip_citation_block(safe_response)
     safe_response = strip_nguon_blocks(safe_response)
     safe_response = strip_tai_lieu_labels(safe_response)
     safe_response = strip_inline_article_refs(safe_response)
@@ -606,6 +608,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         safe_response = fix_bullet_indentation(safe_response)
         safe_response = fix_missing_doc_name(safe_response, chunks)
         safe_response = strip_question_echo(safe_response, query)
+        safe_response = strip_citation_block(safe_response)
         safe_response = strip_nguon_blocks(safe_response)
         safe_response = strip_tai_lieu_labels(safe_response)
         safe_response = strip_inline_article_refs(safe_response)

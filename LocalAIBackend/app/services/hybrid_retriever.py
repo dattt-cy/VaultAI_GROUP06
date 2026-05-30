@@ -297,7 +297,7 @@ def hybrid_retrieve(
     Hàm chính: Thực hiện Hybrid RAG Retrieval và trả về danh sách RetrievedChunk.
 
     Args:
-        db:              SQLAlchemy session.
+        db:              MYSQL.
         query:           Câu hỏi của người dùng.
         top_k:           Số chunk hạt nhân cần lấy TRƯỚC khi mở rộng.
         neighbor_window: Số chunk liền kề mỗi bên để bổ sung ngữ cảnh.

@@ -8,10 +8,20 @@ _NOT_FOUND_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_CITATION_BLOCK_PATTERN = re.compile(
+    r'\n{0,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Trích dẫn|Nguồn trích dẫn|Tham khảo|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu)\s*:.*',
+    re.IGNORECASE | re.DOTALL,
+)
+
 _MISSING_DOC_NAME_PATTERN = re.compile(
     r'trong tài liệu\s*\.',
     re.IGNORECASE,
 )
+
+
+def strip_citation_block(text: str) -> str:
+    """Xóa block 'Trích dẫn từ tài liệu:' mà LLM tự sinh ra — frontend đã hiển thị citations."""
+    return _CITATION_BLOCK_PATTERN.sub('', text).strip()
 
 
 def strip_spurious_not_found(text: str) -> str:
