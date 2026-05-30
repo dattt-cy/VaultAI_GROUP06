@@ -30,3 +30,6 @@ docs/
 # Runtime uploads — không track file người dùng upload lúc chạy
 uploads/*
 !uploads/.gitkeep
+
+# AI models — quá nặng, không commit
+models/
