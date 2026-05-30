@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight as ChevronRightIcon, BookOpen, MessageSquare, FileText } from 'lucide-react';
 import { TopHeader } from './TopHeader';
 import { LeftPanel } from '../left-panel/LeftPanel';
 import { ChatPanel } from '../chat-panel/ChatPanel';
@@ -14,6 +14,8 @@ interface ClientWorkspaceProps {
   initialSessionId?: number | null;
 }
 
+type MobileTab = 'sources' | 'chat' | 'document';
+
 export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSessionId }) => {
   const navigate = useNavigate();
   const [activeFile, setActiveFile] = useState<string | null>(null);
@@ -22,6 +24,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const [selectedDocNames, setSelectedDocNames] = useState<string[]>([]);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
+  const [mobileTab, setMobileTab] = useState<MobileTab>('chat');
 
   const {
     messages, isGenerating, cancelledQuestion, currentSessionId, sessionTitle,
@@ -34,15 +37,12 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
     .filter(d => !['PENDING', 'PROCESSING', 'FAILED'].includes(d.ingestion_status))
     .map(d => ({ id: d.id, name: d.title }));
 
-  // Load session từ URL param khi workspace mở
-  // Guard: không reload nếu currentSessionId đã khớp (URL vừa được sync sau khi tạo session mới)
   useEffect(() => {
     if (initialSessionId && initialSessionId !== currentSessionId) {
       loadSession(initialSessionId);
     }
   }, [initialSessionId]); // eslint-disable-line
 
-  // Đồng bộ URL với session hiện tại để refresh không mất lịch sử
   useEffect(() => {
     if (currentSessionId) {
       navigate(`/workspace?id=${currentSessionId}`, { replace: true });
@@ -54,6 +54,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const handleCitationClick = (c: Citation, sourceLine?: string) => {
     setActiveFile(c.sourceFile);
     highlightCitation(c, sourceLine);
+    setMobileTab('document');
   };
 
   const handleSelectionChange = useCallback((ids: Set<number>, names: string[]) => {
@@ -64,15 +65,35 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
   const leftWidth = leftOpen ? '320px' : '0px';
   const rightWidth = rightOpen ? '360px' : '0px';
 
+  const tabConfig: { key: MobileTab; label: string; icon: React.ReactNode; badge?: number }[] = [
+    {
+      key: 'sources',
+      label: 'Nguồn',
+      icon: <BookOpen className="w-5 h-5" />,
+      badge: checkedIds.size > 0 ? checkedIds.size : undefined,
+    },
+    {
+      key: 'chat',
+      label: 'Trò chuyện',
+      icon: <MessageSquare className="w-5 h-5" />,
+      badge: messages.filter(m => m.role === 'assistant').length || undefined,
+    },
+    {
+      key: 'document',
+      label: 'Tài liệu',
+      icon: <FileText className="w-5 h-5" />,
+    },
+  ];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', minHeight: '-webkit-fill-available', overflow: 'hidden' }}>
       <TopHeader
         sessionTitle={sessionTitle}
         onRenameSession={currentSessionId ? (t) => renameSession(currentSessionId, t) : undefined}
       />
 
-      {/* Wrapper relative để đặt toggle buttons lên trên grid */}
-      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+      {/* ── DESKTOP layout ── */}
+      <div className="hidden md:block" style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <div style={{
           position: 'absolute', inset: 0,
           display: 'grid',
@@ -80,7 +101,6 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
           transition: 'grid-template-columns 200ms ease',
           overflow: 'hidden',
         }}>
-          {/* LEFT: Source management */}
           <div style={{ overflow: 'hidden', minWidth: 0 }}>
             <LeftPanel
               onSelectFile={setActiveFile}
@@ -91,7 +111,6 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             />
           </div>
 
-          {/* CENTER: Chatbot */}
           <ChatPanel
             messages={messages}
             isGenerating={isGenerating}
@@ -110,7 +129,6 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             availableDocs={allDocs}
           />
 
-          {/* RIGHT: Document viewer */}
           <div style={{ overflow: 'hidden', minWidth: 0 }}>
             <DocumentPanel
               highlight={highlight}
@@ -120,7 +138,6 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
           </div>
         </div>
 
-        {/* Re-open tabs — chỉ hiện khi panel đang đóng */}
         {!leftOpen && (
           <button
             onClick={() => setLeftOpen(true)}
@@ -141,6 +158,84 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             <ChevronLeft className="w-3 h-3" />
           </button>
         )}
+      </div>
+
+      {/* ── MOBILE layout ── */}
+      <div className="flex md:hidden flex-col" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        {/* Panel area */}
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ display: mobileTab === 'sources' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+            <LeftPanel
+              onSelectFile={(f) => { setActiveFile(f); setMobileTab('document'); }}
+              onSelectionChange={handleSelectionChange}
+              onBackToDashboard={() => navigate('/dashboard')}
+              onCollapse={() => setMobileTab('chat')}
+              currentSessionId={currentSessionId}
+            />
+          </div>
+
+          <div style={{ display: mobileTab === 'chat' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+            <ChatPanel
+              messages={messages}
+              isGenerating={isGenerating}
+              onSend={(text, taggedDocIds) => sendMessage(text, taggedDocIds ?? Array.from(checkedIds))}
+              onCancel={cancelMessage}
+              onRegenerate={() => regenerateLast(Array.from(checkedIds))}
+              onEditUserMessage={(id, text) => editAndResend(id, text, Array.from(checkedIds))}
+              onCitationClick={handleCitationClick}
+              onFeedback={setFeedback}
+              onReport={reportMessage}
+              prefill={prefill || cancelledQuestion || undefined}
+              onPrefillConsumed={() => setPrefill(undefined)}
+              checkedCount={checkedIds.size}
+              checkedIds={checkedIds}
+              selectedDocNames={selectedDocNames}
+              availableDocs={allDocs}
+            />
+          </div>
+
+          <div style={{ display: mobileTab === 'document' ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+            <DocumentPanel
+              highlight={highlight}
+              activeFile={activeFile}
+              onCollapse={() => setMobileTab('chat')}
+            />
+          </div>
+        </div>
+
+        {/* Bottom tab bar */}
+        <nav
+          style={{ flexShrink: 0 }}
+          className="flex flex-col bg-surface border-t border-border"
+        >
+          <div className="flex items-stretch">
+          {tabConfig.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setMobileTab(tab.key)}
+              className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-colors
+                ${mobileTab === tab.key
+                  ? 'text-accent'
+                  : 'text-text-muted'}`}
+            >
+              <div className="relative">
+                {tab.icon}
+                {tab.badge !== undefined && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {tab.badge > 99 ? '99+' : tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] font-medium">{tab.label}</span>
+              {mobileTab === tab.key && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-accent" />
+              )}
+            </button>
+          ))}
+          </div>
+          {/* Fill iOS home indicator area */}
+          <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} className="bg-surface" />
+        </nav>
       </div>
     </div>
   );

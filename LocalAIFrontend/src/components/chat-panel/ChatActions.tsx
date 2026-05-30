@@ -59,17 +59,18 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
 
   return (
     <>
-      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50">
+      <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50 overflow-x-auto scrollbar-none">
         {/* Like */}
         <button
           onClick={() => onFeedback(messageId, 'like')}
+          title="Hữu ích"
           className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border
             ${feedback === 'like'
               ? 'bg-success/15 border-success/40 text-success'
               : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}
         >
           <ThumbsUp className={`w-3.5 h-3.5 ${feedback === 'like' ? 'fill-success' : ''}`} />
-          Hữu ích
+          <span className="hidden sm:inline">Hữu ích</span>
         </button>
 
         {/* Dislike + popover */}
@@ -82,7 +83,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
                 : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}
           >
             <ThumbsDown className={`w-3.5 h-3.5 ${feedback === 'dislike' ? 'fill-danger' : ''}`} />
-            Chưa tốt
+            <span className="hidden sm:inline">Chưa tốt</span>
           </button>
 
           {showDislikePopover && (
@@ -143,7 +144,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary disabled:opacity-40"
         >
           {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? 'Đã sao chép' : 'Sao chép'}
+          <span className="hidden sm:inline">{copied ? 'Đã sao chép' : 'Sao chép'}</span>
         </button>
 
         {/* Regenerate — only on last assistant */}
@@ -155,7 +156,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] transition-all duration-150 cursor-pointer border border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            Tạo lại
+            <span className="hidden sm:inline">Tạo lại</span>
           </button>
         )}
 
@@ -171,7 +172,7 @@ export const ChatActions: React.FC<ChatActionsProps> = ({ messageId, feedback, o
               : 'bg-transparent border-transparent text-text-muted hover:bg-elevated hover:text-text-secondary'}`}
         >
           <AlertCircle className="w-3.5 h-3.5" />
-          {feedback === 'report' ? 'Đã báo' : 'Báo lỗi'}
+          <span className="hidden sm:inline">{feedback === 'report' ? 'Đã báo' : 'Báo lỗi'}</span>
         </button>
       </div>
 

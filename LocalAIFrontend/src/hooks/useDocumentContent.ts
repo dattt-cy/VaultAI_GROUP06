@@ -36,7 +36,7 @@ export function useDocumentContent(filename?: string | null) {
     const fetchContent = async () => {
       try {
         const response = await fetch(
-          `http://localhost:8000/api/documents/content?filename=${encodeURIComponent(filename)}`,
+          `/api/documents/content?filename=${encodeURIComponent(filename)}`,
           { credentials: 'include' }
         );
 

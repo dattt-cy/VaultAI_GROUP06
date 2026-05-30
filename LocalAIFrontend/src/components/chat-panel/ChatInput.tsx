@@ -331,7 +331,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   );
 
   return (
-    <div ref={containerRef} className="px-4 pb-4 pt-3 border-t border-border bg-surface flex-shrink-0">
+    <div ref={containerRef} className="px-1.5 sm:px-4 pb-2 sm:pb-4 pt-2 sm:pt-3 border-t border-border bg-surface flex-shrink-0">
 
       {effectivelyBlocked && (
         <div className="flex items-center gap-2 mb-2.5 px-3 py-2 rounded-lg bg-warning/8 border border-warning/25 animate-fade-in">
@@ -408,7 +408,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   ? 'Chọn nguồn tài liệu hoặc dùng @ để tag...'
                   : hasTaggedDocs
                     ? `Hỏi về ${taggedDocs.length > 1 ? `${taggedDocs.length} tài liệu đã tag` : shortName(taggedDocs[0].name)}...`
-                    : 'Đặt câu hỏi... (Enter gửi · Shift+Enter xuống dòng · @ tag tài liệu · ↑ sửa câu trước)'
+                    : (window.innerWidth < 640 ? 'Đặt câu hỏi...' : 'Đặt câu hỏi... (Enter gửi · Shift+Enter xuống dòng · @ tag tài liệu · ↑ sửa câu trước)')
               }
               disabled={disabled || effectivelyBlocked}
               aria-label="Soạn câu hỏi"

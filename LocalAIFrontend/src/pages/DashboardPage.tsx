@@ -199,7 +199,7 @@ export const DashboardPage: React.FC = () => {
 
       {/* ── Main Content ── */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl w-full mx-auto px-8 py-10">
+        <div className="max-w-7xl w-full mx-auto px-3 sm:px-8 py-5 sm:py-10">
 
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
             <div>
@@ -210,7 +210,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Search + Sort toolbar */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-shrink-0">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
                 <input

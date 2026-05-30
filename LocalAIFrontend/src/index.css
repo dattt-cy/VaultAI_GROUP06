@@ -4,6 +4,12 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    /* iOS: background color fills safe-area below tab bar */
+    background-color: #161b22;
+    height: 100%;
+  }
+
   :root {
     color-scheme: dark;
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
@@ -17,12 +23,21 @@
     @apply bg-base text-text-primary;
     margin: 0;
     overflow: hidden;
+    /* iOS safe area background */
+    background-color: var(--color-base);
   }
 
   #root {
-    @apply w-screen h-screen flex flex-col;
+    width: 100vw;
+    height: 100vh;
+    height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
+
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
   /* Scrollbar */
   ::-webkit-scrollbar { width: 5px; height: 5px; }

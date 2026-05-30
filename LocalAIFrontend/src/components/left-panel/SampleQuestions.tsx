@@ -45,7 +45,7 @@ export const SampleQuestions: React.FC<SampleQuestionsProps> = ({ onSelect, chec
     setDynError(false);
     try {
       const ids = Array.from(checkedDocIds).join(',');
-      const res = await fetch(`http://localhost:8000/api/chat/suggestions?doc_ids=${ids}`);
+      const res = await fetch(`/api/chat/suggestions?doc_ids=${ids}`);
       if (!res.ok) throw new Error();
       const data = await res.json();
       setDynSuggestions(data.suggestions || []);
