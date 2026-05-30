@@ -296,14 +296,25 @@ interface FileExplorerProps {
   error: string | null;
   refetch: () => void;
   activeScope?: 'PERSONAL' | 'COMPANY';
+  externalCheckedIds?: Set<number>;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({
   onSelectFile, onSelectionChange, onDelete, search = '',
   sharedDocs, privateDocs, categories, loading, error, refetch,
-  activeScope = 'COMPANY',
+  activeScope = 'COMPANY', externalCheckedIds,
 }) => {
   const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!externalCheckedIds || externalCheckedIds.size === 0) return;
+    setCheckedIds(prev => {
+      const merged = new Set([...prev, ...externalCheckedIds]);
+      if (merged.size === prev.size) return prev;
+      onSelectionChange(merged);
+      return merged;
+    });
+  }, [externalCheckedIds]); // eslint-disable-line
   const [sharedOpen, setSharedOpen] = useState(true);
   const [privateOpen, setPrivateOpen] = useState(true);
 

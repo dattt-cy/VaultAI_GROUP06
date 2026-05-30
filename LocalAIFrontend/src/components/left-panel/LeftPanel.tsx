@@ -11,10 +11,12 @@ interface LeftPanelProps {
   onBackToDashboard: () => void;
   onCollapse?: () => void;
   currentSessionId?: number | null;
+  externalCheckedIds?: Set<number>;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
   onSelectFile, onSelectionChange, onBackToDashboard, onCollapse, currentSessionId,
+  externalCheckedIds,
 }) => {
   const { sharedDocs, privateDocs, categories, loading, error, refetch, deleteDocument, addOptimisticDoc, removeOptimisticDoc } = useDocumentTree(currentSessionId);
 
@@ -111,6 +113,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           error={error}
           refetch={refetch}
           activeScope={scope}
+          externalCheckedIds={externalCheckedIds}
         />
       </div>
 

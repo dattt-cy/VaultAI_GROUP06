@@ -404,13 +404,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onChange={handleChange}
               onKeyDown={handleKeyDown}
               placeholder={
-                effectivelyBlocked
-                  ? 'Chọn nguồn tài liệu hoặc dùng @ để tag...'
-                  : hasTaggedDocs
-                    ? `Hỏi về ${taggedDocs.length > 1 ? `${taggedDocs.length} tài liệu đã tag` : shortName(taggedDocs[0].name)}...`
+                hasTaggedDocs
+                  ? `Hỏi về ${taggedDocs.length > 1 ? `${taggedDocs.length} tài liệu đã tag` : shortName(taggedDocs[0].name)}...`
+                  : noSources
+                    ? 'Mô tả mục đích của bạn để AI gợi ý tài liệu...'
                     : (window.innerWidth < 640 ? 'Đặt câu hỏi...' : 'Đặt câu hỏi... (Enter gửi · Shift+Enter xuống dòng · @ tag tài liệu · ↑ sửa câu trước)')
               }
-              disabled={disabled || effectivelyBlocked}
+              disabled={disabled}
               aria-label="Soạn câu hỏi"
               aria-invalid={overLimit || undefined}
               aria-autocomplete="list"

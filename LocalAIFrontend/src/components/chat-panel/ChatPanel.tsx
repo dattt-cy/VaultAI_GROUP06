@@ -1,9 +1,17 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { MessageSquare, Loader2, BookOpen, ChevronDown } from 'lucide-react';
+import { MessageSquare, Loader2, BookOpen, ChevronDown, Search, FileText, ArrowRight, X } from 'lucide-react';
+
 import type { Message, Citation } from '../../hooks/useChatState';
 import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { SampleQuestions } from '../left-panel/SampleQuestions';
+
+interface DiscoveredDoc {
+  document_id: number;
+  title: string;
+  preview: string;
+  score: number;
+}
 
 interface ChatPanelProps {
   messages: Message[];
@@ -21,12 +29,14 @@ interface ChatPanelProps {
   checkedIds?: Set<number>;
   selectedDocNames?: string[];
   availableDocs?: { id: number; name: string }[];
+  onAutoSelectDocs?: (docs: { id: number; name: string }[]) => void;
 }
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   messages, isGenerating, onSend, onCancel, onRegenerate, onEditUserMessage,
   onCitationClick, onFeedback, onReport, prefill, onPrefillConsumed,
   checkedCount, checkedIds, selectedDocNames = [], availableDocs = [],
+  onAutoSelectDocs,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -35,6 +45,58 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [newMsgCount, setNewMsgCount] = useState(0);
   const [editPrefill, setEditPrefill] = useState<string | undefined>();
+
+  // Discovery state
+  const [discoveryResults, setDiscoveryResults] = useState<DiscoveredDoc[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryMode, setDiscoveryMode] = useState(false);
+
+  const runDiscovery = useCallback(async (intent: string) => {
+    if (!intent.trim()) return;
+    setIsDiscovering(true);
+    setDiscoveryMode(true);
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE}/api/chat/discover-documents`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ intent }),
+      });
+      if (res.ok) {
+        const data: DiscoveredDoc[] = await res.json();
+        setDiscoveryResults(data);
+      }
+    } catch {
+      // silent
+    } finally {
+      setIsDiscovering(false);
+    }
+  }, []);
+
+  // Intercept send when no sources: use message as discovery intent
+  const handleSend = useCallback((text: string, taggedDocIds?: number[]) => {
+    if (checkedCount === 0 && (!taggedDocIds || taggedDocIds.length === 0)) {
+      runDiscovery(text);
+      return;
+    }
+    onSend(text, taggedDocIds);
+  }, [checkedCount, onSend, runDiscovery]);
+
+  const handleSelectDiscoveredDoc = useCallback((doc: DiscoveredDoc) => {
+    onAutoSelectDocs?.([{ id: doc.document_id, name: doc.title }]);
+    setDiscoveryMode(false);
+    setDiscoveryResults([]);
+    setPendingMessage(undefined);
+  }, [onAutoSelectDocs]);
+
+  const cancelDiscovery = useCallback(() => {
+    setDiscoveryMode(false);
+    setDiscoveryResults([]);
+  }, []);
 
   // Keep ref in sync to avoid stale closure inside the effect below
   useEffect(() => { isAtBottomRef.current = isAtBottom; }, [isAtBottom]);
@@ -153,41 +215,87 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       >
         {noSources ? (
           /* ── Empty: no source selected ── */
-          <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center">
-            <div className="relative flex items-center justify-center">
-              <div className="absolute w-24 h-24 rounded-full border-2 border-warning/20 animate-ping" style={{ animationDuration: '2.5s' }} />
-              <div className="absolute w-16 h-16 rounded-full border-2 border-warning/30 animate-ping" style={{ animationDuration: '2s' }} />
-              <div className="w-14 h-14 rounded-2xl bg-warning/10 border border-warning/30 flex items-center justify-center shadow-lg">
-                <BookOpen className="w-7 h-7 text-warning" />
-              </div>
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-text-primary mb-2">Chọn nguồn tài liệu</h3>
-              <p className="text-[13px] text-text-muted max-w-xs leading-relaxed">
-                Tích vào{' '}
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-elevated border border-border rounded text-[11px] font-mono">
-                  ☑ checkbox
-                </span>
-                {' '}bên trái để chọn tài liệu bạn muốn hỏi.
-                <br /><br />
-                Bạn có thể chọn từ <span className="text-accent font-semibold">Kho dùng chung</span> hoặc{' '}
-                <span className="text-warning font-semibold">Kho cá nhân</span>.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 text-left w-full max-w-xs">
-              {[
-                { step: '1', text: 'Mở mục "Nguồn tài liệu" bên trái' },
-                { step: '2', text: 'Tích checkbox vào file hoặc cả folder' },
-                { step: '3', text: 'Bắt đầu đặt câu hỏi' },
-              ].map(s => (
-                <div key={s.step} className="flex items-center gap-3 px-3 py-2 bg-elevated/50 rounded-lg border border-border/50">
-                  <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                    {s.step}
-                  </span>
-                  <span className="text-[12px] text-text-secondary">{s.text}</span>
+          <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-4">
+            {discoveryMode ? (
+              /* Discovery results panel */
+              <div className="w-full max-w-sm animate-fade-in">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-4 h-4 text-accent" />
+                    <span className="text-[13px] font-semibold text-text-primary">Tài liệu gợi ý cho bạn</span>
+                  </div>
+                  <button onClick={cancelDiscovery} className="p-1 rounded hover:bg-elevated text-text-muted hover:text-text-primary transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-              ))}
-            </div>
+                {isDiscovering ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-text-muted">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-[13px]">Đang tìm tài liệu phù hợp...</span>
+                  </div>
+                ) : discoveryResults.length === 0 ? (
+                  <p className="text-[13px] text-text-muted py-6">Không tìm thấy tài liệu phù hợp. Thử mô tả khác nhé.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {discoveryResults.map(doc => (
+                      <button
+                        key={doc.document_id}
+                        onClick={() => handleSelectDiscoveredDoc(doc)}
+                        className="flex items-start gap-3 p-3 bg-elevated/50 hover:bg-elevated border border-border hover:border-accent/40 rounded-xl text-left transition-all group"
+                      >
+                        <FileText className="w-4 h-4 text-accent mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[12px] font-semibold text-text-primary truncate">{doc.title}</p>
+                          <p className="text-[11px] text-text-muted mt-0.5 line-clamp-2 leading-relaxed">{doc.preview}</p>
+                        </div>
+                        <ArrowRight className="w-3.5 h-3.5 text-text-muted group-hover:text-accent mt-0.5 flex-shrink-0 transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute w-24 h-24 rounded-full border-2 border-warning/20 animate-ping" style={{ animationDuration: '2.5s' }} />
+                  <div className="absolute w-16 h-16 rounded-full border-2 border-warning/30 animate-ping" style={{ animationDuration: '2s' }} />
+                  <div className="w-14 h-14 rounded-2xl bg-warning/10 border border-warning/30 flex items-center justify-center shadow-lg">
+                    <BookOpen className="w-7 h-7 text-warning" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-text-primary mb-2">Chọn nguồn tài liệu</h3>
+                  <p className="text-[13px] text-text-muted max-w-xs leading-relaxed">
+                    Tích vào{' '}
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-elevated border border-border rounded text-[11px] font-mono">
+                      ☑ checkbox
+                    </span>
+                    {' '}bên trái để chọn tài liệu bạn muốn hỏi.
+                    <br /><br />
+                    Bạn có thể chọn từ <span className="text-accent font-semibold">Kho dùng chung</span> hoặc{' '}
+                    <span className="text-warning font-semibold">Kho cá nhân</span>.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 text-left w-full max-w-xs">
+                  {[
+                    { step: '1', text: 'Mở mục "Nguồn tài liệu" bên trái' },
+                    { step: '2', text: 'Tích checkbox vào file hoặc cả folder' },
+                    { step: '3', text: 'Bắt đầu đặt câu hỏi' },
+                  ].map(s => (
+                    <div key={s.step} className="flex items-center gap-3 px-3 py-2 bg-elevated/50 rounded-lg border border-border/50">
+                      <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                        {s.step}
+                      </span>
+                      <span className="text-[12px] text-text-secondary">{s.text}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Hint dùng chat input bên dưới */}
+                <p className="text-[11px] text-text-muted">
+                  Hoặc mô tả mục đích của bạn ở ô chat bên dưới để AI gợi ý tài liệu.
+                </p>
+              </>
+            )}
           </div>
         ) : messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-fade-in">
@@ -246,9 +354,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       )}
 
       <ChatInput
-        onSend={onSend}
+        onSend={handleSend}
         disabled={isGenerating}
-        noSources={noSources}
+        noSources={false}
         prefill={editPrefill ?? prefill}
         onPrefillConsumed={() => { setEditPrefill(undefined); onPrefillConsumed?.(); }}
         isGenerating={isGenerating}

@@ -62,6 +62,19 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
     setSelectedDocNames(names);
   }, []);
 
+  const handleAutoSelectDocs = useCallback((docs: { id: number; name: string }[]) => {
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      docs.forEach(d => next.add(d.id));
+      return next;
+    });
+    setSelectedDocNames(prev => {
+      const existing = new Set(prev);
+      docs.forEach(d => { if (!existing.has(d.name)) existing.add(d.name); });
+      return Array.from(existing);
+    });
+  }, []);
+
   const leftWidth = leftOpen ? '320px' : '0px';
   const rightWidth = rightOpen ? '360px' : '0px';
 
@@ -108,6 +121,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
               onBackToDashboard={() => navigate('/dashboard')}
               onCollapse={() => setLeftOpen(false)}
               currentSessionId={currentSessionId}
+              externalCheckedIds={checkedIds}
             />
           </div>
 
@@ -127,6 +141,7 @@ export const ClientWorkspace: React.FC<ClientWorkspaceProps> = ({ initialSession
             checkedIds={checkedIds}
             selectedDocNames={selectedDocNames}
             availableDocs={allDocs}
+            onAutoSelectDocs={handleAutoSelectDocs}
           />
 
           <div style={{ overflow: 'hidden', minWidth: 0 }}>
