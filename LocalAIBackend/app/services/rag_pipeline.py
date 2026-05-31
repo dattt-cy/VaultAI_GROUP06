@@ -614,9 +614,9 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         history_block = format_history_block(history)
         qa_prompt = COMPARISON_PROMPT.format(context=merged_context, history_block=history_block, question=query)
     else:
-        history_block = format_history_block(history)
-        # Khi query đã được rewrite, dùng câu rewritten làm question cho LLM
-        # để LLM trả lời đúng câu hỏi đầy đủ thay vì câu mơ hồ gốc
+        # Khi query đã rewrite (follow-up rõ ràng), bỏ history_block để LLM
+        # không bị bias bởi lịch sử và trả lời dựa trên toàn bộ context mới
+        history_block = "" if query_rewritten else format_history_block(history)
         llm_question = effective_question if query_rewritten else query
         intent_instruction = get_intent_instruction(llm_question)
         qa_prompt = QA_PROMPT.format(
