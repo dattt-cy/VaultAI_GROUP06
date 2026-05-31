@@ -471,6 +471,79 @@ def retrieve_for_summary(
     return result
 
 
+def extract_headings_from_doc(
+    db: Session,
+    allowed_doc_ids: list[int] | None = None,
+) -> str:
+    """
+    Quét toàn bộ chunk theo thứ tự trang, dùng regex để tìm dòng tiêu đề thực sự.
+    Trả về markdown string phân cấp — không nhờ LLM, không bịa đề mục.
+    """
+    import re
+
+    query = db.query(DocumentPage).filter(
+        DocumentPage.chunk_type.in_(["parent", "flat"])
+    )
+    if allowed_doc_ids:
+        query = query.filter(DocumentPage.document_id.in_(allowed_doc_ids))
+    pages: list[DocumentPage] = (
+        query.order_by(DocumentPage.document_id, DocumentPage.chunk_index).all()
+    )
+    if not pages:
+        return ""
+
+    # Regex nhận diện dòng là tiêu đề — khớp với các pattern phổ biến trong tài liệu VN
+    _HEADING_RE = re.compile(
+        r"""^(?:
+            (?:Phần|Chương|Mục)\s+[IVXLCDM\d]+[\.\s].*     # Phần I, Chương 2, Mục 3
+            | (?:PHẦN|CHƯƠNG|MỤC)\s+[IVXLCDM\d]+[\.\s].*   # In hoa
+            | \d+(?:\.\d+){0,2}\s+\S.*                      # 1, 1.1, 1.2.3 + text
+            | [A-Z]{2,}.*                                    # TIÊU ĐỀ IN HOA TOÀN BỘ (≥2 ký tự)
+        )$""",
+        re.VERBOSE | re.UNICODE,
+    )
+
+    seen: dict[str, bool] = {}
+    headings: list[tuple[int, str]] = []  # (level, text)
+
+    for page in pages:
+        content = page.raw_content or ""
+        for raw_line in content.splitlines():
+            line = raw_line.strip()
+            if not line or len(line) > 120:
+                continue
+            if not _HEADING_RE.match(line):
+                continue
+            norm = re.sub(r'\s+', ' ', line)
+            if norm in seen:
+                continue
+            seen[norm] = True
+
+            # Xác định cấp độ
+            m_numbered = re.match(r'^(\d+(?:\.\d+)*)\s+', norm)
+            if m_numbered:
+                depth = m_numbered.group(1).count('.') + 1  # "1"→1, "1.1"→2, "1.1.1"→3
+            elif re.match(r'^(?:Phần|Chương|Mục|PHẦN|CHƯƠNG|MỤC)\s+', norm, re.IGNORECASE):
+                depth = 1
+            else:
+                depth = 1
+
+            headings.append((depth, norm))
+
+    if not headings:
+        return ""
+
+    lines = []
+    for depth, text in headings:
+        indent = "  " * (depth - 1)
+        if depth == 1:
+            lines.append(f"{indent}- **{text}**")
+        else:
+            lines.append(f"{indent}- {text}")
+
+    return "\n".join(lines)
+
+
 def hybrid_retrieve_multi(
     db: Session,
     queries: list[str],

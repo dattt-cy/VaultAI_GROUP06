@@ -145,6 +145,7 @@ async def chat_message_stream(
         import sqlalchemy
         full_content = ""
         corrected_content = ""
+        message_id = None
 
         for chunk in raw_gen:
             if not chunk.startswith("data: "):

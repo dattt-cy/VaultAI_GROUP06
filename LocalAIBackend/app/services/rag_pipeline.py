@@ -32,6 +32,7 @@ from .context_manager import (
 )
 from .rag_prompts import (
     COMPARISON_PROMPT,
+    HEADING_PROMPT,
     QA_PROMPT,
     SUGGESTIONS_PROMPT,
     SUMMARY_PROMPT,
@@ -41,6 +42,8 @@ from .rag_prompts import (
     is_comparison_intent,
     is_condition_intent,
     is_enumeration_intent,
+    is_heading_intent,
+    is_heading_top_only,
     is_locating_intent,
     is_summary_intent,
     is_table_intent,
@@ -245,6 +248,19 @@ def _clean_response(text: str) -> str:
     text = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', text, flags=re.IGNORECASE).strip()
     text = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', text).strip()
     text = re.sub(r'\b(\w[\w\-().,]+)\.(txt|pdf|docx?|xlsx?)\b\.?', r'\1', text, flags=re.IGNORECASE)
+    # Fix ** opening có space thừa: "** text" → "**text" (chỉ khi ** ở đầu, trước là space/newline)
+    text = re.sub(r'(?:(?<=\s)|(?<=^))\*\*\s+(?=\S)', '**', text, flags=re.MULTILINE)
+    # Fix ** closing có space thừa trước dấu đóng: "text . **" → "text.**"
+    text = re.sub(r'(?<=\w)\s+\*\*(?=[\s\n.,;:!?]|$)', '**', text, flags=re.MULTILINE)
+    # Fix ** closing dính liền với mục tiếp theo: "ĐÍCH** 2." → "ĐÍCH**\n2."
+    text = re.sub(r'\*\*\s+(?=\d+[\.、])', '**\n', text)
+    # Fix bullet dính liền nhau sau dấu câu: "text.-Bước" → "text.\n-Bước"
+    text = re.sub(r'([.!?])\s*(?=-\s*\*{0,2}[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶ])', r'\1\n', text)
+    # Fix bullet dính sau text: "LƯƠNG- 1.1." → "LƯƠNG\n- 1.1."
+    text = re.sub(r'(?<=[^\s\n])-\s+(?=\d+[\.\)])', r'\n- ', text)
+    text = re.sub(r'(?<=[^\s\n])-\s+(?=a\)|b\)|c\)|d\))', r'\n- ', text)
+    # Fix danh sách đánh số dính liền không có ** bao quanh: "ĐÍCH 2. ĐỐI" → "ĐÍCH\n2. ĐỐI"
+    text = re.sub(r'(?<=[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶA-zđàáâãèéêìíòóôõùúăắặầấẩẫắặ])\s+(\d+\.\s+[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶ])', r'\n\1', text)
     return strip_spurious_not_found(text)
 
 
@@ -472,9 +488,34 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     is_table = is_table_intent(query)
     is_comparison = is_comparison_intent(query)
+    is_heading = is_heading_intent(query)
+
+    # Heading intent: nếu user chọn nhiều file → hỏi lại file nào
+    if is_heading and allowed_doc_ids and len(allowed_doc_ids) > 1:
+        from app.models.doc_model import Document
+        docs = db.query(Document).filter(Document.id.in_(allowed_doc_ids)).all()
+        # Nếu query chứa tên file cụ thể → tự lọc, không hỏi lại
+        matched = [d for d in docs if d.title.lower() in query.lower()]
+        if matched:
+            allowed_doc_ids = [matched[0].id]
+        else:
+            names = [d.title for d in docs]
+            names_md = "\n".join(f"- {n}" for n in names)
+            clarify_text = (
+                f"Bạn đang chọn **{len(names)} tài liệu**. Bạn muốn xem đề mục của tài liệu nào?\n{names_md}"
+            )
+            suggestions = [f"{query} của {n}" for n in names]
+            yield _sse({"type": "token", "content": clarify_text})
+            yield _sse({"type": "suggestions", "suggestions": suggestions})
+            yield _sse({"type": "done", "citations": []})
+            return
+
     if is_summary_intent(query):
         yield _sse({"type": "thinking", "step": "📄 Đang đọc toàn bộ nội dung tài liệu để tóm tắt..."})
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
+    elif is_heading:
+        yield _sse({"type": "thinking", "step": "📑 Đang quét cấu trúc đề mục tài liệu..."})
+        chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=30)
     elif is_table:
         yield _sse({"type": "thinking", "step": "📋 Đang quét tài liệu để trích xuất dữ liệu bảng..."})
         chunks = retrieve_for_summary(db=db, allowed_doc_ids=allowed_doc_ids, max_chunks=15)
@@ -527,7 +568,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
     context_parts = _build_context_parts(chunks)
     merged_context = "\n\n".join(context_parts)
 
-    skip_hallucination = is_summary_intent(query) or is_table or is_comparison
+    skip_hallucination = is_summary_intent(query) or is_table or is_comparison or is_heading
     if not skip_hallucination and check_hallucination(merged_context, retrieval_query):
         yield _sse({"type": "token", "content": "Tôi không tìm thấy thông tin này trong tài liệu hoặc câu hỏi không liên quan đến dữ liệu hệ thống."})
         yield _sse({"type": "done", "citations": [], "suggestions": []})
@@ -554,6 +595,15 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
 
     if is_summary_intent(query):
         qa_prompt = SUMMARY_PROMPT.format(context=merged_context, question=query)
+    elif is_heading:
+        depth_instruction = (
+            "\n7. CHỈ liệt kê đề mục lớn cấp 1 (Phần/Chương/Mục chính). "
+            "TUYỆT ĐỐI KHÔNG liệt kê mục con, KHÔNG thêm nội dung, mô tả, ví dụ bên dưới bất kỳ mục nào. "
+            "Mỗi dòng chỉ là TÊN đề mục lớn, không có gì thêm."
+            if is_heading_top_only(query) else
+            "\n7. TUYỆT ĐỐI KHÔNG thêm nội dung, mô tả hay ví dụ bên dưới bất kỳ đề mục nào. Chỉ tên đề mục."
+        )
+        qa_prompt = HEADING_PROMPT.format(context=merged_context, question=query, depth_instruction=depth_instruction)
     elif is_comparison:
         history_block = format_history_block(history)
         qa_prompt = COMPARISON_PROMPT.format(context=merged_context, history_block=history_block, question=query)
@@ -590,11 +640,6 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             full_response += token
             yield _sse({"type": "token", "content": token})
 
-    if not is_summary_intent(query) and check_response_grounding(full_response, chunks):
-        yield _sse({"type": "corrected_text", "content": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này."})
-        yield _sse({"type": "done", "citations": [], "suggestions": []})
-        return
-
     # Suggestions chạy song song với post-processing
     with ThreadPoolExecutor(max_workers=1) as executor:
         suggestion_future = executor.submit(_generate_suggestions, merged_context, full_response)
@@ -603,8 +648,34 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         safe_response = _clean_response(safe_response)
         log_english_leakage(safe_response)
 
-        safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
-            verify_citations_post_hoc(safe_response, chunks)
+        if is_heading:
+            # Heading: bypass verify_citations, lấy 1 chunk đại diện mỗi document làm citation
+            seen_docs: set[int] = set()
+            used_chunk_indices = []
+            for i, c in enumerate(chunks):
+                if c.document_id not in seen_docs:
+                    seen_docs.add(c.document_id)
+                    used_chunk_indices.append(i)
+            citation_source_lines = {}
+            all_relevant_spans = [[] for _ in chunks]
+        else:
+            safe_response, citation_source_lines, all_relevant_spans, used_chunk_indices = \
+                verify_citations_post_hoc(safe_response, chunks)
+
+            # Nếu không có chunk nào được cite → response có thể hallucinated
+            if not is_summary_intent(query) and not used_chunk_indices and chunks:
+                yield _sse({"type": "corrected_text", "content": "Tôi không tìm thấy thông tin đủ tin cậy trong tài liệu để trả lời câu hỏi này."})
+                yield _sse({"type": "done", "citations": [], "suggestions": []})
+                return
+
+        # Fix numbered list dính nhau (sau citations đã được chèn nếu có)
+        safe_response = re.sub(
+            r'(?<=[^\n])\s*(?:\[\d+\]\s*)*(\d+[\.]\s+[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶ])',
+            r'\n\1', safe_response
+        )
+        # Strip orphaned ** còn sót (** đứng một mình đầu dòng)
+        safe_response = re.sub(r'^\*{1,2}\s*$', '', safe_response, flags=re.MULTILINE)
+
         safe_response = fix_bullet_indentation(safe_response)
         safe_response = fix_missing_doc_name(safe_response, chunks)
         safe_response = strip_question_echo(safe_response, query)
