@@ -71,10 +71,17 @@ _AMBIGUOUS_STARTS = (
 
 _AMBIGUOUS_CONTAINS = (
     "nó", "họ", "điều đó", "điều này", "cái đó", "vấn đề trên",
-    "như vậy", "thêm", "tiếp theo", "giải thích thêm", "tại sao vậy",
-    "kể thêm", "nói thêm", "bổ sung thêm", "chi tiết hơn",
+    "như vậy", "thêm", "tiếp theo", "tại sao vậy",
     "văn bản này", "tài liệu này", "quy định này", "quy chế này",
     "chính sách này", "hướng dẫn này", "nội quy này",
+)
+
+# Các cụm này là follow-up rõ ràng, luôn cần rewrite nếu có history
+_EXPLICIT_FOLLOWUP = (
+    "chi tiết hơn", "cụ thể hơn", "giải thích thêm", "nói thêm",
+    "kể thêm", "bổ sung thêm", "thêm thông tin", "biết thêm",
+    "mở rộng thêm", "ví dụ thêm", "làm rõ hơn", "rõ hơn",
+    "cho biết thêm", "nêu thêm", "phân tích thêm",
 )
 
 
@@ -114,11 +121,17 @@ def needs_rewrite(query: str, history: list[dict]) -> bool:
     Trả True nếu query có khả năng mơ hồ và cần rewrite dựa trên history.
     Cần ít nhất 2 dấu hiệu để tránh false positive.
     Câu hỏi Yes/No dạng "X có được không?" luôn được rewrite thành dạng keyword search.
+    Explicit follow-up ("chi tiết hơn", "giải thích thêm"...) luôn trigger rewrite.
     """
     if not history:
         return False
 
     q = query.strip().lower()
+
+    # Explicit follow-up: luôn cần rewrite vì không có topic riêng
+    if any(s in q for s in _EXPLICIT_FOLLOWUP):
+        return True
+
     score = 0
 
     if len(q) < 25:
