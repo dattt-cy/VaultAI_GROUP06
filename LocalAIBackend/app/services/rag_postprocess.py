@@ -9,8 +9,11 @@ _NOT_FOUND_PATTERN = re.compile(
 )
 
 _CITATION_BLOCK_PATTERN = re.compile(
-    r'\n{0,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Trích dẫn|Nguồn trích dẫn|Tham khảo|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu|Tài liệu tham khảo|Tài liệu trích dẫn)\s*[:\.]?.*',
-    re.IGNORECASE | re.DOTALL,
+    # Chỉ xóa dòng chứa header citation — KHÔNG dùng re.DOTALL tránh nuốt toàn bộ bullet list phía sau.
+    # "Tham khảo" và "Trích dẫn" (không có từ "từ tài liệu") bị loại khỏi pattern vì quá chung chung,
+    # dễ khớp nội dung thực của câu trả lời.
+    r'(?:\n{1,2}|\A)[-•*]?\s*(?:Trích dẫn từ tài liệu|Nguồn trích dẫn|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu|Tài liệu tham khảo|Tài liệu trích dẫn)\s*[:\.]?[^\n]*',
+    re.IGNORECASE,
 )
 
 _MISSING_DOC_NAME_PATTERN = re.compile(
