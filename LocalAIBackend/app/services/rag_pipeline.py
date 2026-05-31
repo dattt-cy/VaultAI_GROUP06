@@ -476,12 +476,18 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         top_k = min(top_k, 5)  # Câu hỏi định vị chỉ cần ít chunk
 
     retrieval_query = query
+    effective_question = query  # câu hỏi truyền vào LLM
+    query_rewritten = False
     if history and needs_rewrite(query, history):
+        # Follow-up detail cần thêm chunk để có đủ ngữ cảnh
+        top_k = max(top_k, 15)
         yield _sse({"type": "thinking", "step": "💬 Đang phân tích ngữ cảnh hội thoại..."})
         retrieval_query = rewrite_query(query, history, safe_llm_invoke)
         if retrieval_query != query:
             print(f"[QueryRewrite] '{query}' → '{retrieval_query}'")
             yield _sse({"type": "thinking", "step": f"🔄 Đã làm rõ câu hỏi: {retrieval_query[:60]}..."})
+            effective_question = retrieval_query  # LLM trả lời câu đã rewrite
+            query_rewritten = True
     if is_yes_no_query(retrieval_query):
         retrieval_query = extract_yes_no_topic(retrieval_query)
         print(f"[YesNoExtract] → '{retrieval_query}'")
@@ -609,11 +615,14 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         qa_prompt = COMPARISON_PROMPT.format(context=merged_context, history_block=history_block, question=query)
     else:
         history_block = format_history_block(history)
-        intent_instruction = get_intent_instruction(query)
+        # Khi query đã được rewrite, dùng câu rewritten làm question cho LLM
+        # để LLM trả lời đúng câu hỏi đầy đủ thay vì câu mơ hồ gốc
+        llm_question = effective_question if query_rewritten else query
+        intent_instruction = get_intent_instruction(llm_question)
         qa_prompt = QA_PROMPT.format(
             context=merged_context,
             history_block=history_block,
-            question=query,
+            question=llm_question,
             intent_instruction=f"\n{intent_instruction}" if intent_instruction else "",
         )
 
