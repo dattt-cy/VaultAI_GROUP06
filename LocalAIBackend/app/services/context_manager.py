@@ -159,7 +159,12 @@ def needs_rewrite(query: str, history: list[dict]) -> bool:
 # ---------------------------------------------------------------------------
 
 _REWRITE_TEMPLATE = """Dựa vào lịch sử hội thoại, hãy viết lại câu hỏi sau thành một câu hỏi hoàn chỉnh, độc lập, không cần ngữ cảnh để hiểu.
-Chỉ trả về câu hỏi đã viết lại, không giải thích, không thêm bất kỳ nội dung nào khác.
+
+QUY TẮC QUAN TRỌNG:
+- Nếu câu hỏi gốc có từ "chi tiết hơn", "cụ thể hơn", "giải thích thêm", "nói thêm", "đầy đủ hơn" → người dùng muốn biết NHIỀU HƠN những gì đã được trả lời. Hãy viết lại thành câu hỏi yêu cầu liệt kê ĐẦY ĐỦ / TOÀN BỘ thông tin về CHỦ ĐỀ CHUNG, không giới hạn vào mục cụ thể đã hỏi trước.
+- Ví dụ: Lịch sử hỏi "nguyên tắc thứ hai là gì?", câu hỏi gốc "chi tiết hơn về nguyên tắc cơ bản" → viết lại: "Liệt kê và giải thích chi tiết TẤT CẢ các nguyên tắc cơ bản của nội quy"
+- Ví dụ: Lịch sử hỏi "quyền lợi nhân viên là gì?", câu hỏi gốc "nói thêm về quyền lợi" → viết lại: "Liệt kê đầy đủ tất cả quyền lợi của nhân viên theo quy định"
+- Chỉ trả về câu hỏi đã viết lại, không giải thích, không thêm nội dung nào khác.
 
 Lịch sử hội thoại:
 {history}
