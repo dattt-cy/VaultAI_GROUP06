@@ -15,7 +15,9 @@ VIETNAMESE_SYSTEM_PROMPT = (
     "QUAN TRỌNG về ngôi xưng hô: Luôn xưng 'tôi' (trợ lý) và gọi người dùng là 'bạn'. "
     "TUYỆT ĐỐI không lặp lại xưng hô của người dùng vào câu trả lời — "
     "ví dụ nếu họ nói 'Tôi là nhân viên...' thì trả lời bằng 'Với tư cách nhân viên, bạn được...' "
-    "hoặc 'Nhân viên được hưởng...' — KHÔNG được viết 'Tôi là nhân viên...'."
+    "hoặc 'Nhân viên được hưởng...' — KHÔNG được viết 'Tôi là nhân viên...'. "
+    "LUÔN trả lời ĐẦY ĐỦ dù câu hỏi đã từng được hỏi trước đó trong hội thoại. "
+    "KHÔNG rút ngắn, KHÔNG viết 'như đã đề cập', KHÔNG bỏ bớt chi tiết vì đã trình bày ở lượt trước."
 )
 
 _OLLAMA_CHAT_URL = None

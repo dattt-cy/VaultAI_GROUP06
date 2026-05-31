@@ -9,7 +9,7 @@ _NOT_FOUND_PATTERN = re.compile(
 )
 
 _CITATION_BLOCK_PATTERN = re.compile(
-    r'\n{0,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Trích dẫn|Nguồn trích dẫn|Tham khảo|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu|Tài liệu)\s*[:\.]?.*',
+    r'\n{0,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Trích dẫn|Nguồn trích dẫn|Tham khảo|Điệp ngữ|Nguyên văn|Trích nguyên văn|Câu gốc trong tài liệu|Tài liệu tham khảo|Tài liệu trích dẫn)\s*[:\.].*',
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -180,7 +180,7 @@ def process_llm_citations(response: str, num_chunks: int) -> tuple[str, dict]:
     return '\n'.join(result_lines), citation_source_lines
 
 
-_MAX_UNITS = 12
+_MAX_UNITS = 20
 _MAX_CHUNKS = 8
 
 
