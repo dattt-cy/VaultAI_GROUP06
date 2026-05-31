@@ -51,20 +51,21 @@ def load_conversation_history(db: Session, session_id: int, max_turns: int = 5) 
 def format_history_block(history: list[dict]) -> str:
     """Chuyển history list → text block để inject vào prompt.
 
-    Assistant responses bị truncate còn 100 ký tự để tránh rò rỉ factual content
-    (tên công ty, số liệu cụ thể) từ các lượt hội thoại khác chủ đề vào câu trả lời mới.
-    User questions giữ nguyên để LLM hiểu đại từ/tham chiếu.
+    CHỈ đưa user questions vào — KHÔNG đưa assistant answers.
+    Lý do: assistant answers chứa tên công ty/số liệu từ tài liệu khác,
+    nếu đưa vào prompt sẽ khiến LLM dùng sai thông tin cho câu hỏi hiện tại.
+    LLM vẫn hiểu ngữ cảnh (đại từ, chủ đề) qua các câu hỏi của user.
     """
     if not history:
         return ""
-    lines = []
-    for msg in history:
-        role_label = "Người dùng" if msg["role"] == "user" else "Trợ lý"
-        content = msg["content"]
-        if msg["role"] != "user" and len(content) > 100:
-            content = content[:100] + "..."
-        lines.append(f"{role_label}: {content}")
-    return "[LỊCH SỬ HỘI THOẠI GẦN ĐÂY]\n" + "\n".join(lines) + "\n[HẾT LỊCH SỬ]\n"
+    user_lines = [
+        f"Người dùng: {msg['content']}"
+        for msg in history
+        if msg["role"] == "user"
+    ]
+    if not user_lines:
+        return ""
+    return "[CÁC CÂU HỎI TRƯỚC ĐÓ TRONG HỘI THOẠI]\n" + "\n".join(user_lines) + "\n[HẾT]\n"
 
 
 # ---------------------------------------------------------------------------
