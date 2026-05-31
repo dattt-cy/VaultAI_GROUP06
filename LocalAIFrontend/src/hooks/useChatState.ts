@@ -231,12 +231,28 @@ export function useChatState() {
                 if (m.id !== assistantId) return m;
                 let newContent = m.content + data.content;
                 // Strip "(Điều X [A])", "(Điều 15, Tài liệu A)" ngay khi stream
-                // Chỉ chạy regex khi token chứa ')' để tránh overhead mỗi token
                 if (data.content.includes(')')) {
                   newContent = newContent.replace(
                     /\s*\(\s*(?:Điều|Khoản|Mục|Chương|Phần)\s+[\d.]+[^)]*\)/gi, ''
                   );
                 }
+                // Strip "[A, PHẦN X – ...]" markers ngay khi stream
+                if (data.content.includes(']')) {
+                  newContent = newContent.replace(
+                    /\s*\[[A-Z],\s*(?:PHẦN|Phần|CHƯƠNG|Chương|MỤC|Mục|THƯỞNG|[^[\]]{1,30})\s*[–\-—][^\]]*\]/g, ''
+                  );
+                }
+                // Ẩn block "Trích dẫn từ tài liệu:" khi đang stream để tránh bị "mất" sau corrected_text
+                const citationBlockIdx = newContent.search(
+                  /\n{1,2}[-•*]?\s*(?:Trích dẫn từ tài liệu|Nguồn trích dẫn)\s*[:.]/i
+                );
+                if (citationBlockIdx !== -1) {
+                  newContent = newContent.slice(0, citationBlockIdx).trimEnd();
+                }
+                // Fix "câu.- Bullet" → "câu.\n- Bullet" khi stream (giống _clean_response backend)
+                newContent = newContent.replace(
+                  /([.!?])\s*(?=-\s*[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶ])/g, '$1\n'
+                );
                 return { ...m, content: newContent };
               }));
             } else if (data.type === 'suggestions') {
