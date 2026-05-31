@@ -654,7 +654,10 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
         suggestion_future = executor.submit(_generate_suggestions, merged_context, full_response)
 
         safe_response = apply_pii_masking(full_response)
-        safe_response = _clean_response(safe_response)
+        # Heading đã có format chuẩn từ HEADING_PROMPT — bỏ qua _clean_response
+        # vì các regex fix numbered list sẽ phá vỡ cấu trúc indent "  - 1.1. ..."
+        if not is_heading:
+            safe_response = _clean_response(safe_response)
         log_english_leakage(safe_response)
 
         if is_heading:
@@ -677,22 +680,23 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
                 yield _sse({"type": "done", "citations": [], "suggestions": []})
                 return
 
-        # Fix numbered list dính nhau (sau citations đã được chèn nếu có)
-        safe_response = re.sub(
-            r'(?<=[^\n])\s*(?:\[\d+\]\s*)*(\d+[\.]\s+[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶ])',
-            r'\n\1', safe_response
-        )
-        # Strip orphaned ** còn sót (** đứng một mình đầu dòng)
-        safe_response = re.sub(r'^\*{1,2}\s*$', '', safe_response, flags=re.MULTILINE)
+        if not is_heading:
+            # Fix numbered list dính nhau (sau citations đã được chèn nếu có)
+            safe_response = re.sub(
+                r'(?<=[^\n])\s*(?:\[\d+\]\s*)*(\d+[\.]\s+[A-ZĐÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂẮẶẦẤẨẪẮẶ])',
+                r'\n\1', safe_response
+            )
+            # Strip orphaned ** còn sót (** đứng một mình đầu dòng)
+            safe_response = re.sub(r'^\*{1,2}\s*$', '', safe_response, flags=re.MULTILINE)
+            safe_response = fix_bullet_indentation(safe_response)
+            safe_response = strip_inline_article_refs(safe_response)
+            safe_response = strip_standalone_article_headings(safe_response)
 
-        safe_response = fix_bullet_indentation(safe_response)
         safe_response = fix_missing_doc_name(safe_response, chunks)
         safe_response = strip_question_echo(safe_response, query)
         safe_response = strip_citation_block(safe_response)
         safe_response = strip_nguon_blocks(safe_response)
         safe_response = strip_tai_lieu_labels(safe_response)
-        safe_response = strip_inline_article_refs(safe_response)
-        safe_response = strip_standalone_article_headings(safe_response)
 
         citations = _build_citations(chunks, used_chunk_indices, all_relevant_spans, citation_source_lines)
 
