@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    /* iOS: background color fills safe-area below tab bar */
+    background-color: #161b22;
+    height: 100%;
+  }
+
+  :root {
+    color-scheme: dark;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    @apply bg-base text-text-primary;
+    margin: 0;
+    overflow: hidden;
+    /* iOS safe area background */
+    background-color: var(--color-base);
+  }
+
+  #root {
+    width: 100vw;
+    height: 100vh;
+    height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-hover; }
+}
+
+@layer components {
+  .btn-icon {
+    @apply flex items-center justify-center rounded-lg border border-border bg-elevated text-text-muted 
+           hover:text-text-primary hover:border-border transition-all duration-150 cursor-pointer;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-2 px-3 py-1.5 rounded-md text-xs cursor-pointer
+           text-text-primary border border-transparent transition-all duration-150
+           hover:bg-hover;
+  }
+
+  .sidebar-item.active {
+    @apply bg-accent/15 border-accent/40 text-accent;
+  }
+
+  .badge {
+    @apply text-[14px] font-semibold px-1.5 py-0.5 rounded-full;
+  }
+
+  .citation-tag {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium
+           bg-citation/10 text-citation border border-citation/25 cursor-pointer
+           hover:bg-citation/20 hover:border-citation/50 transition-all duration-150;
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between px-3 py-2 border-b border-border bg-elevated 
+           text-xs font-semibold text-text-secondary uppercase tracking-wide flex-shrink-0;
+  }
+
+  .section-toggle {
+    @apply flex items-center gap-2 px-3 py-2 cursor-pointer border-t border-border
+           text-xs font-semibold text-text-secondary uppercase tracking-wide
+           hover:bg-hover transition-colors duration-150 select-none;
+  }
+
+  .input-base {
+    @apply w-full px-3 py-2.5 rounded-lg bg-elevated border border-border text-text-primary
+           text-[14px] outline-none placeholder:text-text-muted
+           focus:border-accent/60 transition-colors duration-200;
+  }
+
+  .card-ai {
+    @apply bg-elevated rounded-tl-sm rounded-tr-2xl rounded-br-2xl rounded-bl-2xl
+           border border-border shadow-sm p-3.5;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in   { animation: fadeIn 0.25s ease; }
+  .animate-slide-in  { animation: slideIn 0.2s ease; }
+  .animate-blink     { animation: blink 1s step-end infinite; }
+  .animate-highlight { animation: highlightFlash 1.5s ease; }
+
+  @keyframes fadeIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1 } }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1 } }
+  @keyframes blink   { 0%,100% { opacity: 1 } 50% { opacity: 0 } }
+  @keyframes highlightFlash {
+    0%   { background-color: rgba(187,128,9,0.6); }
+    60%  { background-color: rgba(187,128,9,0.35); }
+    100% { background-color: rgba(187,128,9,0.2); }
+  }
+  @keyframes spin    { to { transform: rotate(360deg); } }
+
+  .animate-spin-fast { animation: spin 0.7s linear infinite; }
+  .select-none-all { user-select: none; -webkit-user-select: none; }
+}
