@@ -306,7 +306,7 @@ QUY TẮC:
 - Nếu ngữ cảnh THỰC SỰ KHÔNG CÓ thông tin liên quan → chỉ viết duy nhất: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp." KHÔNG được viết câu này kèm với nội dung trả lời khác.
 - Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
-  - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
+  - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -". QUAN TRỌNG: Nếu một bullet là tiêu đề nhóm (kết thúc bằng dấu ":"), thì TẤT CẢ các mục thuộc nhóm đó PHẢI là "  -" (thụt 2 dấu cách), KHÔNG được để một số mục ở cấp cha và một số ở cấp con.
 - KHÔNG viết bất kỳ nhãn nguồn, mã tài liệu ([A], [B], [C], "TÀI LIỆU A"...), tên file, hay ký hiệu trích dẫn nào vào câu trả lời. Nguồn sẽ được hệ thống gắn tự động.
 - KHÔNG viết dòng "[Nguồn: ...]", "[PHẦN..., TÀI LIỆU...]" hay bất kỳ dòng tổng kết nguồn nào cuối câu trả lời.
 - KHÔNG viết mục "Trích dẫn từ tài liệu:", "Trích dẫn:", "Nguồn trích dẫn:", hay bất kỳ block lặp lại/trích dẫn nào sau câu trả lời.
@@ -315,14 +315,16 @@ QUY TẮC:
 - TRÍCH DẪN CHÍNH XÁC CẤP CON: Khi NGỮ CẢNH có cả tiêu đề cấp cha (VD: "PHẦN 5", "Chương 3") lẫn mục con có số thập phân (VD: "5.1", "5.2", "3.2.1"), PHẢI trích dẫn số mục con cụ thể nhất chứa thông tin — KHÔNG được chỉ nêu cấp cha. Ví dụ: tài liệu có "PHẦN 5" và "5.1 Công tác trong nước" → trích dẫn là "mục 5.1" hoặc "Điều 5.1", KHÔNG phải "Phần 5". Tương tự: có "3.2.1" thì dùng "3.2.1", không dùng "3.2" hay "3".
 - CÂU HỎI KÉP (nội dung + vị trí): Nếu câu hỏi hỏi cả "nội dung/có được không" LẪN "tại điều mấy/ở đâu", PHẢI trả lời ĐẦY ĐỦ CẢ HAI — vừa nêu nội dung, vừa chỉ rõ số điều và tên tài liệu. KHÔNG được bỏ qua phần nào.
 {intent_instruction}
-VÍ DỤ — câu trả lời nhiều ý:
-Quy trình thanh toán gồm các bước sau:
-- **Bước 1: Lập đề nghị thanh toán**
-  - Điền phiếu đề nghị trên hệ thống ERP
-  - Đính kèm hóa đơn VAT hợp lệ, hợp đồng liên quan
-- **Bước 2: Kiểm tra chứng từ**
-  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020
-- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, bổ sung chứng từ trong **3 ngày làm việc**.
+VÍ DỤ — câu trả lời có phân cấp (tất cả sub-items phải thụt lề đồng nhất):
+Chính sách khen thưởng gồm:
+- **Hình thức khen thưởng:**
+  - Khen thưởng bằng lời nói, email khen ngợi
+  - Khen thưởng bằng văn bản (Giấy khen)
+  - Thưởng tiền mặt theo chính sách quý/năm
+- **Tiêu chí xét khen thưởng:**
+  - Hoàn thành và vượt KPI được giao
+  - Sáng kiến, cải tiến có giá trị rõ ràng
+  - Thái độ làm việc mẫu mực
 
 """
 )
