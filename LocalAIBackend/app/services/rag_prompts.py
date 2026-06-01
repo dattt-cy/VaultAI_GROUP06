@@ -223,7 +223,7 @@ Nhiệm vụ: Liệt kê TẤT CẢ đề mục lớn và đề mục nhỏ có 
 QUY TẮC BẮT BUỘC — VI PHẠM BẤT KỲ QUY TẮC NÀO LÀ SAI:
 1. CHỈ liệt kê đề mục mà bạn NHÌN THẤY TRỰC TIẾP trong phần NỘI DUNG TÀI LIỆU ở trên — dưới dạng dòng tiêu đề, dòng in đậm, hoặc dòng có số thứ tự đứng đầu.
 2. TUYỆT ĐỐI KHÔNG bịa, suy diễn, hoặc thêm đề mục từ kiến thức của bạn. Nếu tài liệu viết "2.1 Phân loại dữ liệu" nhưng KHÔNG có dòng nào ghi "2.1.1", "2.1.2"... thì KHÔNG được thêm chúng.
-3. TUYỆT ĐỐI KHÔNG chuyển nội dung liệt kê bên trong một mục thành đề mục con. Ví dụ: nếu mục 2.1 liệt kê "Công khai, Nội bộ, Bảo mật" trong nội dung → KHÔNG tạo ra 2.1.1, 2.1.2, 2.1.3.
+3. TUYỆT ĐỐI KHÔNG chuyển nội dung liệt kê bên trong một mục thành đề mục con hoặc bullet point. Ví dụ: nếu mục 3.1 có nội dung liệt kê "a) Nhân viên... b) Nhân viên..." → KHÔNG được viết lại chúng dưới bất kỳ hình thức nào (số, chữ cái, gạch đầu dòng). Chỉ ghi tên đề mục "3.1 ..." rồi dừng lại, KHÔNG thêm bất cứ thứ gì.
 4. Nếu thấy dòng "2.2 ..." trong tài liệu → phải liệt kê, không được bỏ qua.
 5. Đề mục lớn (Phần/Chương cấp 1): in đậm **...**. Đề mục cấp 2 trở xuống: thụt lề 2 dấu cách, KHÔNG in đậm.
 6. KHÔNG viết lại câu hỏi, KHÔNG thêm câu dẫn nhập, KHÔNG tổng kết cuối.
@@ -266,17 +266,16 @@ QUY TẮC:
 - TUYỆT ĐỐI không lặp lại câu hỏi ở đầu câu trả lời.
 - SO SÁNH: Trình bày rõ ràng theo 2 phần: **Điểm giống nhau** và **Điểm khác nhau**. Mỗi điểm là một bullet riêng.
 - Nếu tài liệu chỉ có thông tin về một trong hai đối tượng → trình bày thông tin có, và ghi rõ đối tượng còn lại không có trong tài liệu. KHÔNG bịa.
-- Nhãn nguồn [A]/[B]/[C]: đặt ở cuối mỗi bullet, không xếp chồng.
-- KHÔNG viết tên file tài liệu vào câu trả lời.
+- KHÔNG viết bất kỳ nhãn nguồn, mã tài liệu ([A], [B], [C]...), tên file, hay ký hiệu trích dẫn nào vào câu trả lời.
 - KHÔNG viết dòng "[Nguồn: ...]" hay bất kỳ dòng tổng kết nguồn nào.
 
 VÍ DỤ FORMAT:
 **Điểm giống nhau:**
-- Cả hai đều áp dụng cho nhân viên chính thức. [A]
+- Cả hai đều áp dụng cho nhân viên chính thức.
 
 **Điểm khác nhau:**
-- Hợp đồng thử việc: thời hạn tối đa **60 ngày**. [A]
-- Hợp đồng chính thức: không giới hạn thời hạn. [B]
+- Hợp đồng thử việc: thời hạn tối đa **60 ngày**.
+- Hợp đồng chính thức: không giới hạn thời hạn.
 """
 )
 
@@ -308,10 +307,9 @@ QUY TẮC:
 - Chọn định dạng phù hợp với độ phức tạp của câu trả lời:
   - **1 ý đơn giản** → viết thành 1-2 câu tự nhiên, KHÔNG dùng bullet. Ví dụ: "Độ dài tối thiểu của mật khẩu là **12 ký tự**. [A]"
   - **Nhiều ý / quy trình / danh sách** → dùng bullet (-), bôi đậm (**...**) số tiền/ngưỡng/mốc thời gian, nội dung con thụt 2 dấu cách "  -"
-- Nhãn nguồn [A]/[B]/[C]: đặt DUY NHẤT một nhãn ở cuối câu hoặc cuối dòng bullet, không xếp chồng [A][B][C]
-- KHÔNG viết tên file tài liệu vào trong câu trả lời. Nguồn gốc sẽ được hiển thị tự động qua nhãn [A]/[B]/[C].
-- KHÔNG viết dòng "[Nguồn: ...]" hay bất kỳ dòng tổng kết nguồn nào cuối câu trả lời.
-- KHÔNG viết mục "Trích dẫn từ tài liệu:", "Trích dẫn:", "Nguồn trích dẫn:", "Điệp ngữ:", "Nguyên văn:", hay bất kỳ block lặp lại/trích dẫn nào sau câu trả lời. Nhãn [A]/[B] inline trong câu là đủ.
+- KHÔNG viết bất kỳ nhãn nguồn, mã tài liệu ([A], [B], [C], "TÀI LIỆU A"...), tên file, hay ký hiệu trích dẫn nào vào câu trả lời. Nguồn sẽ được hệ thống gắn tự động.
+- KHÔNG viết dòng "[Nguồn: ...]", "[PHẦN..., TÀI LIỆU...]" hay bất kỳ dòng tổng kết nguồn nào cuối câu trả lời.
+- KHÔNG viết mục "Trích dẫn từ tài liệu:", "Trích dẫn:", "Nguồn trích dẫn:", hay bất kỳ block lặp lại/trích dẫn nào sau câu trả lời.
 - LỊCH SỬ HỘI THOẠI chỉ dùng để hiểu đại từ/tham chiếu ("nó", "điều đó", "cái trên"...). TUYỆT ĐỐI không dùng nội dung trong lịch sử hội thoại làm nguồn sự kiện — mọi thông tin thực tế PHẢI lấy từ NGỮ CẢNH hiện tại. Nếu NGỮ CẢNH không có thông tin, không được bổ sung từ lịch sử.
 - LUÔN trả lời ĐẦY ĐỦ dù câu hỏi đã từng được hỏi trước đó trong hội thoại. KHÔNG rút ngắn, KHÔNG viết "như đã đề cập", KHÔNG bỏ bớt chi tiết với lý do đã trình bày ở lượt trước. Mỗi câu hỏi phải được trả lời hoàn chỉnh như lần đầu tiên.
 - TRÍCH DẪN CHÍNH XÁC CẤP CON: Khi NGỮ CẢNH có cả tiêu đề cấp cha (VD: "PHẦN 5", "Chương 3") lẫn mục con có số thập phân (VD: "5.1", "5.2", "3.2.1"), PHẢI trích dẫn số mục con cụ thể nhất chứa thông tin — KHÔNG được chỉ nêu cấp cha. Ví dụ: tài liệu có "PHẦN 5" và "5.1 Công tác trong nước" → trích dẫn là "mục 5.1" hoặc "Điều 5.1", KHÔNG phải "Phần 5". Tương tự: có "3.2.1" thì dùng "3.2.1", không dùng "3.2" hay "3".
@@ -321,10 +319,10 @@ VÍ DỤ — câu trả lời nhiều ý:
 Quy trình thanh toán gồm các bước sau:
 - **Bước 1: Lập đề nghị thanh toán**
   - Điền phiếu đề nghị trên hệ thống ERP
-  - Đính kèm hóa đơn VAT hợp lệ, hợp đồng liên quan [A]
+  - Đính kèm hóa đơn VAT hợp lệ, hợp đồng liên quan
 - **Bước 2: Kiểm tra chứng từ**
-  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020 [A]
-- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, bổ sung chứng từ trong **3 ngày làm việc**. [B]
+  - Kế toán xác nhận tính hợp lệ theo Nghị định 123/2020
+- **Chi tiêu khẩn cấp**: hạn mức tối đa **10.000.000 đồng/lần**, bổ sung chứng từ trong **3 ngày làm việc**.
 
 """
 )

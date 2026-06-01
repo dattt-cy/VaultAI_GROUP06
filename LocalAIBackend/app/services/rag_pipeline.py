@@ -244,6 +244,8 @@ def _generate_suggestions(context: str, answer: str) -> list:
 def _clean_response(text: str) -> str:
     """Xóa context labels, file markers, câu 'không tìm thấy' thừa."""
     text = re.sub(r'\[TÀI LIỆU\s+[A-Z0-9]+(?:\s*—[^\]]+)?\]', '', text).strip()
+    # Xóa dòng chứa "TÀI LIỆU A/B/C" (LLM đôi khi sinh dòng [PHẦN..., TÀI LIỆU A])
+    text = re.sub(r'^[^\n]*TÀI LIỆU\s+[A-Z][^\n]*$', '', text, flags=re.MULTILINE).strip()
     text = re.sub(r'\[[A-Z]\]', '', text).strip()
     text = re.sub(r'\[[^\]]*\.(txt|pdf|docx?|xlsx?)\]', '', text, flags=re.IGNORECASE).strip()
     text = re.sub(r'\bTài liệu\s+[A-Z]\s*[—–-]\s*', '', text).strip()
@@ -607,7 +609,7 @@ def query_rag_stream(query: str, db: Session, allowed_doc_ids: list = None,
             "TUYỆT ĐỐI KHÔNG liệt kê mục con, KHÔNG thêm nội dung, mô tả, ví dụ bên dưới bất kỳ mục nào. "
             "Mỗi dòng chỉ là TÊN đề mục lớn, không có gì thêm."
             if is_heading_top_only(query) else
-            "\n7. TUYỆT ĐỐI KHÔNG thêm nội dung, mô tả hay ví dụ bên dưới bất kỳ đề mục nào. Chỉ tên đề mục."
+            "\n7. TUYỆT ĐỐI KHÔNG thêm nội dung, mô tả, ví dụ, hay bullet point bên dưới bất kỳ đề mục nào. Mỗi dòng output CHỈ là TÊN đề mục (có thể kèm số thứ tự), không có gì thêm. Nếu dưới một đề mục có nội dung liệt kê a) b) c) hay dấu gạch đầu dòng → bỏ qua hoàn toàn, KHÔNG ghi chúng vào output."
         )
         qa_prompt = HEADING_PROMPT.format(context=merged_context, question=query, depth_instruction=depth_instruction)
     elif is_comparison:
