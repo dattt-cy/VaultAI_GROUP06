@@ -71,7 +71,9 @@ def fix_bullet_indentation(text: str) -> str:
         elif under_bold and is_root_bullet:
             result.append('  ' + line)
         else:
-            if line.strip() == '' or not is_root_bullet:
+            # Chỉ reset under_bold khi gặp dòng trắng hoặc nội dung không phải bullet
+            # Dòng đã indent sẵn (  - ...) vẫn giữ under_bold = True
+            if line.strip() == '' or not re.match(r'^\s*[-*] ', line):
                 under_bold = False
             result.append(line)
 
